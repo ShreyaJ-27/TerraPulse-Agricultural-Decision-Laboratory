@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.routers.advisory import router as advisory_router
 from app.routers.branches import router as branches_router
 from app.routers.comparisons import router as comparisons_router
 from app.routers.crops import router as crops_router
@@ -48,6 +49,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 app.include_router(health_router)
 app.include_router(crops_router)
+app.include_router(advisory_router)
 app.include_router(farms_router)
 app.include_router(environment_router)
 app.include_router(simulations_router)
