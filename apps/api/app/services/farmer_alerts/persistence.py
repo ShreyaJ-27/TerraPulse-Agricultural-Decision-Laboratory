@@ -191,7 +191,7 @@ def quiet_now(sub: TelegramSubscription, now: datetime) -> bool:
     return start <= local_hour < end if start < end else local_hour >= start or local_hour < end
 
 
-async def claim_deliveries(session: AsyncSession, *, limit: int = 30):
+async def claim_deliveries(session: AsyncSession, *, limit: int = 30, ignore_quiet: bool = False):
     """Lease outbox jobs; a crash after send but before ack may cause a resend.
 
     Application dedup is enforced, but Telegram has no general sendMessage
@@ -223,7 +223,7 @@ async def claim_deliveries(session: AsyncSession, *, limit: int = 30):
         if (event.category in ("weather", "science") and age_days > 0) or (event.category == "calendar" and age_days > 1):
             delivery.status = "expired"
             continue
-        if quiet_now(sub, clock):
+        if not ignore_quiet and quiet_now(sub, clock):
             delivery.next_attempt_at = clock + timedelta(minutes=30)
             continue
         delivery.status = "sending"

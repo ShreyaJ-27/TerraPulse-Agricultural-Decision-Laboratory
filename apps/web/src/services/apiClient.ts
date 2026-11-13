@@ -49,6 +49,24 @@ export const apiClient = {
     api<CropInteraction>("/api/v1/crops/interact", { method: "POST", body: JSON.stringify(payload) }),
   analyzeFarm: (payload: AnalysisRequest) =>
     api<AnalysisResult>("/api/v1/analysis", { method: "POST", body: JSON.stringify(payload) }),
+  listNotifications: (farmId: string) =>
+    api<{ farmId: string; notifications: any[]; total: number }>(`/api/v1/notifications/farms/${farmId}`),
+  triggerTestNotification: (farmId: string, payload: any) =>
+    api<any>(`/api/v1/notifications/farms/${farmId}/test`, { method: "POST", body: JSON.stringify(payload) }),
+  getTelegramStatus: (farmId: string) =>
+    api<{ farmId: string; connected: boolean; botUsername: string; subscriptionCount: number; subscriptions: any[] }>(`/api/v1/notifications/telegram/status/${farmId}`),
+  createTelegramLink: (farmId: string) =>
+    api<{ farmId: string; token: string; connectUrl: string; botUsername: string; expiresInMinutes: number }>(`/api/v1/notifications/telegram/link/${farmId}`, { method: "POST" }),
+  getDeliveries: (farmId: string) =>
+    api<{ farmId: string; deliveries: any[]; total: number }>(`/api/v1/notifications/deliveries/${farmId}`),
+  getAgriCalendarSeasons: () =>
+    api<{ seasons: any[]; total: number }>("/api/v1/agri-calendar/seasons"),
+  getAgriCalendarRegional: (regionId: string) =>
+    api<{ regionId: string; profiles: any[]; total: number }>(`/api/v1/agri-calendar/regional/${regionId}`),
+  getAgriCalendarForFarm: (farmId: string) =>
+    api<{ farmId: string; asOfDate: string; plots: any[]; total: number; seasons: any[] }>(`/api/v1/agri-calendar/farms/${farmId}`),
+  generateCustomCalendar: (payload: any) =>
+    api<any>("/api/v1/agri-calendar/generate", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export type CropInteraction = {

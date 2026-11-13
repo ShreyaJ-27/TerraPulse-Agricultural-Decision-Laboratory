@@ -72,6 +72,7 @@ class TestAdvisory(unittest.TestCase):
         self.assertEqual(unsupported["status"], "unsupported")
         self.assertEqual(unsupported["signals"], [])
 
+    @unittest.skipUnless((FIX / 'planting_11_01_crop_growth.csv').exists(), "AquaCrop fixture CSVs unavailable")
     def test_aquacrop_demand_available_without_fao_stress(self):
         run = parse_aquacrop_fixture(FIX, label="planting_11_01", start_date="1979-10-01",
                                      plot_id="plot", branch_id="branch",

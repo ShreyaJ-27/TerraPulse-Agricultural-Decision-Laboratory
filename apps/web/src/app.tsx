@@ -8,6 +8,8 @@ import { ExampleField } from "./components/living-field/fieldState";
 import { FutureFold, Observatory, Timeline } from "./components/scenario";
 import { ResourcePanel } from "./components/resources";
 import { FarmerInteraction } from "./components/interaction";
+import { LandingPage } from "./components/LandingPage";
+import { AgriculturalDashboard } from "./components/AgriculturalDashboard";
 
 const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
 function useNavigation() {
@@ -86,8 +88,22 @@ class Boundary extends Component<{ children: ReactNode; copy: typeof translation
 
 export function App() {
   const { path, navigate } = useNavigation(); const [locale, setLocale] = useState(getInitialLocale); const copy = translations[locale];
+
+  // 1. Cinematic 3D Landing Page
+  if (path === "/" || path === "/landing") {
+    return <LandingPage navigate={navigate} />;
+  }
+
+  // 2. Agricultural Decision Laboratory Dashboard & Demo Farm
+  if (path === "/dashboard" || path.startsWith("/dashboard") || path === "/demo") {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get("tab") || "overview";
+    const farmIdParam = urlParams.get("farmId") || "00000000-0000-0000-0000-000000000001";
+    return <AgriculturalDashboard navigate={navigate} initialTab={tabParam} farmId={farmIdParam} />;
+  }
+
   const route: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
-  if (isFarmerPath(path)) return <AppErrorBoundary copy={copy}><FarmerApp path={path} navigate={navigate} /></AppErrorBoundary>;
+  if (isFarmerPath(path) && path !== "/") return <AppErrorBoundary copy={copy}><FarmerApp path={path} navigate={navigate} /></AppErrorBoundary>;
   let content: ReactNode;
   const parts = path.split("/").filter(Boolean);
   if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
