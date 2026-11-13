@@ -90,17 +90,27 @@ export function FarmerInteraction({
     const SpeechConstructor = win.SpeechRecognition || win.webkitSpeechRecognition;
     setSttSupported(Boolean(SpeechConstructor));
 
+    const handleVoicesChanged = () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.getVoices();
+      }
+    };
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged);
+    }
+
     return () => {
-      // Cleanup recognition and speech on unmount
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoicesChanged);
+        window.speechSynthesis.cancel();
+      }
+      // Cleanup recognition on unmount
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
         } catch {
           // ignore
         }
-      }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -228,12 +238,17 @@ export function FarmerInteraction({
 
     // Check if a voice matching the target language is available
     const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find((v) => v.lang.startsWith(targetLang) || v.lang.startsWith(locale));
+    const matchingVoice = voices.find((v) => {
+      const vLang = v.lang.toLowerCase().replace("_", "-");
+      return vLang.startsWith(targetLang.toLowerCase()) || vLang.startsWith(locale.toLowerCase());
+    });
+
     if (matchingVoice) {
       utterance.voice = matchingVoice;
-    } else if (locale !== "en" && voices.length > 0) {
-      // Gracefully warn that a native voice might not be installed on this OS
+    } else if (locale !== "en") {
+      // Gracefully notify that an OS/browser language voice pack is required
       setTtsNotice(copy.ttsUnavailable);
+      return;
     }
 
     utterance.onstart = () => setIsSpeaking(true);

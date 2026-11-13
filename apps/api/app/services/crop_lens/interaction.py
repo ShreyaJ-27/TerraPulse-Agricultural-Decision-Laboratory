@@ -16,9 +16,61 @@ LocaleType = Literal["en", "kn", "hi"]
 
 # Keyword trigger patterns for local languages
 PATHOLOGY_KEYWORDS = {
-    "en": ["disease", "pest", "fungus", "fungal", "blight", "rot", "spots", "brown spots", "insect", "insects", "leaf spot", "cure", "spray", "pesticide", "infection"],
-    "kn": ["ರೋಗ", "ಕೀಟ", "ಶಿಲೀಂಧ್ರ", "ಕೊಳೆತ", "ಮಚ್ಚೆ", "ಬಾಧೆ", "ಔಷಧ", "ಚಿಕಿತ್ಸೆ", "ಹುಳು", "ಚುಕ್ಕೆ"],
-    "hi": ["रोग", "कीट", "फफूंद", "कीड़ा", "कीड़े", "धब्बा", "धब्बे", "सड़न", "इलाज", "दवा", "छिड़काव"],
+    "en": [
+        "disease",
+        "pest",
+        "fungus",
+        "fungal",
+        "blight",
+        "rot",
+        "spots",
+        "brown spots",
+        "insect",
+        "insects",
+        "leaf spot",
+        "cure",
+        "spray",
+        "pesticide",
+        "infection",
+        "yellowing",
+        "yellow leaves",
+        "yellow leaf",
+        "chlorosis",
+    ],
+    "kn": [
+        "ರೋಗ",
+        "ಕೀಟ",
+        "ಶಿಲೀಂಧ್ರ",
+        "ಕೊಳೆತ",
+        "ಮಚ್ಚೆ",
+        "ಬಾಧೆ",
+        "ಔಷಧ",
+        "ಚಿಕಿತ್ಸೆ",
+        "ಹುಳು",
+        "ಚುಕ್ಕೆ",
+        "ಹಳದಿ ಎಲೆ",
+        "ಹಳದಿ ರೋಗ",
+        "ಎಲೆ ಹಳದಿ",
+        "ಹಳದಿಯಾಗುತ್ತಿದೆ",
+        "ಹಳದಿ ಆಗಿವೆ",
+    ],
+    "hi": [
+        "रोग",
+        "कीट",
+        "फफूंद",
+        "कीड़ा",
+        "कीड़े",
+        "धब्बा",
+        "धब्बे",
+        "सड़न",
+        "इलाज",
+        "दवा",
+        "छिड़काव",
+        "पीलापन",
+        "पीली पत्ती",
+        "पीला पत्ता",
+        "पत्तियां पीली",
+    ],
 }
 
 PRICING_KEYWORDS = {
@@ -72,7 +124,7 @@ class BoundedInteractionService:
                 if kw_norm in normalized:
                     return True
             else:
-                if kw_norm in tokens or any(kw_norm in tok for tok in tokens if len(kw_norm) >= 3):
+                if kw_norm in tokens or any(tok.startswith(kw_norm) for tok in tokens if len(kw_norm) >= 3):
                     return True
         return False
 
@@ -560,6 +612,39 @@ class BoundedInteractionService:
     def _handle_ambiguous_crop(
         self, resolution: ResolutionResult, language: LocaleType
     ) -> InteractionResult:
+        query_norm = _normalize(resolution.query)
+        if "ಹಳದಿ" in query_norm.split():
+            if language == "kn":
+                resp = (
+                    "ಕನ್ನಡದಲ್ಲಿ 'ಹಳದಿ' ಎಂದರೆ ಬಣ್ಣ. ನೀವು ಅರಿಶಿನ ಬೆಳೆಯನ್ನು (Turmeric) ಉದ್ದೇಶಿಸಿದ್ದರೆ 'ಅರಿಶಿನ' ಎಂದು ದೃಢೀಕರಿಸಿ, "
+                    "ಅಥವಾ ಎಲೆಗಳು ಹಳದಿಯಾಗುವ ರೋಗ ಲಕ್ಷಣದ ಕುರಿತಾಗಿದ್ದರೆ ದಯವಿಟ್ಟು ವಿಸ್ತರಿಸಿ."
+                )
+                speech = "ಕನ್ನಡದಲ್ಲಿ ಹಳದಿ ಎಂದರೆ ಬಣ್ಣ. ಅರಿಶಿನ ಬೆಳೆಯಾದರೆ ಅರಿಶಿನ ಎಂದು ದೃಢೀಕರಿಸಿ."
+            elif language == "hi":
+                resp = (
+                    "कन्नड़ में 'ಹಳದಿ' का अर्थ पीला रंग होता है। यदि आपका आशय हल्दी (Turmeric) फसल से है तो 'हल्दी' का चयन करें, "
+                    "अथवा यदि यह पत्तियों के पीलेपन का लक्षण है तो स्पष्ट करें।"
+                )
+                speech = "यदि आपका आशय हल्दी फसल से है तो कृपया पुष्टि करें।"
+            else:
+                resp = (
+                    "In Kannada, 'ಹಳದಿ' denotes the color yellow. If you intended the crop Turmeric, please confirm "
+                    "'Turmeric' / 'ಅರಿಶಿನ', or specify if referring to yellow leaf symptoms."
+                )
+                speech = "ಹಳದಿ means yellow in Kannada. Please confirm if you intended Turmeric."
+
+            return InteractionResult(
+                intent="crop_resolution",
+                language=language,
+                resolution_status=ResolutionStatus.AMBIGUOUS,
+                resolved_crop=None,
+                candidates=resolution.candidates,
+                response_text=resp,
+                speech_text=speech,
+                limitations=["'ಹಳದಿ' is ambiguous between the color yellow and colloquial turmeric reference."],
+                sources=["TerraPulse Indic Crop Disambiguation"],
+            )
+
         candidate_names = [f"{c.canonical_name} ({c.scientific_name})" for c in resolution.candidates]
         candidates_str = ", ".join(candidate_names) if candidate_names else "multiple candidates"
 

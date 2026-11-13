@@ -81,10 +81,14 @@ Issue #22 implements end-to-end local-language text and voice interaction for sm
 
 1. **Combining Character (Matra & Virama) Preservation:**
    - Standard regex `\w` treats Unicode combining marks (`Mn` and `Mc`) as non-word characters. `_normalize` was updated to use Unicode NFC normalization and preserve categories `L*` (letters), `M*` (matras / viramas like `ಿ`, `ी`, `े`, `ू`, `ಾ`, `्`), `N*` (numbers), and whitespace.
-2. **Safe Word Boundaries:**
+2. **Safe Word Boundaries & Prefix-Only Matching:**
    - Standard regex `\b` fails on Indic words ending in combining vowel signs. Tokenization (`text.split()`) and whitespace boundaries were implemented.
-3. **Ambiguity Protection:**
+   - Partial matching was updated to strict token-prefix matching, preventing false substring positives (e.g., query `"heat"` previously matched substring in `"wheat"`, and `"ton"` matched in `"cotton"`).
+3. **Ambiguity Protection & Vernacular Disambiguation:**
    - Queries referencing crop groups (e.g., `"millet"`, `"millets"`, `"ಸಿರಿಧಾನ್ಯ"`, `"ತೃಣಧಾನ್ಯ"`, `"मिलेट"`, `"मोटा अनाज"`, `"gram"`, `"pulse"`, `"ಕಾಳು"`, `"ದಾಲ್"`, `"दाल"`) return `ResolutionStatus.AMBIGUOUS` with interactive candidate chips.
+   - **Review of Kannada `ಹಳದಿ`**: In Kannada, "ಹಳದಿ" primarily denotes the color yellow. To prevent false turmeric matches when farmers report symptoms like yellow leaves, `ಹಳದಿ` is excluded as a direct alias for Turmeric. When entered as a single query, it returns `ResolutionStatus.AMBIGUOUS`, asking the farmer to confirm whether they meant Turmeric (`ಅರಿಶಿನ`) or yellow leaf symptoms. Queries with `"ಹಳದಿ ಎಲೆ"` (yellow leaf) or `"ಹಳದಿ ರೋಗ"` directly escalate to plant pathology.
+4. **Token-Prefix Keyword Matching for Guardrails:**
+   - Pathology and pricing keyword detection was updated from arbitrary substring matching to token-prefix matching, preventing false escalations for words like `"carrot"` (which previously triggered pathology due to `"rot"`).
 
 ---
 

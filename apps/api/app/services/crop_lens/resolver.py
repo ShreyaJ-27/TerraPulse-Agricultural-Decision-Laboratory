@@ -30,6 +30,8 @@ AMBIGUOUS_CATEGORIES: dict[str, list[str]] = {
     "ಬೇಳೆ": ["Chickpea (Bengal Gram)", "Black Gram (Urad)"],
     "दाल": ["Chickpea (Bengal Gram)", "Black Gram (Urad)"],
     "दलहन": ["Chickpea (Bengal Gram)", "Black Gram (Urad)"],
+    # Vernacular ambiguous terms (Kannada "ಹಳದಿ" means yellow, but can colloquially refer to turmeric)
+    "ಹಳದಿ": ["Turmeric"],
 }
 
 
@@ -72,7 +74,7 @@ def _normalize(text: str) -> str:
 
 
 def _matches_partial(query_norm: str, text_norm: str) -> bool:
-    """Safe Indic-aware prefix and token match."""
+    """Safe Indic-aware prefix and token match without false substring hits (e.g. 'heat' in 'wheat')."""
     q_words = query_norm.split()
     t_words = text_norm.split()
     if not q_words or not t_words:
@@ -81,8 +83,8 @@ def _matches_partial(query_norm: str, text_norm: str) -> bool:
         qw = q_words[0]
         if len(qw) < 3:
             return qw in t_words
-        return any(tw.startswith(qw) for tw in t_words) or (qw in text_norm)
-    return all(any(tw.startswith(qw) or qw in tw for tw in t_words) for qw in q_words)
+        return any(tw.startswith(qw) for tw in t_words)
+    return all(any(tw.startswith(qw) for tw in t_words) for qw in q_words)
 
 
 class CropLensResolver:

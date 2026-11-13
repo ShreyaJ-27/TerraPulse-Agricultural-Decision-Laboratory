@@ -251,3 +251,68 @@ def test_interaction_ambiguous_crop_prompts_clarification(interaction_service: B
     assert res.resolution_status == ResolutionStatus.AMBIGUOUS
     assert len(res.candidates) >= 3
     assert "ambiguous" in res.response_text.lower()
+
+
+def test_resolver_prevents_false_substring_matches(resolver: CropLensResolver):
+    """Ensure partial matching does not produce false crop identities like 'heat' -> 'Wheat' or 'ton' -> 'Cotton'."""
+    res_heat = resolver.resolve("heat")
+    assert res_heat.status == ResolutionStatus.NOT_FOUND
+    assert res_heat.crop is None
+
+    res_ton = resolver.resolve("ton")
+    assert res_ton.status == ResolutionStatus.NOT_FOUND
+    assert res_ton.crop is None
+
+    res_wheat = resolver.resolve("wheat")
+    assert res_wheat.status == ResolutionStatus.EXACT_MATCH
+    assert res_wheat.crop is not None
+    assert res_wheat.crop.canonical_name == "Wheat"
+
+    res_cotton = resolver.resolve("cotton")
+    assert res_cotton.status == ResolutionStatus.EXACT_MATCH
+    assert res_cotton.crop is not None
+    assert res_cotton.crop.canonical_name == "Upland Cotton"
+
+
+def test_kannada_haladi_ambiguity_and_pathology(
+    resolver: CropLensResolver, interaction_service: BoundedInteractionService
+):
+    """Review Kannada 'ಹಳದಿ': ensure it requires disambiguation when queried as crop, and routes yellow leaves to pathology."""
+    # 1. Bare 'ಹಳದಿ' as crop name must be ambiguous
+    res_crop = resolver.resolve("ಹಳದಿ")
+    assert res_crop.status == ResolutionStatus.AMBIGUOUS
+    assert any(c.canonical_name == "Turmeric" for c in res_crop.candidates)
+
+    # 2. Bare 'ಹಳದಿ' in interaction prompts explicit clarification
+    res_interact = interaction_service.interact("ಹಳದಿ", "kn")
+    assert res_interact.intent == "crop_resolution"
+    assert res_interact.resolution_status == ResolutionStatus.AMBIGUOUS
+    assert "ಅರಿಶಿನ" in res_interact.response_text
+
+    # 3. 'ಹಳದಿ ಎಲೆ' (yellow leaf symptom) must escalate to pathology
+    res_path = interaction_service.interact("ನನ್ನ ಬೆಳೆಯಲ್ಲಿ ಹಳದಿ ಎಲೆ ಕಾಣಿಸಿದೆ", "kn")
+    assert res_path.intent == "escalation_plant_pathology"
+    assert res_path.escalation_required is True
+
+
+def test_pathology_keyword_prefix_no_false_escalation(interaction_service: BoundedInteractionService):
+    """Ensure substring 'rot' inside innocent words like 'carrot' does not falsely escalate to plant pathology."""
+    res_carrot = interaction_service.interact("can I grow carrot", "en")
+    assert res_carrot.intent != "escalation_plant_pathology"
+
+    res_rot = interaction_service.interact("the roots are rotting with fungus", "en")
+    assert res_rot.intent == "escalation_plant_pathology"
+    assert res_rot.escalation_required is True
+
+
+def test_cotton_kannada_aliases(resolver: CropLensResolver):
+    """Verify clean Kannada aliases for Upland Cotton without script mixing."""
+    res_kapas = resolver.resolve("ಕಪಾಸ್")
+    assert res_kapas.status == ResolutionStatus.EXACT_MATCH
+    assert res_kapas.crop is not None
+    assert res_kapas.crop.canonical_name == "Upland Cotton"
+
+    res_kapasu = resolver.resolve("ಕಪಾಸು")
+    assert res_kapasu.status == ResolutionStatus.EXACT_MATCH
+    assert res_kapasu.crop is not None
+    assert res_kapasu.crop.canonical_name == "Upland Cotton"
