@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import require_farm_access, workspace_digest
 from app.core.db import get_session
 from app.schemas import ApiError, ApiErrorDetail, ApiResponse
 from app.services.analysis import (
@@ -43,8 +44,10 @@ async def run_analysis(
     request: Request,
     payload: AnalysisRequest,
     service: ServiceDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ApiResponse:
     """Execute evidence-grounded AI analysis for a specified farm and plot."""
+    await require_farm_access(session, payload.farm_id, workspace_digest(request))
     try:
         result: AnalysisResponseData = await service.analyze(payload)
         return ApiResponse(

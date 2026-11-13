@@ -5,6 +5,8 @@ import asyncio
 import json
 import os
 
+from app.core.event_loop import new_event_loop
+
 from .telegram import TelegramClient
 from .worker import forever, run_cycle
 
@@ -18,11 +20,14 @@ def main() -> None:
     from app.core.db import SessionFactory
     from .profile_loader import load_profiles_file
     profiles = load_profiles_file(os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE"))
-    telegram = TelegramClient()
-    if args.once:
-        print(json.dumps(asyncio.run(run_cycle(SessionFactory, telegram, live=args.live, profiles=profiles))))
-    else:
-        asyncio.run(forever(SessionFactory, telegram, live=args.live, interval_seconds=args.interval, profiles=profiles))
+    if args.live and os.environ.get("TERRAPULSE_TELEGRAM_ENABLED") != "1":
+        parser.error("Set TERRAPULSE_TELEGRAM_ENABLED=1 after verifying the bot and recipient consent.")
+    telegram = TelegramClient() if args.live else None
+    with asyncio.Runner(loop_factory=new_event_loop) as runner:
+        if args.once:
+            print(json.dumps(runner.run(run_cycle(SessionFactory, telegram, live=args.live, profiles=profiles))))
+        else:
+            runner.run(forever(SessionFactory, telegram, live=args.live, interval_seconds=args.interval, profiles=profiles))
 
 
 if __name__ == "__main__":

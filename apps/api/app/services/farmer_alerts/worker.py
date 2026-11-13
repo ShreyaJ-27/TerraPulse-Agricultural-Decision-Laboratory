@@ -82,13 +82,10 @@ async def evaluate_registered_farms(session: AsyncSession, *, now: datetime,
             meta = plot.management or {}
             crop = await session.get(CropIdentity, plot.crop_id) if plot.crop_id else None
             crop_name = crop.canonical_name if crop else "your crop"
-            certainty = meta.get("plantingDateCertainty", "recorded") if plot.planting_date else "unconfirmed"
-            if certainty not in ("recorded", "confirmed", "estimated", "unconfirmed") or (plot.planting_date and certainty == "unconfirmed"):
-                certainty = "recorded"
             region_id = meta.get("regionId")
-            profile = regional_profiles.get((region_id, plot.crop_id)) if region_id and plot.crop_id else None
+            profile = regional_profiles.get((region_id, plot.crop_id)) if isinstance(region_id, str) and plot.crop_id else None
             events += evaluate_calendar(farm_id=farm.id, plot_id=plot.id, crop_name=crop_name,
-                planting=PlantingDate(plot.planting_date, certainty), on_date=local_today,
+                planting=PlantingDate.from_plot(plot.planting_date, meta), on_date=local_today,
                 profile=profile, crop_id=plot.crop_id, region_id=region_id)
             # Use already stored weather evidence, not a second provider request.
             snapshot = await session.scalar(select(EnvironmentalSnapshot).where(
@@ -117,7 +114,7 @@ async def evaluate_registered_farms(session: AsyncSession, *, now: datetime,
     return await enqueue_events(session, events)
 
 
-async def deliver_queued(session_factory: Callable, telegram: TelegramClient,
+async def deliver_queued(session_factory: Callable, telegram: TelegramClient | None,
                          *, dry_run: bool = True, limit: int = 30) -> dict[str, int]:
     """Outbox with retries, duplicate suppression and quiet hours.
 
@@ -125,6 +122,8 @@ async def deliver_queued(session_factory: Callable, telegram: TelegramClient,
     """
     if dry_run:
         return {"claimed": 0, "sent": 0, "failed": 0, "dryRun": 1}
+    if telegram is None:
+        raise ValueError("Live delivery requires a Telegram client")
     async with session_factory() as session:
         batch = await claim_deliveries(session, limit=limit)
     outcomes = {"claimed": len(batch), "sent": 0, "failed": 0, "dryRun": 0}
@@ -139,9 +138,9 @@ async def deliver_queued(session_factory: Callable, telegram: TelegramClient,
     return outcomes
 
 
-async def run_cycle(session_factory: Callable, telegram: TelegramClient,
+async def run_cycle(session_factory: Callable, telegram: TelegramClient | None,
                     *, live: bool, profiles: Mapping | None = None) -> dict:
-    count = await process_updates(session_factory, telegram)
+    count = await process_updates(session_factory, telegram) if live and telegram is not None else 0
     async with session_factory() as session:
         alerts, deliveries = await evaluate_registered_farms(session,
             now=datetime.now(timezone.utc), regional_profiles=profiles)
@@ -150,7 +149,7 @@ async def run_cycle(session_factory: Callable, telegram: TelegramClient,
             "newDeliveries": deliveries, "delivery": results}
 
 
-async def forever(session_factory: Callable, telegram: TelegramClient,
+async def forever(session_factory: Callable, telegram: TelegramClient | None,
                   *, live: bool, interval_seconds: int = 600, profiles: Mapping | None = None) -> None:
     """Respond promptly to first Telegram Start; evaluate agricultural data less often.
 
@@ -163,7 +162,7 @@ async def forever(session_factory: Callable, telegram: TelegramClient,
     last_evaluation = -float("inf")
     while True:
         try:
-            processed = await process_updates(session_factory, telegram)
+            processed = await process_updates(session_factory, telegram) if live and telegram is not None else 0
             now = loop.time()
             if processed or now - last_evaluation >= interval_seconds:
                 async with session_factory() as session:
@@ -176,6 +175,8 @@ async def forever(session_factory: Callable, telegram: TelegramClient,
                 outcome = await deliver_queued(session_factory, telegram, dry_run=False)
                 if outcome["claimed"]:
                     print("TerraPulse delivery counts:", outcome, flush=True)
+            if not live:
+                await asyncio.sleep(interval_seconds)
         except Exception as exc:
             print("TerraPulse alert worker error:", type(exc).__name__, flush=True)
             await asyncio.sleep(5)

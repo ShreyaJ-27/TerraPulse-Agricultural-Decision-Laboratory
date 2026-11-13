@@ -30,6 +30,7 @@ class Farm(Timestamped, Base):
     boundary: Mapped[object | None] = mapped_column(
         Geometry("MULTIPOLYGON", srid=4326, spatial_index=False)
     )
+    workspace_key_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     plots: Mapped[list[Plot]] = relationship(back_populates="farm", cascade="all, delete-orphan")
 
 

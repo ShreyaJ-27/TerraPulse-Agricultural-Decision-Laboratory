@@ -1,6 +1,7 @@
 """Persist environmental snapshots and simulation execution metadata."""
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
 from alembic import op
 
 revision = "0002_scientific_integration"
@@ -18,8 +19,8 @@ def upgrade() -> None:
         index["name"] for index in inspector.get_indexes("environmental_snapshots")
     }:
         op.create_index("ix_environmental_snapshots_plot_id", "environmental_snapshots", ["plot_id"])
-    if "fk_environmental_snapshots_plot_id" not in {
-        fk["name"] for fk in inspector.get_foreign_keys("environmental_snapshots")
+    if ("plot_id",) not in {
+        tuple(fk["constrained_columns"]) for fk in inspector.get_foreign_keys("environmental_snapshots")
     }:
         op.create_foreign_key(
             "fk_environmental_snapshots_plot_id",
@@ -36,11 +37,11 @@ def upgrade() -> None:
         ("requested_at", sa.DateTime(timezone=True), True),
         ("started_at", sa.DateTime(timezone=True), True),
         ("completed_at", sa.DateTime(timezone=True), True),
-        ("warnings", sa.JSON(), False),
+        ("warnings", JSONB(), False),
         ("error_code", sa.String(100), True),
         ("error_message", sa.String(1000), True),
-        ("science_envelope", sa.JSON(), True),
-        ("input_provenance", sa.JSON(), True),
+        ("science_envelope", JSONB(), True),
+        ("input_provenance", JSONB(), True),
     ]
     run_columns = {item["name"] for item in inspector.get_columns("simulation_runs")}
     for name, type_, nullable in columns:
@@ -62,8 +63,8 @@ def upgrade() -> None:
             "simulation_runs",
             ["environmental_snapshot_id"],
         )
-    if "fk_simulation_runs_environmental_snapshot_id" not in {
-        fk["name"] for fk in inspector.get_foreign_keys("simulation_runs")
+    if ("environmental_snapshot_id",) not in {
+        tuple(fk["constrained_columns"]) for fk in inspector.get_foreign_keys("simulation_runs")
     }:
         op.create_foreign_key(
             "fk_simulation_runs_environmental_snapshot_id",

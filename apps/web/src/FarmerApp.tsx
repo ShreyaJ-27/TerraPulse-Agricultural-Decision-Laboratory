@@ -324,6 +324,6 @@ export function FarmerApp({ path, navigate }: { path: string; navigate: Navigate
       <nav aria-label="Farmer navigation">{navigation.map((item) => <Link key={item.path} className="fp-nav" current={item.path === "/" ? path === "/" : path === item.path || path.startsWith(item.path + "/")} to={item.path} navigate={navigate}><span aria-hidden="true">{item.icon}</span>{item.name}{item.path === "/inbox" && (plan.profile || plan.draft).preferences.inApp && unread > 0 && <small aria-label={unread + " unread"}>{unread}</small>}</Link>)}</nav>
       <div className="fp-sidebar-foot"><span className="fp-avatar" aria-hidden="true">{plan.profile?.name.slice(0, 1).toUpperCase() || "T"}</span><div><strong>{plan.profile?.name || "Example workspace"}</strong><small>Browser workspace</small></div></div>
     </aside>
-    <main className="fp-main">{!storageAvailable && <p className="fp-error" role="status">Browser storage is unavailable. Changes will last until this page closes.</p>}{content}</main>
+    <main className="fp-main"><p className="fp-muted">Browser-local workspace <a href="/farms">Open Farm Workspace</a></p>{!storageAvailable && <p className="fp-error" role="status">Browser storage is unavailable. Changes will last until this page closes.</p>}{content}</main>
   </div>;
 }

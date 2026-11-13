@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import get_settings
 from app.routers.analysis import router as analysis_router
 from app.routers.agri_calendar import router as agri_calendar_router
 from app.routers.branches import router as branches_router
@@ -37,11 +38,7 @@ async def correlation_id(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
+    allow_origins=get_settings().cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -65,7 +62,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 @app.exception_handler(Exception)
 async def unhandled_error(request: Request, exc: Exception):
-    logger.exception("Unhandled API request failure", exc_info=exc)
+    logger.error("API request failed (%s), correlation ID %s", type(exc).__name__, request.state.correlation_id)
     body = ApiError(
         error=ApiErrorDetail(
             code="API_REQUEST_FAILED",

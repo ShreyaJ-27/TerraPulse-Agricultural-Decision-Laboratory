@@ -9,13 +9,13 @@ export function TelegramConnect({ url }: { url?: string | null }) {
   }
   return (
     <section aria-label="Receive farm updates on Telegram">
-      <p><strong>Get farm reminders automatically</strong></p>
-      <p>Connect Telegram once. TerraPulse will send helpful crop and weather updates when relevant.</p>
+      <p><strong>Connect farm reminders</strong></p>
+      <p>Connect Telegram once. Press Start in Telegram to opt in to eligible crop and weather updates.</p>
       <a href={url} target="_blank" rel="noopener noreferrer">
         Connect Telegram
       </a>
       <p style={{ fontSize: "0.875em", opacity: 0.75 }}>
-        Telegram asks you to press Start once to connect. You can stop alerts anytime.
+        Use /stop in Telegram to turn off alerts.
       </p>
     </section>
   );
