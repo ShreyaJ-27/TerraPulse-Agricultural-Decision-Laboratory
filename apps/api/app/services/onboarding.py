@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 from app.contracts import Availability, Coordinates, DataStatus, Measurement
-from app.models import Farm, FarmResource, Plot, ResourcePlotAuthorization
+from app.models import CropIdentity, Farm, FarmResource, Plot, ResourcePlotAuthorization
 from app.schemas import FarmCreateRequest, FarmResponse, PlotCreateRequest, PlotResponse
 from app.services.crop_lens.registry import CROP_REGISTRY, get_crop_by_id
 from app.services.crop_lens.resolver import CandidateMatch, CropLensResolver, ResolutionStatus
@@ -155,7 +155,9 @@ class OnboardingService:
 
     async def list_farms(self) -> list[FarmResponse]:
         if self.session is not None:
-            stmt = select(Farm).options(selectinload(Farm.plots))
+            stmt = select(Farm).options(
+                selectinload(Farm.plots).selectinload(Plot.resource_assignments)
+            )
             result = await self.session.execute(stmt)
             return [_farm_to_response(f) for f in result.scalars().all()]
 
@@ -167,6 +169,7 @@ class OnboardingService:
             raise KeyError(f"Farm with ID {farm_id} not found.")
 
         # Resolve crop identity using Issue #5 CropLens
+        resolved_aliases: list[str] = []
         if request.crop_id is not None:
             crop = get_crop_by_id(request.crop_id)
             if crop is None:
@@ -174,12 +177,14 @@ class OnboardingService:
             resolved_crop_id = crop.crop_id
             resolved_canonical = crop.canonical_name
             resolved_scientific = crop.scientific_name
+            resolved_aliases = list(crop.aliases)
         elif request.crop_query:
             result = self.crop_resolver.resolve(request.crop_query)
             if result.status == ResolutionStatus.EXACT_MATCH and result.crop is not None:
                 resolved_crop_id = result.crop.crop_id
                 resolved_canonical = result.crop.canonical_name
                 resolved_scientific = result.crop.scientific_name
+                resolved_aliases = list(result.crop.aliases)
             elif result.status == ResolutionStatus.AMBIGUOUS:
                 raise AmbiguousCropError(
                     query=request.crop_query,
@@ -214,6 +219,17 @@ class OnboardingService:
         )
 
         if self.session is not None:
+            crop_identity = await self.session.get(CropIdentity, resolved_crop_id)
+            if crop_identity is None:
+                self.session.add(
+                    CropIdentity(
+                        id=resolved_crop_id,
+                        canonical_name=resolved_canonical,
+                        scientific_name=resolved_scientific,
+                        aliases=resolved_aliases,
+                    )
+                )
+                await self.session.flush()
             resources = await self.session.execute(
                 select(FarmResource).where(
                     FarmResource.farm_id == farm_id,
