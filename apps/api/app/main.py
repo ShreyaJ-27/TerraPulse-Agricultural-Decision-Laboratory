@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.routers.analysis import router as analysis_router
 from app.routers.branches import router as branches_router
 from app.routers.comparisons import router as comparisons_router
 from app.routers.crops import router as crops_router
@@ -82,3 +83,4 @@ app.include_router(branches_router)
 app.include_router(comparisons_router)
 app.include_router(observatory_router)
 app.include_router(resources_router)
+app.include_router(analysis_router)

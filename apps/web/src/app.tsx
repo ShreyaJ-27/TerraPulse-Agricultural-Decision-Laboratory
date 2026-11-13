@@ -5,6 +5,7 @@ import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulatio
 import { getInitialLocale, translations } from "./i18n";
 import { FutureFold, Observatory, Timeline } from "./components/scenario";
 import { ResourcePanel } from "./components/resources";
+import { FarmerInteraction } from "./components/interaction";
 
 const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
 function useNavigation() {
@@ -15,11 +16,11 @@ function useNavigation() {
 }
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Something went wrong. Please retry.";
 
-function FarmList({ navigate }: { navigate: (path: string) => void }) {
+function FarmList({ navigate, copy }: { navigate: (path: string) => void; copy: typeof translations.en }) {
   const [farms, setFarms] = useState<Farm[]>([]); const [error, setError] = useState("");
   useEffect(() => { apiClient.listFarms().then((value) => setFarms(value.farms)).catch((e) => setError(message(e))); }, []);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button></div>{farms.length === 0 ? <EmptyState title="No farms registered yet" description="Register a farm with a confirmed location to begin." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms registered yet" description="Register a farm with a confirmed location to begin." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
 }
 
 function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
@@ -86,7 +87,8 @@ export function App() {
   const route: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
   let content: ReactNode;
   const parts = path.split("/").filter(Boolean);
-  if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} />;
+  if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
+  else if (path === "/assisted" || path === "/interact") content = <FarmerInteraction copy={copy} locale={locale} />;
   else if (path === "/farms/new" || (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new")) content = <FarmWizard navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
@@ -96,6 +98,6 @@ export function App() {
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results") content = <Results farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
-  else content = <FarmList navigate={navigate} />;
+  else content = <FarmList navigate={navigate} copy={copy} />;
   return <AppErrorBoundary copy={copy}><AppShell route={route} copy={copy} locale={locale} onLocaleChange={(l) => { setLocale(l); window.localStorage.setItem("terrapulse-locale", l); }} onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)} title={route === "connect" ? "Connect" : route} subtitle="Persisted farm context and scientific evidence">{content}</AppShell></AppErrorBoundary>;
 }
