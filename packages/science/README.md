@@ -4,16 +4,57 @@ This standalone Python package contains the Developer A capability registry,
 FAO-56 root-zone model, pinned AquaCrop-OSPy 3.1.0 adapter, and scientific branch
 comparisons. It owns neither shared C1–C8 contracts nor application orchestration.
 
-## Reproduce locally
+## Reproducible verification
 
-Use Python 3.12 or newer for the offline package. The live example was verified
-with Python 3.12.14 and AquaCrop-OSPy 3.1.0. From `packages/science` in PowerShell:
+Use Python 3.12 or newer. From `packages/science` in PowerShell:
+
+### Local source-only verification
+
+This mode uses first-party synthetic FAO examples and runs all available source,
+contract, orchestration, crop-binding, and application-integration tests. If the
+licensed research evidence is absent, only the AquaCrop evidence-dependent tests
+are explicitly skipped; missing evidence is never replaced with synthetic
+AquaCrop data. The shipped-example regression test also generates its synthetic
+inputs if they are absent.
 
 ```powershell
 python examples/make_fixtures.py
-python scripts/restore_evidence.py 'C:\path\to\TerraPulse_Developer_A_Science_v0.2_corrected.zip'
+$env:TERRAPULSE_TEST_REPOSITORY_CONTRACTS = '1'
 python -m unittest discover -s tests -v
+```
+
+The skipped test names and restoration instructions appear in the unittest
+output. To run the application tests from the repository root:
+
+```powershell
+python -m pytest tests/
+```
+
+The three generated `fao_*.json` inputs use an explicit synthetic calendar and
+soil assumption; they are not real weather, field evidence, or forecasts.
+
+### Full evidence verification
+
+Obtain the corrected ZIP directly from the Developer A maintainer through the
+team's authorized channel. Its expected SHA-256 is
+`a8a01afb5f9193a710562019d2eb774871fb8a5d68b34366bd86eac4584346d1`.
+Restore and verify the release and each extracted file against
+[`EVIDENCE_SHA256.txt`](EVIDENCE_SHA256.txt), then run the same suite:
+
+```powershell
+python scripts/restore_evidence.py 'C:\path\to\TerraPulse_Developer_A_Science_v0.2_corrected.zip'
 python scripts/verify_recovered_evidence.py
+$env:TERRAPULSE_TEST_REPOSITORY_CONTRACTS = '1'
+python -m unittest discover -s tests -v
+```
+
+In this mode, the AquaCrop fixture, repository projection, and research archive
+integrity tests run against the restored hash-verified files rather than being
+skipped. A hash mismatch is a test or restoration failure, not a skip.
+
+For the standalone examples and optional live AquaCrop-OSPy check:
+
+```powershell
 $env:PYTHONPATH = 'src'
 python -m terrapulse_science.cli capabilities
 python -m terrapulse_science.cli fao56 examples/fao_baseline.json --out baseline.json
@@ -22,13 +63,6 @@ python -m terrapulse_science.cli compare baseline.json delayed.json --fork-date 
 # With the separately installed pinned AquaCrop dependency:
 python scripts/verify_live_aquacrop.py --out live-golden.json
 ```
-
-Obtain the corrected ZIP directly from the Developer A maintainer through the
-team's authorized channel. Its SHA-256 is
-`a8a01afb5f9193a710562019d2eb774871fb8a5d68b34366bd86eac4584346d1`.
-Restoration verifies the release and each evidence member against
-[`EVIDENCE_SHA256.txt`](EVIDENCE_SHA256.txt). The full suite requires these
-files. The examples generator produces first-party synthetic FAO inputs.
 
 ## Scientific and licensing boundaries
 

@@ -13,6 +13,13 @@ from app.services.analysis.models import (
     StalenessAssessment,
 )
 from app.services.analysis.staleness import safe_measurement_val
+from app.services.analysis.validator import (
+    c1_source_id as resolve_c1_source_id,
+)
+from app.services.analysis.validator import (
+    c3_source_id,
+    c5_source_id,
+)
 
 
 class DeterministicExplainer:
@@ -59,6 +66,19 @@ class DeterministicExplainer:
             claims.append(claim)
             return claim
 
+        def display(value: float | None, unavailable: str) -> str:
+            return unavailable if value is None else str(value)
+
+        def c1_source_id(kind: str) -> str:
+            return resolve_c1_source_id(bundle, kind)
+
+        def weather_qualifications(measurements) -> list[str]:
+            return (
+                ["incomplete_daily_coverage"]
+                if any(safe_measurement_val(item) is None for item in measurements)
+                else []
+            )
+
         # ------------------------------------------------------------------
         # Section 1: Context & Field Profile
         # ------------------------------------------------------------------
@@ -72,7 +92,7 @@ class DeterministicExplainer:
                 val=plot_area_val,
                 unit=plot_area_unit,
                 field_path="c2.plot.areaM2",
-                source_id="c2-farm-plot",
+                source_id=f"terrapulse-onboarding-c2-{bundle.farm.farm_id}",
                 category="observation",
             )
             section_claims_1.append(c_area)
@@ -82,7 +102,7 @@ class DeterministicExplainer:
             val=bundle.farm.location.latitude,
             unit="degrees",
             field_path="c2.farm.location.latitude",
-            source_id="c2-farm-coordinates",
+            source_id=f"terrapulse-onboarding-c2-{bundle.farm.farm_id}",
             category="observation",
         )
         c_lon = record_claim(
@@ -90,7 +110,7 @@ class DeterministicExplainer:
             val=bundle.farm.location.longitude,
             unit="degrees",
             field_path="c2.farm.location.longitude",
-            source_id="c2-farm-coordinates",
+            source_id=f"terrapulse-onboarding-c2-{bundle.farm.farm_id}",
             category="observation",
         )
         section_claims_1.extend([c_lat, c_lon])
@@ -101,7 +121,7 @@ class DeterministicExplainer:
             content_1 = (
                 f"ಕ್ಷೇತ್ರದ ಮಾಹಿತಿ: ಕೃಷಿ ಕ್ಷೇತ್ರ '{bundle.farm.farm_name}' "
                 f"(ಅಕ್ಷಾಂಶ: {bundle.farm.location.latitude:.4f}, ರೇಖಾಂಶ: {bundle.farm.location.longitude:.4f}). "
-                f"ಪ್ಲಾಟ್ ವಿಸ್ತೀರ್ಣ: {plot_area_val or 'ಲಭ್ಯವಿಲ್ಲ'} {plot_area_unit}. "
+                f"ಪ್ಲಾಟ್ ವಿಸ್ತೀರ್ಣ: {display(plot_area_val, 'ಲಭ್ಯವಿಲ್ಲ')} {plot_area_unit}. "
                 f"ಬೆಳೆ: {bundle.crop_canonical_name}{crop_sci_text}. "
                 f"ಮಾದರಿ ಎಂಜಿನ್: {bundle.crop_capability.selected_engine}."
             )
@@ -110,7 +130,7 @@ class DeterministicExplainer:
             content_1 = (
                 f"खेत का विवरण: खेत '{bundle.farm.farm_name}' "
                 f"(अक्षांश: {bundle.farm.location.latitude:.4f}, देशांतर: {bundle.farm.location.longitude:.4f}). "
-                f"प्लॉट का क्षेत्रफल: {plot_area_val or 'उपलब्ध नहीं'} {plot_area_unit}. "
+                f"प्लॉट का क्षेत्रफल: {display(plot_area_val, 'उपलब्ध नहीं')} {plot_area_unit}. "
                 f"फसल: {bundle.crop_canonical_name}{crop_sci_text}. "
                 f"सिमुलेशन इंजन: {bundle.crop_capability.selected_engine}."
             )
@@ -119,7 +139,7 @@ class DeterministicExplainer:
             content_1 = (
                 f"Field Profile: Farm '{bundle.farm.farm_name}' "
                 f"located at latitude {bundle.farm.location.latitude:.4f}, longitude {bundle.farm.location.longitude:.4f}. "
-                f"Plot area: {plot_area_val or 'Not available'} {plot_area_unit}. "
+                f"Plot area: {display(plot_area_val, 'Not available')} {plot_area_unit}. "
                 f"Cultivated crop: {bundle.crop_canonical_name}{crop_sci_text}. "
                 f"Configured scientific engine: {bundle.crop_capability.selected_engine}."
             )
@@ -140,43 +160,43 @@ class DeterministicExplainer:
 
             if depth_val is not None:
                 section_claims_2.append(
-                    record_claim("soil_depth", depth_val, soil.depth_cm.unit, "c1.soil.depthCm", "soilgrids-250m", "gridded_modelled")
+                    record_claim("soil_depth", depth_val, soil.depth_cm.unit, "c1.soil.depthCm", c1_source_id("soil"), "gridded_modelled")
                 )
             if fc_val is not None:
                 section_claims_2.append(
-                    record_claim("field_capacity", fc_val, soil.field_capacity.unit, "c1.soil.fieldCapacity", "soilgrids-250m", "gridded_modelled")
+                    record_claim("field_capacity", fc_val, soil.field_capacity.unit, "c1.soil.fieldCapacity", c1_source_id("soil"), "gridded_modelled")
                 )
             if wp_val is not None:
                 section_claims_2.append(
-                    record_claim("wilting_point", wp_val, soil.wilting_point.unit, "c1.soil.wiltingPoint", "soilgrids-250m", "gridded_modelled")
+                    record_claim("wilting_point", wp_val, soil.wilting_point.unit, "c1.soil.wiltingPoint", c1_source_id("soil"), "gridded_modelled")
                 )
             if bd_val is not None:
                 section_claims_2.append(
-                    record_claim("bulk_density", bd_val, soil.bulk_density.unit, "c1.soil.bulkDensity", "soilgrids-250m", "gridded_modelled")
+                    record_claim("bulk_density", bd_val, soil.bulk_density.unit, "c1.soil.bulkDensity", c1_source_id("soil"), "gridded_modelled")
                 )
 
             texture_str = soil.texture or "Not specified"
             if language == "kn":
                 content_2 = (
-                    f"ಮಣ್ಣಿನ ಗುಣಲಕ್ಷಣಗಳು: ಮಣ್ಣಿನ ವಿನ್ಯಾಸ: {texture_str}, ಆಳ: {depth_val or 'ಲಭ್ಯವಿಲ್ಲ'} ಸೆಂ.ಮೀ. "
-                    f"ಕ್ಷೇತ್ರ ಸಾಮರ್ಥ್ಯ (FC): {fc_val or 'ಲಭ್ಯವಿಲ್ಲ'} {soil.field_capacity.unit}, "
-                    f"ಬಾಡುವ ಬಿಂದು (WP): {wp_val or 'ಲಭ್ಯವಿಲ್ಲ'} {soil.wilting_point.unit}. "
+                    f"ಮಣ್ಣಿನ ಗುಣಲಕ್ಷಣಗಳು: ಮಣ್ಣಿನ ವಿನ್ಯಾಸ: {texture_str}, ಆಳ: {display(depth_val, 'ಲಭ್ಯವಿಲ್ಲ')} ಸೆಂ.ಮೀ. "
+                    f"ಕ್ಷೇತ್ರ ಸಾಮರ್ಥ್ಯ (FC): {display(fc_val, 'ಲಭ್ಯವಿಲ್ಲ')} {soil.field_capacity.unit}, "
+                    f"ಬಾಡುವ ಬಿಂದು (WP): {display(wp_val, 'ಲಭ್ಯವಿಲ್ಲ')} {soil.wilting_point.unit}. "
                     "ಗಮನಿಸಿ: ಈ ಮಣ್ಣಿನ ದತ್ತಾಂಶವು ISRIC SoilGrids 250m ಗ್ರಿಡ್ ಮಾದರಿಯ ಅಂದಾಜಾಗಿದ್ದು, ನೇರ ಸಂವೇದಕ ಮಾಪನವಲ್ಲ."
                 )
                 title_2 = "ಮಣ್ಣಿನ ವಿನ್ಯಾಸ ಮತ್ತು ಜಲ ಧಾರಣಾ ಸಾಮರ್ಥ್ಯ"
             elif language == "hi":
                 content_2 = (
-                    f"मृदा गुण: मिट्टी का प्रकार: {texture_str}, गहराई: {depth_val or 'उपलब्ध नहीं'} सेमी. "
-                    f"क्षेत्र क्षमता (FC): {fc_val or 'उपलब्ध नहीं'} {soil.field_capacity.unit}, "
-                    f"मुलझाने का बिंदु (WP): {wp_val or 'उपलब्ध नहीं'} {soil.wilting_point.unit}. "
+                    f"मृदा गुण: मिट्टी का प्रकार: {texture_str}, गहराई: {display(depth_val, 'उपलब्ध नहीं')} सेमी. "
+                    f"क्षेत्र क्षमता (FC): {display(fc_val, 'उपलब्ध नहीं')} {soil.field_capacity.unit}, "
+                    f"मुलझाने का बिंदु (WP): {display(wp_val, 'उपलब्ध नहीं')} {soil.wilting_point.unit}. "
                     "ध्यान दें: यह मृदा डेटा ISRIC SoilGrids 250m ग्रिड मॉडल आधारित है, लाइव सेंसर माप नहीं।"
                 )
                 title_2 = "मृदा जल धारण क्षमता एवं प्रोफ़ाइल"
             else:
                 content_2 = (
-                    f"Soil Properties: Texture: {texture_str}, profile depth: {depth_val or 'Not available'} cm. "
-                    f"Field capacity: {fc_val or 'Not available'} {soil.field_capacity.unit}, "
-                    f"permanent wilting point: {wp_val or 'Not available'} {soil.wilting_point.unit}. "
+                    f"Soil Properties: Texture: {texture_str}, profile depth: {display(depth_val, 'Not available')} cm. "
+                    f"Field capacity: {display(fc_val, 'Not available')} {soil.field_capacity.unit}, "
+                    f"permanent wilting point: {display(wp_val, 'Not available')} {soil.wilting_point.unit}. "
                     "Note: Soil properties represent ISRIC SoilGrids 250m gridded spatial estimates, not direct in-situ sensors."
                 )
                 title_2 = "Soil Water Holding Profile"
@@ -219,26 +239,46 @@ class DeterministicExplainer:
                 valid_sums = [v for v in member_rainfalls.values() if v is not None]
                 n_members = len(members_map)
                 n_days = max(len(m_days) for m_days in members_map.values())
+                rainfall_qualifications = weather_qualifications(
+                    [day.rainfall_mm for day in all_records]
+                )
 
                 if valid_sums:
                     min_rain = min(valid_sums)
                     max_rain = max(valid_sums)
-                    if math.isclose(min_rain, max_rain, rel_tol=1e-2, abs_tol=1e-2):
+                    if rainfall_qualifications and len(valid_sums) == 1:
+                        rain_desc_en = f"{min_rain:.1f} mm available from 1 of {n_members} ensemble members (incomplete daily coverage)"
+                        rain_desc_kn = f"{n_members} ಸಮಗ್ರ ಸದಸ್ಯರಲ್ಲಿ 1ರ {min_rain:.1f} ಮಿ.ಮೀ ಮಾತ್ರ ಲಭ್ಯ (ದಿನನಿತ್ಯದ ದಾಖಲೆಗಳು ಅಪೂರ್ಣ)"
+                        rain_desc_hi = f"{n_members} एन्सेम्बल सदस्यों में 1 का {min_rain:.1f} मिमी उपलब्ध (दैनिक रिकॉर्ड अधूरे)"
+                        section_claims_3.append(
+                            record_claim("total_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.sum", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
+                        )
+                    elif rainfall_qualifications:
+                        rain_desc_en = f"range of {min_rain:.1f} mm to {max_rain:.1f} mm across {len(valid_sums)} of {n_members} ensemble members (incomplete daily coverage)"
+                        rain_desc_kn = f"{n_members} ಸಮಗ್ರ ಸದಸ್ಯರಲ್ಲಿ {len(valid_sums)}ರಿಂದ {min_rain:.1f} ರಿಂದ {max_rain:.1f} ಮಿ.ಮೀ ವ್ಯಾಪ್ತಿ (ದಿನನಿತ್ಯದ ದಾಖಲೆಗಳು ಅಪೂರ್ಣ)"
+                        rain_desc_hi = f"{n_members} एन्सेम्बल सदस्यों में {len(valid_sums)} के बीच {min_rain:.1f} से {max_rain:.1f} मिमी का दायरा (दैनिक रिकॉर्ड अधूरे)"
+                        section_claims_3.append(
+                            record_claim("min_ensemble_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.min", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
+                        )
+                        section_claims_3.append(
+                            record_claim("max_ensemble_rainfall", max_rain, "mm", "c1.daily_weather.rainfall_mm.max", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
+                        )
+                    elif math.isclose(min_rain, max_rain, rel_tol=1e-2, abs_tol=1e-2):
                         rain_desc_en = f"{min_rain:.1f} mm (consistent across {n_members} ensemble members)"
                         rain_desc_kn = f"{min_rain:.1f} ಮಿ.ಮೀ ({n_members} ಸಮಗ್ರ ಸದಸ್ಯರಲ್ಲಿ ಸ್ಥಿರ)"
                         rain_desc_hi = f"{min_rain:.1f} मिमी ({n_members} एन्सेम्बल सदस्यों में एकसमान)"
                         section_claims_3.append(
-                            record_claim("total_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.sum", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                            record_claim("total_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.sum", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
                         )
                     else:
                         rain_desc_en = f"range of {min_rain:.1f} mm to {max_rain:.1f} mm across {n_members} ensemble members (trajectories preserved independently)"
                         rain_desc_kn = f"{n_members} ಸಮಗ್ರ ಸದಸ್ಯರಲ್ಲಿ {min_rain:.1f} ರಿಂದ {max_rain:.1f} ಮಿ.ಮೀ ವ್ಯಾಪ್ತಿ (ಸ್ವತಂತ್ರ ಪಥಗಳು)"
                         rain_desc_hi = f"{n_members} एन्सेम्बल सदस्यों में {min_rain:.1f} से {max_rain:.1f} मिमी का दायरा (स्वतंत्र प्रक्षेपवक्र)"
                         section_claims_3.append(
-                            record_claim("min_ensemble_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.min", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                            record_claim("min_ensemble_rainfall", min_rain, "mm", "c1.daily_weather.rainfall_mm.min", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
                         )
                         section_claims_3.append(
-                            record_claim("max_ensemble_rainfall", max_rain, "mm", "c1.daily_weather.rainfall_mm.max", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                            record_claim("max_ensemble_rainfall", max_rain, "mm", "c1.daily_weather.rainfall_mm.max", c1_source_id("weather"), "gridded_modelled", qualifications=rainfall_qualifications, is_stale=is_weather_stale)
                         )
                 else:
                     rain_desc_en = "Not available"
@@ -265,7 +305,7 @@ class DeterministicExplainer:
                     rain_desc_kn = f"{tot:.1f} ಮಿ.ಮೀ (ಅಪೂರ್ಣ: {len(valid_rains)}/{n_days} ದಿನಗಳು ದಾಖಲಾಗಿವೆ)"
                     rain_desc_hi = f"{tot:.1f} मिमी (अपूर्ण: {len(valid_rains)}/{n_days} दिन दर्ज)"
                     section_claims_3.append(
-                        record_claim("total_rainfall", tot, "mm", "c1.daily_weather.rainfall_mm.sum", "open-meteo", "gridded_modelled", qualifications=["incomplete_daily_coverage"], is_stale=is_weather_stale)
+                        record_claim("total_rainfall", tot, "mm", "c1.daily_weather.rainfall_mm.sum", c1_source_id("weather"), "gridded_modelled", qualifications=["incomplete_daily_coverage"], is_stale=is_weather_stale)
                     )
                 else:
                     tot = sum(valid_rains)
@@ -273,7 +313,7 @@ class DeterministicExplainer:
                     rain_desc_kn = f"{tot:.1f} ಮಿ.ಮೀ"
                     rain_desc_hi = f"{tot:.1f} मिमी"
                     section_claims_3.append(
-                        record_claim("total_rainfall", tot, "mm", "c1.daily_weather.rainfall_mm.sum", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                        record_claim("total_rainfall", tot, "mm", "c1.daily_weather.rainfall_mm.sum", c1_source_id("weather"), "gridded_modelled", is_stale=is_weather_stale)
                     )
 
                 t_mins = [safe_measurement_val(d.temperature_min_c) for d in days if safe_measurement_val(d.temperature_min_c) is not None]
@@ -286,15 +326,15 @@ class DeterministicExplainer:
 
             if t_mins:
                 section_claims_3.append(
-                    record_claim("min_temperature", min(t_mins), "degC", "c1.daily_weather.temperature_min_c.min", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                    record_claim("min_temperature", min(t_mins), "degC", "c1.daily_weather.temperature_min_c.min", c1_source_id("weather"), "gridded_modelled", qualifications=weather_qualifications([day.temperature_min_c for day in all_records]), is_stale=is_weather_stale)
                 )
             if t_maxs:
                 section_claims_3.append(
-                    record_claim("max_temperature", max(t_maxs), "degC", "c1.daily_weather.temperature_max_c.max", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                    record_claim("max_temperature", max(t_maxs), "degC", "c1.daily_weather.temperature_max_c.max", c1_source_id("weather"), "gridded_modelled", qualifications=weather_qualifications([day.temperature_max_c for day in all_records]), is_stale=is_weather_stale)
                 )
             if avg_et0 is not None:
                 section_claims_3.append(
-                    record_claim("mean_et0", avg_et0, "mm/day", "c1.daily_weather.reference_evapotranspiration_mm.mean", "open-meteo", "gridded_modelled", is_stale=is_weather_stale)
+                    record_claim("mean_et0", avg_et0, "mm/day", "c1.daily_weather.reference_evapotranspiration_mm.mean", c1_source_id("weather"), "gridded_modelled", qualifications=weather_qualifications([day.reference_evapotranspiration_mm for day in all_records]), is_stale=is_weather_stale)
                 )
 
             stale_warning_en = " [Warning: Weather forecast data exceeds 24-hour freshness window.]" if is_weather_stale else ""
@@ -350,7 +390,7 @@ class DeterministicExplainer:
             c_sw = safe_measurement_val(latest_c3.soil_water)
             c_irrig = safe_measurement_val(latest_c3.irrigation)
 
-            engine_id = f"terrapulse-{latest_c3.engine.name.lower()}-{latest_c3.engine.version}"
+            engine_id = c3_source_id(bundle, latest_c3)
 
             if c_demand is not None:
                 section_claims_4.append(
@@ -383,30 +423,30 @@ class DeterministicExplainer:
             if language == "kn":
                 content_4 = (
                     f"ಬೆಳೆಯ ನೀರಿನ ಸಮತೋಲನ ({latest_c3.date.isoformat()} ದಿನಾಂಕದಂತೆ): "
-                    f"ಬೆಳೆಯ ನೀರಿನ ಬೇಡಿಕೆ (ETc): {c_demand or 'ಲಭ್ಯವಿಲ್ಲ'} ಮಿ.ಮೀ, "
-                    f"ನೈಜ ಬಾಷ್ಪೀಕರಣ (ETa): {c_eta or 'ಲಭ್ಯವಿಲ್ಲ'} ಮಿ.ಮೀ. "
-                    f"ಮಣ್ಣಿನ ನೀರು: {c_sw or 'ಲಭ್ಯವಿಲ್ಲ'} ಮಿ.ಮೀ. "
-                    f"ನೀರಿನ ಒತ್ತಡ ಸೂಚ್ಯಂಕ (Ks): {c_stress or 'ಲಭ್ಯವಿಲ್ಲ'} ({stress_pct} ಒತ್ತಡ). "
+                    f"ಬೆಳೆಯ ನೀರಿನ ಬೇಡಿಕೆ (ETc): {display(c_demand, 'ಲಭ್ಯವಿಲ್ಲ')} ಮಿ.ಮೀ, "
+                    f"ನೈಜ ಬಾಷ್ಪೀಕರಣ (ETa): {display(c_eta, 'ಲಭ್ಯವಿಲ್ಲ')} ಮಿ.ಮೀ. "
+                    f"ಮಣ್ಣಿನ ನೀರು: {display(c_sw, 'ಲಭ್ಯವಿಲ್ಲ')} ಮಿ.ಮೀ. "
+                    f"ನೀರಿನ ಒತ್ತಡ ಸೂಚ್ಯಂಕ (Ks): {display(c_stress, 'ಲಭ್ಯವಿಲ್ಲ')} ({stress_pct} ಒತ್ತಡ). "
                     f"ನೀರಾವರಿ: {irrig_str_kn}."
                 )
                 title_4 = "ಬೆಳೆಯ ಜಲ ಸಮತೋಲನ ಮತ್ತು ಒತ್ತಡ ವಿಶ್ಲೇಷಣೆ"
             elif language == "hi":
                 content_4 = (
                     f"फसल जल संतुलन ({latest_c3.date.isoformat()} की स्थिति): "
-                    f"फसल जल मांग (ETc): {c_demand or 'उपलब्ध नहीं'} मिमी, "
-                    f"वास्तविक वाष्पोत्सर्जन (ETa): {c_eta or 'उपलब्ध नहीं'} मिमी. "
-                    f"मृदा जल स्तर: {c_sw or 'उपलब्ध नहीं'} मिमी. "
-                    f"जल तनाव सूचकांक (Ks): {c_stress or 'उपलब्ध नहीं'} ({stress_pct} तनाव). "
+                    f"फसल जल मांग (ETc): {display(c_demand, 'उपलब्ध नहीं')} मिमी, "
+                    f"वास्तविक वाष्पोत्सर्जन (ETa): {display(c_eta, 'उपलब्ध नहीं')} मिमी. "
+                    f"मृदा जल स्तर: {display(c_sw, 'उपलब्ध नहीं')} मिमी. "
+                    f"जल तनाव सूचकांक (Ks): {display(c_stress, 'उपलब्ध नहीं')} ({stress_pct} तनाव). "
                     f"सिंचाई: {irrig_str_hi}."
                 )
                 title_4 = "फसल जल संतुलन एवं तनाव विश्लेषण"
             else:
                 content_4 = (
                     f"Crop Biophysical State as of {latest_c3.date.isoformat()}: "
-                    f"Crop water demand (ETc): {c_demand or 'Not available'} mm, "
-                    f"actual evapotranspiration (ETa): {c_eta or 'Not available'} mm. "
-                    f"Soil water in profile: {c_sw or 'Not available'} mm. "
-                    f"Water stress coefficient (Ks): {c_stress or 'Not available'} ({stress_pct} stress impact). "
+                    f"Crop water demand (ETc): {display(c_demand, 'Not available')} mm, "
+                    f"actual evapotranspiration (ETa): {display(c_eta, 'Not available')} mm. "
+                    f"Soil water in profile: {display(c_sw, 'Not available')} mm. "
+                    f"Water stress coefficient (Ks): {display(c_stress, 'Not available')} ({stress_pct} stress impact). "
                     f"Irrigation applied: {irrig_str_en}."
                 )
                 title_4 = "Crop Water Dynamics & Moisture Stress"
@@ -451,11 +491,15 @@ class DeterministicExplainer:
                             val=diff_val,
                             unit=cm.difference.unit,
                             field_path=f"c5.metrics[{cm.metric}].difference",
-                            source_id="terrapulse-compare-1.0",
+                            source_id=c5_source_id(bundle),
                             category="comparison_derived",
                         )
                     )
-                diff_lines.append(f"{cm.metric}: Branch A={va or 'N/A'}, Branch B={vb or 'N/A'}, Difference={diff_val or 'N/A'} {cm.difference.unit}")
+                diff_lines.append(
+                    f"{cm.metric}: Branch A={display(va, 'N/A')}, "
+                    f"Branch B={display(vb, 'N/A')}, "
+                    f"Difference={display(diff_val, 'N/A')} {cm.difference.unit}"
+                )
 
             diff_content_str = "; ".join(diff_lines)
             matched_str = "matched weather realizations" if c5.matched_inputs else "unmatched baseline inputs"
@@ -480,6 +524,37 @@ class DeterministicExplainer:
                 title_5 = "Management Scenario Comparison"
 
             sections.append(AnalysisSection(key="comparison_evaluation", title=title_5, content=content_5, claims=section_claims_5))
+        elif (bundle.comparison_metadata or {}).get("status") == "not_comparable":
+            reasons = (bundle.comparison_metadata or {}).get("reasons") or []
+            recorded_reasons = " ".join(str(reason) for reason in reasons)
+            if language == "kn":
+                content = (
+                    "ಈ ಹೋಲಿಕೆಯನ್ನು ಪರಿಮಾಣಾತ್ಮಕ ಫಲಿತಾಂಶವಾಗಿ ಬಳಸಲಾಗುವುದಿಲ್ಲ; ಹೋಲಿಸಿದ ಇನ್‌ಪುಟ್‌ಗಳು "
+                    "ಅಥವಾ ವೈಜ್ಞಾನಿಕ ಸಾಕ್ಷ್ಯವು ಹೊಂದಿಕೆಯಾಗಿಲ್ಲ."
+                )
+                title = "ಸನ್ನಿವೇಶ ಹೋಲಿಕೆ ಲಭ್ಯವಿಲ್ಲ"
+            elif language == "hi":
+                content = (
+                    "इस तुलना को मात्रात्मक परिणाम के रूप में उपयोग नहीं किया जा सकता; "
+                    "तुलना किए गए इनपुट या वैज्ञानिक साक्ष्य मेल नहीं खाते।"
+                )
+                title = "परिदृश्य तुलना उपलब्ध नहीं"
+            else:
+                content = (
+                    "This comparison cannot be used as a quantitative result because the compared "
+                    "inputs or scientific evidence did not match."
+                )
+                title = "Scenario Comparison Unavailable"
+            if recorded_reasons:
+                content = f"{content} Recorded reason: {recorded_reasons}"
+            sections.append(
+                AnalysisSection(
+                    key="comparison_evaluation",
+                    title=title,
+                    content=content,
+                    claims=[],
+                )
+            )
 
         # ------------------------------------------------------------------
         # Section 6: Actionable Operational Guidance

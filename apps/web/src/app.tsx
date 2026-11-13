@@ -99,5 +99,5 @@ export function App() {
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
   else content = <FarmList navigate={navigate} copy={copy} />;
-  return <AppErrorBoundary copy={copy}><AppShell route={route} copy={copy} locale={locale} onLocaleChange={(l) => { setLocale(l); window.localStorage.setItem("terrapulse-locale", l); }} onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)} title={route === "connect" ? "Connect" : route} subtitle="Persisted farm context and scientific evidence">{content}</AppShell></AppErrorBoundary>;
+  return <AppErrorBoundary copy={copy}><AppShell route={route} copy={copy} locale={locale} onLocaleChange={(l) => { setLocale(l); window.localStorage.setItem("terrapulse-locale", l); }} onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)} title={route === "connect" ? copy.connect : route === "assisted" ? copy.assisted : copy.observatory} subtitle={route === "assisted" ? copy.assistedDescription : route === "connect" ? copy.connectDescription : copy.observatoryDescription}>{content}</AppShell></AppErrorBoundary>;
 }

@@ -102,7 +102,10 @@ def test_analysis_endpoint_unknown_farm_returns_404():
 
     res = client.post("/api/v1/analysis", json=payload)
     assert res.status_code == 404
-    assert f"Farm with ID '{unknown_farm_id}' was not found" in res.json()["detail"]
+    body = res.json()
+    assert body["error"]["code"] == "EVIDENCE_NOT_FOUND"
+    assert f"Farm with ID '{unknown_farm_id}' was not found" in body["error"]["message"]
+    assert body["correlationId"]
 
 
 def test_analysis_endpoint_unknown_plot_returns_404():
@@ -117,7 +120,10 @@ def test_analysis_endpoint_unknown_plot_returns_404():
 
     res = client.post("/api/v1/analysis", json=payload)
     assert res.status_code == 404
-    assert f"Plot with ID '{unknown_plot_id}' was not found" in res.json()["detail"]
+    body = res.json()
+    assert body["error"]["code"] == "EVIDENCE_NOT_FOUND"
+    assert f"Plot with ID '{unknown_plot_id}' was not found" in body["error"]["message"]
+    assert body["correlationId"]
 
 
 def test_analysis_endpoint_plant_pathology_escalation():
@@ -235,4 +241,10 @@ def test_analysis_endpoint_cross_farm_plot_access_rejected_404():
 
     res = client.post("/api/v1/analysis", json=payload)
     assert res.status_code == 404
-    assert f"Plot with ID '{plot_b.plot_id}' was not found under farm '{farm_a.farm_id}'" in res.json()["detail"]
+    body = res.json()
+    assert body["error"]["code"] == "EVIDENCE_NOT_FOUND"
+    assert (
+        f"Plot with ID '{plot_b.plot_id}' was not found under farm '{farm_a.farm_id}'"
+        in body["error"]["message"]
+    )
+    assert body["correlationId"]

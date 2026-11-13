@@ -10,7 +10,13 @@ export default [
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,
-      globals: { window: "readonly", document: "readonly", console: "readonly" },
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        console: "readonly",
+        SpeechSynthesisVoice: "readonly",
+        SpeechSynthesisUtterance: "readonly",
+      },
       parserOptions: { ecmaVersion: "latest", sourceType: "module" },
     },
     plugins: { "@typescript-eslint": tseslint, "react-hooks": reactHooks },

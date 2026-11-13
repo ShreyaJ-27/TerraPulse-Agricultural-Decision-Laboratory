@@ -1,30 +1,60 @@
 import copy
 import csv
-from datetime import date,timedelta
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import subprocess
 import sys
 import unittest
 import zipfile
+from datetime import date, timedelta
+from pathlib import Path
 
 # Editable install is optional: load source directly for a fresh ZIP extraction.
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from terrapulse_science import (
-    ScienceError,Soil,CropKc,WeatherDay,FaoRequest,fao_day,kc_at_day,run_fao,
-    compare_runs,compare_aquacrop_runs,turmeric_profile,registry,from_c1_with_root_depth,
-    irrigation_from_c8,parse_aquacrop_fixture,parse_aquacrop_outputs,
-    run_published_wheat,request_from_dict
+    CropKc,
+    FaoRequest,
+    ScienceError,
+    Soil,
+    WeatherDay,
+    compare_aquacrop_runs,
+    compare_runs,
+    fao_day,
+    from_c1_with_root_depth,
+    irrigation_from_c8,
+    kc_at_day,
+    parse_aquacrop_fixture,
+    parse_aquacrop_outputs,
+    registry,
+    request_from_dict,
+    run_fao,
+    run_published_wheat,
+    turmeric_profile,
 )
+from terrapulse_science.aquacrop_reference import REFERENCE_CSV_SHA256
 
 ROOT=Path(__file__).resolve().parents[1]
 FIX=ROOT/'tests'/'fixtures'/'aquacrop_3_1_0'
+CORRECTED_EVIDENCE_SHA256="a8a01afb5f9193a710562019d2eb774871fb8a5d68b34366bd86eac4584346d1"
+REQUIRED_AQUACROP_FIXTURES=(*REFERENCE_CSV_SHA256,"sha256_manifest.json")
 SOIL=Soil(.30,.30,.15,.40,'synthetic FC/WP; Pereira 2024 p','1')
 CROP=turmeric_profile('A')
 SRC={'provider':'deterministic fixture','reference':'tests/test_science.py','kind':'assumption','acquiredAt':'2026-11-03T00:00:00Z'}
+
+def missing_aquacrop_fixture_files():
+    return [name for name in REQUIRED_AQUACROP_FIXTURES if not (FIX/name).is_file()]
+
+def aquacrop_fixture_unavailable_message():
+    missing=missing_aquacrop_fixture_files()
+    return (
+        "Licensed AquaCrop research evidence is unavailable"
+        + (f" (missing: {', '.join(missing)})" if missing else "")
+        + ". Obtain the corrected release through the authorized channel and restore it with "
+        "`python scripts/restore_evidence.py <path-to-release.zip>`; expected release "
+        f"SHA-256: {CORRECTED_EVIDENCE_SHA256}."
+    )
 
 def req(branch='original',plant='2025-05-15',start='2025-05-01',end='2026-04-11',
         member='synthetic-v1', soil=SOIL, crop=CROP, rainfall=0, et0=5,
@@ -278,6 +308,7 @@ class TestFutureFold(unittest.TestCase):
         b=run_fao(req(branch='later',plant='2025-06-15',snap='different'))
         self.assertIn('inputSnapshotId differs',compare_runs(self.a,b,fork_date='2025-05-01')['reasons'])
 
+@unittest.skipIf(missing_aquacrop_fixture_files(), aquacrop_fixture_unavailable_message())
 class TestAquaCropEvidence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -287,7 +318,8 @@ class TestAquaCropEvidence(unittest.TestCase):
              plot_id='tunis-demo',branch_id='nov',input_snapshot_id='tunis',weather_realization_id='fixture')
     def test_archived_csv_hashes(self):
         expected=json.loads((FIX/'sha256_manifest.json').read_text())
-        for name,digest in expected.items():
+        self.assertEqual(expected, REFERENCE_CSV_SHA256)
+        for name,digest in REFERENCE_CSV_SHA256.items():
             with self.subTest(name=name):
                 self.assertEqual(hashlib.sha256((FIX/name).read_bytes()).hexdigest(),digest)
     def test_harvest_yield(self):
@@ -333,6 +365,53 @@ class TestAquaCropEvidence(unittest.TestCase):
         bad=copy.deepcopy(self.nov);bad['weatherRealizationId']='different'
         result=compare_aquacrop_runs(self.original,bad,fork_date='1979-09-30')
         self.assertIn('weatherRealizationId differs',result['reasons'])
+    def test_historical_identical_repeat(self):
+        repeat=parse_aquacrop_fixture(FIX,label='repeat',start_date='1979-10-01',
+             plot_id='tunis-demo',branch_id='baseline',input_snapshot_id='tunis',weather_realization_id='fixture')
+        self.assertEqual(self.original,repeat)
+
+class TestProvenanceFixtures(unittest.TestCase):
+    def test_present_evidence_files_match_pinned_hashes(self):
+        for line in (ROOT/'EVIDENCE_SHA256.txt').read_text(encoding='utf-8').splitlines():
+            digest, relative = line.split("  ", 1)
+            if not relative.startswith("tests/fixtures/aquacrop_3_1_0/"):
+                continue
+            path = ROOT/relative
+            if path.is_file():
+                with self.subTest(name=relative):
+                    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
+
+    def test_original_archives_present_intact(self):
+        expected = {}
+        for line in (ROOT/'EVIDENCE_SHA256.txt').read_text(encoding='utf-8').splitlines():
+            digest, relative = line.split("  ", 1)
+            if relative.startswith("research_evidence/") and relative.endswith(".zip"):
+                expected[relative] = digest
+        self.assertEqual(len(expected), 3, "Expected three pinned licensed research archives")
+        missing = []
+        for relative, digest in sorted(expected.items()):
+            path = ROOT/relative
+            if not path.is_file():
+                missing.append(relative)
+                continue
+            with self.subTest(name=path.name):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
+                with zipfile.ZipFile(path) as archive:
+                    self.assertIsNone(archive.testzip())
+        if missing:
+            self.skipTest(
+                f"Licensed research evidence is unavailable (missing: {', '.join(missing)}). "
+                "Obtain the corrected release through the authorized channel and restore it with "
+                f"`python scripts/restore_evidence.py <path-to-release.zip>`; expected release "
+                f"SHA-256: {CORRECTED_EVIDENCE_SHA256}."
+            )
+    def test_registry(self):
+        r=registry()
+        self.assertEqual(len(r['models']),2)
+        self.assertEqual(r['models'][0]['status'],'conditional-numerical')
+        self.assertNotIn('yieldTonnesPerHa',r['models'][0]['supportedOutputs'])
+
+class TestAquaCropInputValidation(unittest.TestCase):
     def test_bad_counter_rejected(self):
         g=[{'time_step_counter':0,'dap':1,'z_root':.3,'canopy_cover':.5,'biomass':100,'season_counter':0},
            {'time_step_counter':7,'dap':2,'z_root':.3,'canopy_cover':.5,'biomass':100,'season_counter':0}]
@@ -341,32 +420,16 @@ class TestAquaCropEvidence(unittest.TestCase):
         with self.assertRaisesRegex(ScienceError,'AQUACROP_INVALID_SLOT'):
             parse_aquacrop_outputs(growth=g,flux=f,final=[],start_date='1979-10-01',plot_id='p',
               branch_id='b',input_snapshot_id='s',weather_realization_id='w')
+
     def test_unsupported_crop_blocked(self):
         with self.assertRaisesRegex(ScienceError,'AQUACROP_UNSUPPORTED'):
             parse_aquacrop_outputs(growth=[{}],flux=[{}],final=[],start_date='1979-10-01',plot_id='p',
                branch_id='b',input_snapshot_id='s',weather_realization_id='w',crop_name='Turmeric')
+
     def test_runtime_missing_is_typed(self):
         import importlib.util
         if importlib.util.find_spec('aquacrop') is None:
             with self.assertRaisesRegex(ScienceError,'DEPENDENCY_UNAVAILABLE'):
                 run_published_wheat()
-    def test_historical_identical_repeat(self):
-        repeat=parse_aquacrop_fixture(FIX,label='repeat',start_date='1979-10-01',
-             plot_id='tunis-demo',branch_id='baseline',input_snapshot_id='tunis',weather_realization_id='fixture')
-        self.assertEqual(self.original,repeat)
-
-class TestProvenanceFixtures(unittest.TestCase):
-    def test_original_archives_present_intact(self):
-        archives = sorted((ROOT/'research_evidence').glob('*.zip'))
-        self.assertEqual(len(archives),3,"Restore the authorized evidence bundle before running this suite")
-        for p in archives:
-            with self.subTest(name=p.name):
-                with zipfile.ZipFile(p) as z:
-                    self.assertIsNone(z.testzip())
-    def test_registry(self):
-        r=registry()
-        self.assertEqual(len(r['models']),2)
-        self.assertEqual(r['models'][0]['status'],'conditional-numerical')
-        self.assertNotIn('yieldTonnesPerHa',r['models'][0]['supportedOutputs'])
 
 if __name__=='__main__':unittest.main()

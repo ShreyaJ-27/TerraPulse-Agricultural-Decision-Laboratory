@@ -69,6 +69,86 @@ export type Translation = {
   limitationsTitle: string;
   escalationTitle: string;
   sourcesTitle: string;
+  cropHelpTitle: string;
+  cropHelpDescription: string;
+  farmAnalysisTitle: string;
+  farmAnalysisDescription: string;
+  voiceReady: string;
+  textMode: string;
+  askUsingText: string;
+  speakQuestion: string;
+  stopListening: string;
+  noSpeech: string;
+  recognitionInterrupted: string;
+  recognitionLanguageUnsupported: string;
+  recognitionNetworkError: string;
+  playbackError: string;
+  voiceLoading: string;
+  newQuestion: string;
+  retry: string;
+  selectFarm: string;
+  selectPlot: string;
+  selectBranch: string;
+  selectRun: string;
+  selectComparison: string;
+  questionPrompt: string;
+  analyzeButton: string;
+  analysisLoading: string;
+  analysisResult: string;
+  fieldContext: string;
+  cropCapability: string;
+  environmentalEvidence: string;
+  simulationEvidence: string;
+  comparisonEvidence: string;
+  supportingEvidence: string;
+  dataFreshness: string;
+  missingEvidence: string;
+  scientificLimitations: string;
+  expertFollowUp: string;
+  generationMode: string;
+  sourceField: string;
+  freshnessWarning: string;
+  noRegisteredFarms: string;
+  noPlots: string;
+  chooseFarmPlot: string;
+  analysisError: string;
+  noCompletedRun: string;
+  historicalResult: string;
+  unsupportedNotZero: string;
+  llmGenerated: string;
+  deterministicGenerated: string;
+  fallbackGenerated: string;
+  comparisonMatched: string;
+  comparisonNotMatched: string;
+  comparisonNotComparable: string;
+  comparisonBranches: string;
+  comparisonRuns: string;
+  comparisonDate: string;
+  comparisonAssumptions: string;
+  noSupportedOutputs: string;
+  outputCanopyCover: string;
+  outputBiomass: string;
+  outputYield: string;
+  outputEvapotranspiration: string;
+  outputWaterStress: string;
+  outputIrrigation: string;
+  freshnessFresh: string;
+  freshnessStale: string;
+  freshnessHistorical: string;
+  freshnessStaticBaseline: string;
+  freshnessMissing: string;
+  freshnessUnavailable: string;
+  freshnessNewOrCached: string;
+  freshnessWeatherType: string;
+  freshnessSoilType: string;
+  freshnessSnapshotType: string;
+  freshnessInputType: string;
+  freshnessRunType: string;
+  freshnessStatesType: string;
+  freshnessComparisonType: string;
+  weatherRecords: string;
+  soilProfileAvailable: string;
+  soilProfileMissing: string;
 };
 
 export const translations: Record<Locale, Translation> = {
@@ -142,6 +222,86 @@ export const translations: Record<Locale, Translation> = {
     limitationsTitle: "Scientific Limitations & Biophysical Scope",
     escalationTitle: "Expert Referral Required (ICAR / KVK)",
     sourcesTitle: "Sources & Provenance",
+    cropHelpTitle: "Crop & Capability Help",
+    cropHelpDescription: "Bounded crop identity, model capability and general water guidance. This is not a diagnostic chatbot.",
+    farmAnalysisTitle: "Analyze My Farm",
+    farmAnalysisDescription: "Ask about a registered field using its stored environmental and scientific evidence.",
+    voiceReady: "Voice input available",
+    textMode: "Text and touch are always available",
+    askUsingText: "Ask using text",
+    speakQuestion: "Speak your question",
+    stopListening: "Stop listening",
+    noSpeech: "No speech was detected. You can edit or type your question.",
+    recognitionInterrupted: "Speech input stopped before a transcript was received. Please try again or type.",
+    recognitionLanguageUnsupported: "Speech recognition does not support this language on this device. Please type your question.",
+    recognitionNetworkError: "The speech service could not be reached. Please type your question.",
+    playbackError: "Audio playback failed or was interrupted. The text response is still available.",
+    voiceLoading: "Checking available device voices. Please try again in a moment.",
+    newQuestion: "New question",
+    retry: "Retry",
+    selectFarm: "Select your farm",
+    selectPlot: "Select your field/plot",
+    selectBranch: "Branch (optional)",
+    selectRun: "Completed simulation run (optional)",
+    selectComparison: "Saved comparison (optional)",
+    questionPrompt: "What would you like to understand?",
+    analyzeButton: "Analyze my farm",
+    analysisLoading: "Retrieving and checking your farm evidence…",
+    analysisResult: "Evidence-based answer",
+    fieldContext: "Field context",
+    cropCapability: "Crop capability",
+    environmentalEvidence: "Environmental evidence",
+    simulationEvidence: "Scientific simulation",
+    comparisonEvidence: "Comparison evidence",
+    supportingEvidence: "View supporting evidence",
+    dataFreshness: "Data freshness",
+    missingEvidence: "Information not available",
+    scientificLimitations: "Why this result is limited",
+    expertFollowUp: "Suggested human follow-up",
+    generationMode: "How this answer was prepared",
+    sourceField: "Evidence field",
+    freshnessWarning: "Historical or stale data",
+    noRegisteredFarms: "No registered farms are available. Add a real farm before requesting farm analysis.",
+    noPlots: "No registered plots are available for this farm.",
+    chooseFarmPlot: "Choose a farm and plot before asking for an analysis.",
+    analysisError: "Analysis could not be completed. Check your connection and try again.",
+    noCompletedRun: "No completed simulation is available for this selection.",
+    historicalResult: "Historical simulation result; not a live forecast.",
+    unsupportedNotZero: "Unsupported or missing measurements are not zero.",
+    llmGenerated: "Optional AI-assisted explanation with validated evidence",
+    deterministicGenerated: "Deterministic evidence explanation",
+    fallbackGenerated: "Deterministic fallback after AI output was unavailable or rejected",
+    comparisonMatched: "Comparable inputs",
+    comparisonNotMatched: "Inputs did not match",
+    comparisonNotComparable: "Not comparable",
+    comparisonBranches: "Baseline and alternative branches",
+    comparisonRuns: "Baseline and alternative simulation runs",
+    comparisonDate: "Comparison date",
+    comparisonAssumptions: "Comparison assumptions",
+    noSupportedOutputs: "This crop has no supported numeric outputs in the current model.",
+    outputCanopyCover: "Canopy cover",
+    outputBiomass: "Biomass",
+    outputYield: "Yield",
+    outputEvapotranspiration: "Actual evapotranspiration",
+    outputWaterStress: "Water stress",
+    outputIrrigation: "Irrigation",
+    freshnessFresh: "Fresh",
+    freshnessStale: "Stale",
+    freshnessHistorical: "Historical",
+    freshnessStaticBaseline: "Static modelled baseline",
+    freshnessMissing: "Missing",
+    freshnessUnavailable: "Unavailable",
+    freshnessNewOrCached: "New or cached",
+    freshnessWeatherType: "Weather evidence",
+    freshnessSoilType: "Soil evidence",
+    freshnessSnapshotType: "Environmental snapshot",
+    freshnessInputType: "Environmental input",
+    freshnessRunType: "Scientific simulation run",
+    freshnessStatesType: "Scientific simulation states",
+    freshnessComparisonType: "Simulation comparison",
+    weatherRecords: "weather records",
+    soilProfileAvailable: "Soil profile available",
+    soilProfileMissing: "Soil profile unavailable",
   },
   kn: {
     connect: "ಕನೆಕ್ಟ್",
@@ -206,6 +366,86 @@ export const translations: Record<Locale, Translation> = {
     limitationsTitle: "ವೈಜ್ಞಾನಿಕ ಮಿತಿಗಳು ಮತ್ತು ಊಹೆಗಳು",
     escalationTitle: "ತಜ್ಞರ ಸಲಹೆ ಅಗತ್ಯವಿದೆ (ಕೃಷಿ ವಿಜ್ಞಾನ ಕೇಂದ್ರ)",
     sourcesTitle: "ಮೂಲಗಳು ಮತ್ತು ಉಲ್ಲೇಖಗಳು",
+    cropHelpTitle: "ಬೆಳೆ ಮತ್ತು ಸಾಮರ್ಥ್ಯ ಸಹಾಯ",
+    cropHelpDescription: "ಬೆಳೆ ಗುರುತು, ಮಾದರಿ ಸಾಮರ್ಥ್ಯ ಮತ್ತು ಸಾಮಾನ್ಯ ನೀರಿನ ಮಾರ್ಗದರ್ಶನ ಮಾತ್ರ. ಇದು ರೋಗನಿರ್ಣಯ ಚಾಟ್‌ಬಾಟ್ ಅಲ್ಲ.",
+    farmAnalysisTitle: "ನನ್ನ ಕೃಷಿಯನ್ನು ವಿಶ್ಲೇಷಿಸಿ",
+    farmAnalysisDescription: "ನೋಂದಾಯಿತ ಹೊಲದ ಸಂಗ್ರಹಿತ ಪರಿಸರ ಮತ್ತು ವೈಜ್ಞಾನಿಕ ಸಾಕ್ಷ್ಯಗಳ ಬಗ್ಗೆ ಕೇಳಿ.",
+    voiceReady: "ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಲಭ್ಯವಿದೆ",
+    textMode: "ಪಠ್ಯ ಮತ್ತು ಸ್ಪರ್ಶ ಇನ್‌ಪುಟ್ ಯಾವಾಗಲೂ ಲಭ್ಯ",
+    askUsingText: "ಪಠ್ಯದಲ್ಲಿ ಪ್ರಶ್ನಿಸಿ",
+    speakQuestion: "ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಮಾತನಾಡಿ",
+    stopListening: "ಆಲಿಸುವುದನ್ನು ನಿಲ್ಲಿಸಿ",
+    noSpeech: "ಧ್ವನಿ ಪತ್ತೆಯಾಗಲಿಲ್ಲ. ಪ್ರಶ್ನೆಯನ್ನು ತಿದ್ದಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ.",
+    recognitionInterrupted: "ಪ್ರತಿಲಿಪಿ ಸಿಗುವ ಮೊದಲು ಧ್ವನಿ ಇನ್‌ಪುಟ್ ನಿಂತಿತು. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ.",
+    recognitionLanguageUnsupported: "ಈ ಸಾಧನದಲ್ಲಿ ಈ ಭಾಷೆಯ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಬೆಂಬಲಿತವಿಲ್ಲ. ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ.",
+    recognitionNetworkError: "ಧ್ವನಿ ಸೇವೆಯನ್ನು ಸಂಪರ್ಕಿಸಲಾಗಲಿಲ್ಲ. ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ.",
+    playbackError: "ಧ್ವನಿ ಪ್ಲೇಬ್ಯಾಕ್ ವಿಫಲವಾಗಿದೆ ಅಥವಾ ನಿಂತಿದೆ. ಪಠ್ಯ ಉತ್ತರ ಲಭ್ಯವಿದೆ.",
+    voiceLoading: "ಸಾಧನದ ಧ್ವನಿಗಳನ್ನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ. ಸ್ವಲ್ಪ ಸಮಯದ ಬಳಿಕ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    newQuestion: "ಹೊಸ ಪ್ರಶ್ನೆ",
+    retry: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+    selectFarm: "ನಿಮ್ಮ ಕೃಷಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    selectPlot: "ನಿಮ್ಮ ಹೊಲ/ಪ್ಲಾಟ್ ಆಯ್ಕೆಮಾಡಿ",
+    selectBranch: "ಶಾಖೆ (ಐಚ್ಛಿಕ)",
+    selectRun: "ಪೂರ್ಣಗೊಂಡ ಸಿಮ್ಯುಲೇಶನ್ (ಐಚ್ಛಿಕ)",
+    selectComparison: "ಉಳಿಸಿದ ಹೋಲಿಕೆ (ಐಚ್ಛಿಕ)",
+    questionPrompt: "ನೀವು ಏನನ್ನು ಅರ್ಥಮಾಡಿಕೊಳ್ಳಲು ಬಯಸುತ್ತೀರಿ?",
+    analyzeButton: "ನನ್ನ ಕೃಷಿಯನ್ನು ವಿಶ್ಲೇಷಿಸಿ",
+    analysisLoading: "ನಿಮ್ಮ ಕೃಷಿಯ ಸಾಕ್ಷ್ಯವನ್ನು ಪಡೆಯಲಾಗುತ್ತಿದೆ ಮತ್ತು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…",
+    analysisResult: "ಸಾಕ್ಷ್ಯಾಧಾರಿತ ಉತ್ತರ",
+    fieldContext: "ಹೊಲದ ಸಂದರ್ಭ",
+    cropCapability: "ಬೆಳೆ ಮಾದರಿ ಸಾಮರ್ಥ್ಯ",
+    environmentalEvidence: "ಪರಿಸರ ಸಾಕ್ಷ್ಯ",
+    simulationEvidence: "ವೈಜ್ಞಾನಿಕ ಸಿಮ್ಯುಲೇಶನ್",
+    comparisonEvidence: "ಹೋಲಿಕೆಯ ಸಾಕ್ಷ್ಯ",
+    supportingEvidence: "ಬೆಂಬಲಿಸುವ ಸಾಕ್ಷ್ಯವನ್ನು ನೋಡಿ",
+    dataFreshness: "ದತ್ತಾಂಶದ ತಾಜಾತನ",
+    missingEvidence: "ಮಾಹಿತಿ ಲಭ್ಯವಿಲ್ಲ",
+    scientificLimitations: "ಈ ಫಲಿತಾಂಶದ ಮಿತಿಗಳು",
+    expertFollowUp: "ಮಾನವ ತಜ್ಞರ ಮುಂದಿನ ಸಲಹೆ",
+    generationMode: "ಈ ಉತ್ತರವನ್ನು ಹೇಗೆ ಸಿದ್ಧಪಡಿಸಲಾಗಿದೆ",
+    sourceField: "ಸಾಕ್ಷ್ಯ ಕ್ಷೇತ್ರ",
+    freshnessWarning: "ಹಳೆಯ ಅಥವಾ ಅವಧಿ ಮೀರಿದ ದತ್ತಾಂಶ",
+    noRegisteredFarms: "ನೋಂದಾಯಿತ ಕೃಷಿ ಲಭ್ಯವಿಲ್ಲ. ವಿಶ್ಲೇಷಣೆಗೆ ಮೊದಲು ನೈಜ ಕೃಷಿಯನ್ನು ಸೇರಿಸಿ.",
+    noPlots: "ಈ ಕೃಷಿಗೆ ನೋಂದಾಯಿತ ಹೊಲಗಳಿಲ್ಲ.",
+    chooseFarmPlot: "ವಿಶ್ಲೇಷಣೆ ಕೇಳುವ ಮೊದಲು ಕೃಷಿ ಮತ್ತು ಹೊಲವನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    analysisError: "ವಿಶ್ಲೇಷಣೆ ಪೂರ್ಣಗೊಳ್ಳಲಿಲ್ಲ. ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    noCompletedRun: "ಈ ಆಯ್ಕೆಗೆ ಪೂರ್ಣಗೊಂಡ ಸಿಮ್ಯುಲೇಶನ್ ಲಭ್ಯವಿಲ್ಲ.",
+    historicalResult: "ಹಿಂದಿನ ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶ; ಇದು ಪ್ರಸ್ತುತ ಮುನ್ಸೂಚನೆ ಅಲ್ಲ.",
+    unsupportedNotZero: "ಬೆಂಬಲಿಸದ ಅಥವಾ ಕಾಣೆಯಾದ ಅಳತೆಗಳು ಶೂನ್ಯವಲ್ಲ.",
+    llmGenerated: "ಪರಿಶೀಲಿಸಿದ ಸಾಕ್ಷ್ಯವಿರುವ ಐಚ್ಛಿಕ AI ವಿವರಣೆ",
+    deterministicGenerated: "ನಿಯಮಾಧಾರಿತ ಸಾಕ್ಷ್ಯ ವಿವರಣೆ",
+    fallbackGenerated: "AI ಉತ್ತರ ಲಭ್ಯವಿಲ್ಲದಾಗ ಅಥವಾ ತಿರಸ್ಕೃತವಾದಾಗ ನಿಯಮಾಧಾರಿತ ಉತ್ತರ",
+    comparisonMatched: "ಹೋಲಿಸಬಹುದಾದ ಇನ್‌ಪುಟ್‌ಗಳು",
+    comparisonNotMatched: "ಇನ್‌ಪುಟ್‌ಗಳು ಹೊಂದಿಕೆಯಾಗಿಲ್ಲ",
+    comparisonNotComparable: "ಹೋಲಿಸಲಾಗದು",
+    comparisonBranches: "ಮೂಲ ಮತ್ತು ಪರ್ಯಾಯ ಶಾಖೆಗಳು",
+    comparisonRuns: "ಮೂಲ ಮತ್ತು ಪರ್ಯಾಯ ಸಿಮ್ಯುಲೇಶನ್ ರನ್‌ಗಳು",
+    comparisonDate: "ಹೋಲಿಕೆಯ ದಿನಾಂಕ",
+    comparisonAssumptions: "ಹೋಲಿಕೆಯ ಊಹೆಗಳು",
+    noSupportedOutputs: "ಈ ಬೆಳೆಗೆ ಪ್ರಸ್ತುತ ಮಾದರಿಯಲ್ಲಿ ಬೆಂಬಲಿತ ಸಂಖ್ಯಾತ್ಮಕ ಫಲಿತಾಂಶಗಳಿಲ್ಲ.",
+    outputCanopyCover: "ಬೆಳೆ ಮೇಲ್ಛಾವಣಿ ವ್ಯಾಪ್ತಿ",
+    outputBiomass: "ಜೈವಭಾರ",
+    outputYield: "ಇಳುವರಿ",
+    outputEvapotranspiration: "ನೈಜ ಬಾಷ್ಪೀಕರಣ",
+    outputWaterStress: "ನೀರಿನ ಒತ್ತಡ",
+    outputIrrigation: "ನೀರಾವರಿ",
+    freshnessFresh: "ತಾಜಾ",
+    freshnessStale: "ಹಳೆಯದು",
+    freshnessHistorical: "ಹಿಂದಿನದು",
+    freshnessStaticBaseline: "ಸ್ಥಿರ ಮಾದರಿ ಆಧಾರ",
+    freshnessMissing: "ಕಾಣೆಯಾಗಿದೆ",
+    freshnessUnavailable: "ಲಭ್ಯವಿಲ್ಲ",
+    freshnessNewOrCached: "ಹೊಸದು ಅಥವಾ ಸಂಗ್ರಹಿತ",
+    freshnessWeatherType: "ಹವಾಮಾನ ಸಾಕ್ಷ್ಯ",
+    freshnessSoilType: "ಮಣ್ಣಿನ ಸಾಕ್ಷ್ಯ",
+    freshnessSnapshotType: "ಪರಿಸರ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್",
+    freshnessInputType: "ಪರಿಸರ ಇನ್‌ಪುಟ್",
+    freshnessRunType: "ವೈಜ್ಞಾನಿಕ ಸಿಮ್ಯುಲೇಶನ್ ರನ್",
+    freshnessStatesType: "ವೈಜ್ಞಾನಿಕ ಸಿಮ್ಯುಲೇಶನ್ ಸ್ಥಿತಿಗಳು",
+    freshnessComparisonType: "ಸಿಮ್ಯುಲೇಶನ್ ಹೋಲಿಕೆ",
+    weatherRecords: "ಹವಾಮಾನ ದಾಖಲೆಗಳು",
+    soilProfileAvailable: "ಮಣ್ಣಿನ ವಿವರ ಲಭ್ಯವಿದೆ",
+    soilProfileMissing: "ಮಣ್ಣಿನ ವಿವರ ಲಭ್ಯವಿಲ್ಲ",
   },
   hi: {
     connect: "कनेक्ट",
@@ -270,6 +510,86 @@ export const translations: Record<Locale, Translation> = {
     limitationsTitle: "वैज्ञानिक सीमाएं एवं बायोफिजिकल दायरा",
     escalationTitle: "विशेषज्ञ परामर्श आवश्यक (कृषि विज्ञान केंद्र)",
     sourcesTitle: "प्रमाणिक स्रोत एवं संदर्भ",
+    cropHelpTitle: "फसल और क्षमता सहायता",
+    cropHelpDescription: "सीमित फसल पहचान, मॉडल क्षमता और सामान्य जल मार्गदर्शन। यह रोग-निदान चैटबॉट नहीं है।",
+    farmAnalysisTitle: "मेरे फार्म का विश्लेषण करें",
+    farmAnalysisDescription: "पंजीकृत खेत के संग्रहीत पर्यावरणीय और वैज्ञानिक साक्ष्य के बारे में पूछें।",
+    voiceReady: "आवाज इनपुट उपलब्ध",
+    textMode: "लिखने और स्पर्श का विकल्प हमेशा उपलब्ध है",
+    askUsingText: "लिखकर पूछें",
+    speakQuestion: "अपना प्रश्न बोलें",
+    stopListening: "सुनना बंद करें",
+    noSpeech: "आवाज नहीं मिली। प्रश्न संपादित करें या लिखें।",
+    recognitionInterrupted: "प्रतिलेख मिलने से पहले आवाज इनपुट रुक गया। फिर प्रयास करें या लिखें।",
+    recognitionLanguageUnsupported: "इस डिवाइस पर इस भाषा की आवाज पहचान उपलब्ध नहीं है। कृपया लिखें।",
+    recognitionNetworkError: "आवाज सेवा से संपर्क नहीं हो सका। कृपया प्रश्न लिखें।",
+    playbackError: "ऑडियो चल नहीं पाया या बीच में रुक गया। पाठ उत्तर उपलब्ध है।",
+    voiceLoading: "डिवाइस की आवाजें जांची जा रही हैं। थोड़ी देर बाद फिर प्रयास करें।",
+    newQuestion: "नया प्रश्न",
+    retry: "फिर प्रयास करें",
+    selectFarm: "अपना फार्म चुनें",
+    selectPlot: "अपना खेत/प्लॉट चुनें",
+    selectBranch: "शाखा (वैकल्पिक)",
+    selectRun: "पूर्ण सिमुलेशन (वैकल्पिक)",
+    selectComparison: "सहेजी गई तुलना (वैकल्पिक)",
+    questionPrompt: "आप क्या समझना चाहते हैं?",
+    analyzeButton: "मेरे फार्म का विश्लेषण करें",
+    analysisLoading: "आपके फार्म के साक्ष्य प्राप्त और जांचे जा रहे हैं…",
+    analysisResult: "साक्ष्य-आधारित उत्तर",
+    fieldContext: "खेत का संदर्भ",
+    cropCapability: "फसल मॉडल क्षमता",
+    environmentalEvidence: "पर्यावरणीय साक्ष्य",
+    simulationEvidence: "वैज्ञानिक सिमुलेशन",
+    comparisonEvidence: "तुलना साक्ष्य",
+    supportingEvidence: "सहायक साक्ष्य देखें",
+    dataFreshness: "डेटा की ताजगी",
+    missingEvidence: "जानकारी उपलब्ध नहीं",
+    scientificLimitations: "इस परिणाम की सीमाएं",
+    expertFollowUp: "मानव विशेषज्ञ से अगला कदम",
+    generationMode: "यह उत्तर कैसे तैयार हुआ",
+    sourceField: "साक्ष्य क्षेत्र",
+    freshnessWarning: "पुराना या बासी डेटा",
+    noRegisteredFarms: "कोई पंजीकृत फार्म उपलब्ध नहीं है। विश्लेषण से पहले वास्तविक फार्म जोड़ें।",
+    noPlots: "इस फार्म में कोई पंजीकृत खेत नहीं है।",
+    chooseFarmPlot: "विश्लेषण पूछने से पहले फार्म और खेत चुनें।",
+    analysisError: "विश्लेषण पूरा नहीं हो सका। कनेक्शन जांचें और फिर प्रयास करें।",
+    noCompletedRun: "इस चयन के लिए कोई पूर्ण सिमुलेशन उपलब्ध नहीं है।",
+    historicalResult: "पुराना सिमुलेशन परिणाम; यह लाइव पूर्वानुमान नहीं है।",
+    unsupportedNotZero: "असमर्थित या अनुपलब्ध माप शून्य नहीं हैं।",
+    llmGenerated: "सत्यापित साक्ष्य के साथ वैकल्पिक AI व्याख्या",
+    deterministicGenerated: "नियम-आधारित साक्ष्य व्याख्या",
+    fallbackGenerated: "AI उत्तर उपलब्ध न होने या अस्वीकार होने पर नियम-आधारित उत्तर",
+    comparisonMatched: "तुलनीय इनपुट",
+    comparisonNotMatched: "इनपुट मेल नहीं खाते",
+    comparisonNotComparable: "तुलना संभव नहीं",
+    comparisonBranches: "आधार और वैकल्पिक शाखाएं",
+    comparisonRuns: "आधार और वैकल्पिक सिमुलेशन रन",
+    comparisonDate: "तुलना की तारीख",
+    comparisonAssumptions: "तुलना की मान्यताएं",
+    noSupportedOutputs: "इस फसल के लिए मौजूदा मॉडल में कोई समर्थित संख्यात्मक परिणाम नहीं है।",
+    outputCanopyCover: "फसल छत्र आवरण",
+    outputBiomass: "जैवभार",
+    outputYield: "उपज",
+    outputEvapotranspiration: "वास्तविक वाष्पोत्सर्जन",
+    outputWaterStress: "जल तनाव",
+    outputIrrigation: "सिंचाई",
+    freshnessFresh: "ताज़ा",
+    freshnessStale: "पुराना",
+    freshnessHistorical: "ऐतिहासिक",
+    freshnessStaticBaseline: "स्थिर मॉडल-आधारित आधार",
+    freshnessMissing: "अनुपलब्ध",
+    freshnessUnavailable: "उपलब्ध नहीं",
+    freshnessNewOrCached: "नया या कैश किया हुआ",
+    freshnessWeatherType: "मौसम साक्ष्य",
+    freshnessSoilType: "मृदा साक्ष्य",
+    freshnessSnapshotType: "पर्यावरणीय स्नैपशॉट",
+    freshnessInputType: "पर्यावरणीय इनपुट",
+    freshnessRunType: "वैज्ञानिक सिमुलेशन रन",
+    freshnessStatesType: "वैज्ञानिक सिमुलेशन स्थिति",
+    freshnessComparisonType: "सिमुलेशन तुलना",
+    weatherRecords: "मौसम रिकॉर्ड",
+    soilProfileAvailable: "मृदा विवरण उपलब्ध",
+    soilProfileMissing: "मृदा विवरण उपलब्ध नहीं",
   },
 };
 

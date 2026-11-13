@@ -2,16 +2,18 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.schemas import ApiResponse
+from app.schemas import ApiError, ApiErrorDetail, ApiResponse
 from app.services.analysis import (
     AnalysisRequest,
     AnalysisResponseData,
     EvidenceGroundedAnalysisService,
 )
+from app.services.analysis.evidence_builder import AnalysisEvidenceError
 from app.services.crop_lens import CropLensResolver
 from app.services.crop_lens.registry import CROP_REGISTRY
 from app.services.environmental import EnvironmentalInputService
@@ -50,7 +52,23 @@ async def run_analysis(
             correlationId=request.state.correlation_id,
         )
     except KeyError as err:
-        raise HTTPException(
+        body = ApiError(
+            error=ApiErrorDetail(
+                code="EVIDENCE_NOT_FOUND",
+                message=str(err).strip("'\""),
+            ),
+            correlationId=request.state.correlation_id,
+        )
+        return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(err).strip("'\""),
+            content=body.model_dump(by_alias=True),
+        )
+    except AnalysisEvidenceError as err:
+        body = ApiError(
+            error=ApiErrorDetail(code=err.code, message=err.message),
+            correlationId=request.state.correlation_id,
+        )
+        return JSONResponse(
+            status_code=err.status_code,
+            content=body.model_dump(by_alias=True),
         )

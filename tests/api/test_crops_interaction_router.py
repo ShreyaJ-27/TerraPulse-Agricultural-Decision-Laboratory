@@ -19,7 +19,8 @@ def test_interact_endpoint_kannada_turmeric():
     assert data["resolutionStatus"] == "exact_match"
     assert data["resolvedCrop"] is not None
     assert data["resolvedCrop"]["canonicalName"] == "Turmeric"
-    assert "Turmeric" in data["responseText"]
+    assert "ಅರಿಶಿನ" in data["responseText"]
+    assert "Turmeric" not in data["responseText"]
     assert data["speechText"] != ""
     assert data["escalationRequired"] is False
 

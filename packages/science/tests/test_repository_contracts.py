@@ -1,15 +1,21 @@
 """Cross-contract checks against the repository's actual Pydantic models."""
 import json
 import os
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
-from test_science import FIX
 from terrapulse_science import ScienceError, parse_aquacrop_fixture, run_fao, turmeric_profile
 from terrapulse_science.contracts import stable_hash
 from terrapulse_science.repository_contracts import (
-    c3_states_from_run, fao_input_from_c1_v1, irrigation_from_c8_v1,
+    c3_states_from_run,
+    fao_input_from_c1_v1,
+    irrigation_from_c8_v1,
+)
+from test_science import (
+    FIX,
+    aquacrop_fixture_unavailable_message,
+    missing_aquacrop_fixture_files,
 )
 
 REPO = Path(__file__).resolve().parents[3]
@@ -68,6 +74,7 @@ class TestRepositoryContracts(unittest.TestCase):
         self.assertEqual(rows[0].yield_.availability.status,"unsupported")
         self.assertIsNone(rows[0].yield_.value)
 
+    @unittest.skipIf(missing_aquacrop_fixture_files(), aquacrop_fixture_unavailable_message())
     def test_actual_aquacrop_fixture_projects_without_inventing_fluxes(self):
         run = parse_aquacrop_fixture(FIX, label="planting_11_01", start_date="1979-10-01",
             plot_id=self.args["plot_id"], branch_id=self.args["branch_id"],
