@@ -1,0 +1,144 @@
+{
+  "fixtureId": "punjab-advisory-v1",
+  "regionId": "IN-PB",
+  "timezone": "Asia/Kolkata",
+  "profiles": [
+    {
+      "schemaVersion": "1.0",
+      "regionId": "IN-PB",
+      "status": "regional_context_available",
+      "crop": {
+        "cropId": "00000000-0000-0000-0000-000000000010",
+        "canonicalName": "Maize",
+        "scientificName": "Zea mays",
+        "family": "Poaceae",
+        "aliases": [
+          "maize",
+          "corn",
+          "makka",
+          "makki",
+          "cholam",
+          "zea mays"
+        ]
+      },
+      "regionalContext": {
+        "season": "kharif",
+        "summary": "Monsoon-season maize. PAU describes earlier establishment for fields prone to standing water before monsoon rains.",
+        "source": {
+          "publisher": "Punjab Agricultural University",
+          "title": "Package of Practices for Crops of Punjab",
+          "edition": "Kharif 2026",
+          "publishedMonth": "2026-03",
+          "reviewedOn": "2026-11-13",
+          "url": "https://pau.edu/content/ccil/pf/pp_kharif.pdf"
+        },
+        "plantingWindow": {
+          "kind": "typical_regional_window",
+          "operation": "direct_sowing",
+          "label": "Late May through the end of June",
+          "applicability": "PAU's main-season maize window. For fields prone to standing water, the guide describes sowing in late May to early June.",
+          "sourceSection": "Maize, Agronomic Practices (printed pp. 30–31)"
+        },
+        "milestones": [
+          {
+            "id": "silking",
+            "label": "Silking",
+            "definition": "Silks emerge from the maize ear.",
+            "sourceSection": "Maize, Agronomic Practices (printed pp. 30–31)",
+            "definitionUrl": "https://agry.purdue.edu/ext/corn/news/timeless/GrainFill.html"
+          },
+          {
+            "id": "grain_filling",
+            "label": "Grain filling",
+            "definition": "Kernels develop and accumulate dry matter.",
+            "sourceSection": "Maize, Agronomic Practices (printed pp. 30–31)",
+            "definitionUrl": "https://agry.purdue.edu/ext/corn/news/timeless/GrainFill.html"
+          }
+        ]
+      },
+      "capabilities": {
+        "regionalPlantingWindow": true,
+        "cultivationMilestones": true,
+        "numericalIrrigationAdvice": false,
+        "harvestDatePrediction": false,
+        "yieldPrediction": false,
+        "simulation": false
+      }
+    },
+    {
+      "schemaVersion": "1.0",
+      "regionId": "IN-PB",
+      "status": "regional_context_available",
+      "crop": {
+        "cropId": "00000000-0000-0000-0000-000000000020",
+        "canonicalName": "Wheat",
+        "scientificName": "Triticum aestivum",
+        "family": "Poaceae",
+        "aliases": [
+          "wheat",
+          "gehun",
+          "godhumai",
+          "kanak",
+          "triticum aestivum"
+        ]
+      },
+      "regionalContext": {
+        "season": "rabi",
+        "summary": "Winter-season wheat. Sowing guidance varies by variety and field conditions.",
+        "source": {
+          "publisher": "Punjab Agricultural University",
+          "title": "Package of Practices for Crops of Punjab",
+          "edition": "Rabi 2025–26",
+          "publishedMonth": "2025-08",
+          "reviewedOn": "2026-11-13",
+          "url": "https://pau.edu/content/ccil/pf/pp_rabi.pdf"
+        },
+        "plantingWindow": {
+          "kind": "typical_regional_window",
+          "operation": "direct_sowing",
+          "label": "First half of November",
+          "applicability": "PAU's general optimum window in this edition. Some long-duration varieties can be sown from late October. Check variety-specific guidance.",
+          "sourceSection": "Wheat, Time of Sowing and Sowing Method and Spacing (printed pp. 4–6)"
+        },
+        "milestones": [
+          {
+            "id": "field_sowing",
+            "label": "Field sowing",
+            "definition": "Wheat seed is placed in the field.",
+            "sourceSection": "Wheat, Time of Sowing and Sowing Method and Spacing (printed pp. 4–6)",
+            "definitionUrl": null
+          },
+          {
+            "id": "seedling_emergence",
+            "label": "Seedling emergence",
+            "definition": "Wheat shoots become visible above the soil surface.",
+            "sourceSection": "Wheat, Time of Sowing and Sowing Method and Spacing (printed pp. 4–6)",
+            "definitionUrl": null
+          }
+        ]
+      },
+      "capabilities": {
+        "regionalPlantingWindow": true,
+        "cultivationMilestones": true,
+        "numericalIrrigationAdvice": false,
+        "harvestDatePrediction": false,
+        "yieldPrediction": false,
+        "simulation": false
+      }
+    }
+  ],
+  "weatherEvents": [
+    {
+      "eventId": "punjab-example-rain",
+      "regionId": "IN-PB",
+      "type": "rain",
+      "title": "Example rain event",
+      "startsAt": "2026-11-14T09:00:00+05:30",
+      "endsAt": "2026-11-14T15:00:00+05:30",
+      "source": {
+        "kind": "synthetic_fixture",
+        "fixtureId": "punjab-advisory-v1"
+      }
+    }
+  ]
+}

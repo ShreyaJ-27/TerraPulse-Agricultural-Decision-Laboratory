@@ -7,11 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.routers.analysis import router as analysis_router
+from app.routers.agri_calendar import router as agri_calendar_router
 from app.routers.branches import router as branches_router
 from app.routers.comparisons import router as comparisons_router
 from app.routers.crops import router as crops_router
 from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
+from app.routers.advisory import router as advisory_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
 from app.routers.resources import router as resources_router
@@ -77,6 +79,7 @@ async def unhandled_error(request: Request, exc: Exception):
 app.include_router(health_router)
 app.include_router(crops_router)
 app.include_router(farms_router)
+app.include_router(advisory_router)
 app.include_router(environment_router)
 app.include_router(simulations_router)
 app.include_router(branches_router)
@@ -84,3 +87,4 @@ app.include_router(comparisons_router)
 app.include_router(observatory_router)
 app.include_router(resources_router)
 app.include_router(analysis_router)
+app.include_router(agri_calendar_router)

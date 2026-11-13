@@ -36,13 +36,18 @@ async def create_farm(
     request: Request,
     payload: FarmCreateRequest,
     service: ServiceDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ApiResponse:
     """Register a new farm with confirmed location coordinates."""
     farm: FarmResponse = await service.create_farm(payload)
-    return ApiResponse(
-        data=farm.model_dump(by_alias=True),
-        correlationId=request.state.correlation_id,
-    )
+    # Registration succeeds even if Telegram is temporarily unavailable.
+    # The returned link enables one-tap opt-in after registration.
+    from app.services.farmer_alerts.registration import link_for_newly_registered_farm
+    registration = farm.model_dump(by_alias=True)
+    connect_url = await link_for_newly_registered_farm(session, farm.farm_id)
+    if connect_url:
+        registration["telegramConnectUrl"] = connect_url
+    return ApiResponse(data=registration, correlationId=request.state.correlation_id)
 
 
 @router.get("", response_model=ApiResponse)

@@ -1,8 +1,10 @@
+import { FarmerApp, isFarmerPath } from "./FarmerApp";
 import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
 import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulation } from "./services/apiClient";
 import { getInitialLocale, translations } from "./i18n";
+import { ExampleField } from "./components/living-field/fieldState";
 import { FutureFold, Observatory, Timeline } from "./components/scenario";
 import { ResourcePanel } from "./components/resources";
 import { FarmerInteraction } from "./components/interaction";
@@ -11,7 +13,7 @@ const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
 function useNavigation() {
   const [path, setPath] = useState(routePath);
   useEffect(() => { const onPop = () => setPath(routePath()); window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
-  const navigate = (next: string) => { window.history.pushState({}, "", next); setPath(next); };
+  const navigate = (next: string) => { window.history.pushState({}, "", next); setPath(routePath()); };
   return { path, navigate };
 }
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Something went wrong. Please retry.";
@@ -85,16 +87,18 @@ class Boundary extends Component<{ children: ReactNode; copy: typeof translation
 export function App() {
   const { path, navigate } = useNavigation(); const [locale, setLocale] = useState(getInitialLocale); const copy = translations[locale];
   const route: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
+  if (isFarmerPath(path)) return <AppErrorBoundary copy={copy}><FarmerApp path={path} navigate={navigate} /></AppErrorBoundary>;
   let content: ReactNode;
   const parts = path.split("/").filter(Boolean);
   if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
   else if (path === "/assisted" || path === "/interact") content = <FarmerInteraction copy={copy} locale={locale} />;
+  else if (path === "/observatory") content = <PageContainer><ExampleField /></PageContainer>;
   else if (path === "/farms/new" || (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new")) content = <FarmWizard navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
-  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory farmId={parts[1]} plotId={parts[3]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "timeline") content = <Timeline farmId={parts[1]} plotId={parts[3]} />;
-  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "future-fold") content = <FutureFold farmId={parts[1]} plotId={parts[3]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "future-fold") content = <FutureFold key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results") content = <Results farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
