@@ -1,0 +1,50 @@
+export class ApiError extends Error {
+  constructor(public readonly status: number, public readonly code: string, message: string, public readonly fields?: Record<string, string[]>) {
+    super(message);
+  }
+}
+
+const baseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
+
+export async function api<T>(path: string, init?: Parameters<typeof window.fetch>[1]): Promise<T> {
+  const correlationId = window.crypto.randomUUID();
+  let response: Awaited<ReturnType<typeof window.fetch>>;
+  try {
+    response = await window.fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId, ...(init?.headers || {}) },
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK_ERROR", "The TerraPulse API could not be reached.");
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = body.error || {};
+    const detail = body.detail || {};
+    throw new ApiError(response.status, error.code || detail.code || "HTTP_ERROR", error.message || detail.message || "The request failed.", error.fields);
+  }
+  return (body.data ?? body) as T;
+}
+
+export const apiClient = {
+  listFarms: () => api<{ farms: Farm[]; total: number }>("/api/v1/farms"),
+  getFarm: (id: string) => api<Farm>(`/api/v1/farms/${id}`),
+  createFarm: (value: unknown) => api<Farm>("/api/v1/farms", { method: "POST", body: JSON.stringify(value) }),
+  createPlot: (farmId: string, value: unknown) => api<Plot>(`/api/v1/farms/${farmId}/plots`, { method: "POST", body: JSON.stringify(value) }),
+  resolveCrop: (query: string) => api<CropResolution>(`/api/v1/crops/resolve?q=${encodeURIComponent(query)}`),
+  prepareEnvironment: (value: unknown) => api<Environment>(`/api/v1/environment/prepare`, { method: "POST", body: JSON.stringify(value) }),
+  listSimulations: (farmId: string, plotId: string) => api<{ simulations: Simulation[]; total: number }>(`/api/v1/farms/${farmId}/plots/${plotId}/simulations`),
+  getSimulation: (id: string) => api<Simulation>(`/api/v1/simulations/${id}`),
+  submitSimulation: (value: unknown) => api<{ simulationRunId: string; status: string }>("/api/v1/simulations", { method: "POST", body: JSON.stringify(value) }),
+};
+
+export type Farm = { farmId: string; name: string; timezone: string; location: { latitude: number; longitude: number; crs: string }; plots: Plot[]; createdAt?: string };
+export type Plot = { plotId: string; farmId: string; areaM2: { value: number; unit: string }; cropId: string; cropCanonicalName: string; cropScientificName?: string; plantingDate?: string };
+export type Crop = { cropId: string; canonicalName: string; scientificName?: string; matchedAlias?: string; matchType?: string };
+export type CropResolution = { status: string; crop?: Crop; candidates?: Crop[]; message?: string };
+export type Environment = { environmentalSnapshotId: string; c1Input?: { dailyWeather?: Weather[]; soil?: Soil; simulationPeriod?: { startDate: string; endDate: string } }; capability?: Capability; isValid: boolean; freshness?: string; warnings?: string[]; errors?: string[]; missingFields?: string[]; unsupportedOutputs?: string[]; provenance?: { sourceId: string; sourceVersion?: string; retrievedAt?: string; reference?: string }[]; retrievedAt?: string };
+export type Weather = { date: string; temperatureMinC: Measurement; temperatureMaxC: Measurement; rainfallMm: Measurement; referenceEvapotranspirationMm?: Measurement; ensembleMemberId?: string };
+export type Soil = { depthCm: Measurement; texture?: string; fieldCapacity: Measurement; wiltingPoint: Measurement; bulkDensity?: Measurement };
+export type Measurement = { value?: number; unit: string; availability: { status: string; reason?: string } };
+export type Capability = { selectedEngine: string; engineVersion: string; supportedOutputs: string[]; knownLimitations: string[]; parameterVersions?: string[] };
+export type Simulation = { simulationRunId: string; farmId: string; plotId: string; status: string; engine?: string; engineVersion?: string; parameterVersion?: string; environmentalSnapshotId?: string; weatherMemberId?: string; requestedAt?: string; completedAt?: string; warnings?: string[]; errorCode?: string; errorMessage?: string; states?: Record<string, unknown>[]; scienceEnvelope?: Record<string, unknown> };

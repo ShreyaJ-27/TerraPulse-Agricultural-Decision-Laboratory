@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -20,7 +21,7 @@ class EnvironmentalInputRequest(BaseModel):
 
     farm_id: UUID = Field(alias="farmId")
     plot_id: UUID | None = Field(default=None, alias="plotId")
-    location: Coordinates
+    location: Coordinates | None = None
     timezone: str = "Asia/Kolkata"
     simulation_period: SimulationPeriod = Field(alias="simulationPeriod")
     crop_id: UUID | None = Field(default=None, alias="cropId")
@@ -36,6 +37,7 @@ class EnvironmentalInputRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+
 class ValidationIssue(BaseModel):
     """Specific validation issue with severity, field, and explanatory message."""
 
@@ -44,6 +46,7 @@ class ValidationIssue(BaseModel):
     message: str
 
     model_config = ConfigDict(populate_by_name=True)
+
 
 class EnvironmentalInputResult(BaseModel):
     """Consolidated result of C1 environmental input preparation and validation."""
@@ -56,11 +59,12 @@ class EnvironmentalInputResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list, alias="missingFields")
-    unsupported_outputs: list[str] = Field(
-        default_factory=list, alias="unsupportedOutputs"
-    )
+    unsupported_outputs: list[str] = Field(default_factory=list, alias="unsupportedOutputs")
     freshness: str = "live"
     weather_result: WeatherResult | None = Field(default=None, alias="weatherResult")
     soil_result: SoilResult | None = Field(default=None, alias="soilResult")
+    provenance: list[dict] = Field(default_factory=list)
+    retrieved_at: datetime | None = Field(default=None, alias="retrievedAt")
+    input_hash: str | None = Field(default=None, alias="inputHash")
 
     model_config = ConfigDict(populate_by_name=True)

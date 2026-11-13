@@ -6,8 +6,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.routers.crops import router as crops_router
+from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
 from app.routers.health import router as health_router
+from app.routers.simulations import router as simulations_router
 from app.schemas import ApiError, ApiErrorDetail
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -33,7 +35,9 @@ async def validation_error(request: Request, exc: RequestValidationError):
         location = ".".join(str(item) for item in error["loc"])
         fields.setdefault(location, []).append(error["msg"])
     body = ApiError(
-        error=ApiErrorDetail(code="VALIDATION_ERROR", message="Request validation failed", fields=fields),
+        error=ApiErrorDetail(
+            code="VALIDATION_ERROR", message="Request validation failed", fields=fields
+        ),
         correlation_id=correlation_id,
     )
     return JSONResponse(status_code=422, content=body.model_dump(by_alias=True))
@@ -42,3 +46,5 @@ async def validation_error(request: Request, exc: RequestValidationError):
 app.include_router(health_router)
 app.include_router(crops_router)
 app.include_router(farms_router)
+app.include_router(environment_router)
+app.include_router(simulations_router)
