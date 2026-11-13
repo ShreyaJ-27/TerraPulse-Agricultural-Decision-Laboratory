@@ -32,6 +32,18 @@ logger = logging.getLogger("terrapulse.api")
 app = FastAPI(title="TerraPulse API", version="2.0.0")
 
 
+def _cors_headers(request: Request) -> dict[str, str]:
+    origin = request.headers.get("origin")
+    if origin:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    return {}
+
+
 @app.middleware("http")
 async def correlation_id(request: Request, call_next):
     value = request.headers.get("X-Correlation-ID", str(uuid4()))
@@ -46,16 +58,22 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    correlation_id = request.state.correlation_id
+    corr_id = getattr(request.state, "correlation_id", str(uuid4()))
     fields: dict[str, list[str]] = {}
     for error in exc.errors():
         location = ".".join(str(item) for item in error["loc"])
@@ -64,22 +82,31 @@ async def validation_error(request: Request, exc: RequestValidationError):
         error=ApiErrorDetail(
             code="VALIDATION_ERROR", message="Request validation failed", fields=fields
         ),
-        correlation_id=correlation_id,
+        correlation_id=corr_id,
     )
-    return JSONResponse(status_code=422, content=body.model_dump(by_alias=True))
+    return JSONResponse(
+        status_code=422,
+        content=body.model_dump(by_alias=True),
+        headers=_cors_headers(request),
+    )
 
 
 @app.exception_handler(Exception)
 async def unhandled_error(request: Request, exc: Exception):
     logger.exception("Unhandled API request failure", exc_info=exc)
+    corr_id = getattr(request.state, "correlation_id", str(uuid4()))
     body = ApiError(
         error=ApiErrorDetail(
             code="API_REQUEST_FAILED",
-            message="The API could not complete this request. Check the database connection.",
+            message=f"The API could not complete this request: {exc}",
         ),
-        correlation_id=request.state.correlation_id,
+        correlation_id=corr_id,
     )
-    return JSONResponse(status_code=503, content=body.model_dump(by_alias=True))
+    return JSONResponse(
+        status_code=500,
+        content=body.model_dump(by_alias=True),
+        headers=_cors_headers(request),
+    )
 
 
 app.include_router(health_router)

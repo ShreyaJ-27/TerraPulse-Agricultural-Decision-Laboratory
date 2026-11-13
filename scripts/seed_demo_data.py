@@ -48,6 +48,8 @@ BRANCH_OPTIMIZED_ID = UUID("00000000-0000-0000-0000-000000000302")
 SIM_BASELINE_RUN_ID = UUID("00000000-0000-0000-0000-000000000311")
 SIM_OPTIMIZED_RUN_ID = UUID("00000000-0000-0000-0000-000000000312")
 COMPARISON_ID = UUID("00000000-0000-0000-0000-000000000401")
+ALERT_1_ID = UUID("00000000-0000-0000-0000-000000000501")
+ALERT_2_ID = UUID("00000000-0000-0000-0000-000000000502")
 
 
 async def seed():
@@ -359,9 +361,8 @@ async def seed():
         await session.execute(link_stmt)
 
         # Seed realistic alerts
-        alert_1_id = uuid4()
         alert1 = pg_insert(FarmerAlert).values(
-            id=alert_1_id,
+            id=ALERT_1_ID,
             dedupe_key="demo_alert_rain_01",
             farm_id=DEMO_FARM_ID,
             plot_id=PLOT_MAIZE_ID,
@@ -386,9 +387,8 @@ async def seed():
         ).on_conflict_do_nothing()
         await session.execute(alert1)
 
-        alert_2_id = uuid4()
         alert2 = pg_insert(FarmerAlert).values(
-            id=alert_2_id,
+            id=ALERT_2_ID,
             dedupe_key="demo_alert_science_02",
             farm_id=DEMO_FARM_ID,
             plot_id=PLOT_MAIZE_ID,
@@ -412,6 +412,11 @@ async def seed():
             },
         ).on_conflict_do_nothing()
         await session.execute(alert2)
+
+        alert_1_rec = await session.scalar(select(FarmerAlert).where(FarmerAlert.dedupe_key == "demo_alert_rain_01"))
+        alert_1_id = alert_1_rec.id if alert_1_rec else ALERT_1_ID
+        alert_2_rec = await session.scalar(select(FarmerAlert).where(FarmerAlert.dedupe_key == "demo_alert_science_02"))
+        alert_2_id = alert_2_rec.id if alert_2_rec else ALERT_2_ID
 
         # Record deliveries as DELIVERED
         sub_record = await session.scalar(select(TelegramSubscription).where(TelegramSubscription.farm_id == DEMO_FARM_ID))
@@ -437,6 +442,55 @@ async def seed():
                 updated_at=now_utc - timedelta(minutes=5),
             ).on_conflict_do_nothing()
             await session.execute(deliv2)
+
+        # Seed Timeline Events
+        te1 = pg_insert(TimelineEvent).values(
+            id=uuid4(),
+            farm_id=DEMO_FARM_ID,
+            plot_id=PLOT_MAIZE_ID,
+            branch_id=BRANCH_BASELINE_ID,
+            event_type="planting_date",
+            event_date=date(2026, 6, 15),
+            description="Maize (Hybrid Pioneer 3396) sown in North Plot under standard Kharif cycle.",
+            payload={"sowingRateKgHa": 20.0, "spacingCm": "60x20", "depthCm": 5.0},
+        ).on_conflict_do_nothing()
+        await session.execute(te1)
+
+        te2 = pg_insert(TimelineEvent).values(
+            id=uuid4(),
+            farm_id=DEMO_FARM_ID,
+            plot_id=PLOT_MAIZE_ID,
+            branch_id=BRANCH_BASELINE_ID,
+            event_type="soil_inspection",
+            event_date=date(2026, 7, 5),
+            description="Field soil inspection: Topsoil moisture 0.28 m3/m3, root depth reaching 45 cm.",
+            payload={"topsoilMoisture": 0.28, "subsoilMoisture": 0.32},
+        ).on_conflict_do_nothing()
+        await session.execute(te2)
+
+        te3 = pg_insert(TimelineEvent).values(
+            id=uuid4(),
+            farm_id=DEMO_FARM_ID,
+            plot_id=PLOT_MAIZE_ID,
+            branch_id=BRANCH_OPTIMIZED_ID,
+            event_type="branch_fork",
+            event_date=date(2026, 7, 20),
+            description="Forked optimized drip branch: scheduled 25 mm pulse upon reaching 50% RAW deficit.",
+            payload={"decisionType": "supplemental_irrigation", "irrigationMm": 25.0},
+        ).on_conflict_do_nothing()
+        await session.execute(te3)
+
+        te4 = pg_insert(TimelineEvent).values(
+            id=uuid4(),
+            farm_id=DEMO_FARM_ID,
+            plot_id=PLOT_MAIZE_ID,
+            branch_id=BRANCH_OPTIMIZED_ID,
+            event_type="irrigation",
+            event_date=date(2026, 8, 2),
+            description="Precision drip application: 48,000 L delivered from central farm reservoir.",
+            payload={"litres": 48000, "source": "Central Reservoir", "efficiency": 0.95},
+        ).on_conflict_do_nothing()
+        await session.execute(te4)
 
         await session.commit()
     print("Database seeding completed successfully!")

@@ -213,3 +213,4 @@ To deploy the entire stack to any cloud container service (Render, Fly.io, AWS E
 | Notifications not appearing during late evening testing | Quiet hours suppression policy (22:00–07:00 IST) | Use the `POST /api/v1/notifications/farms/{farm_id}/test` endpoint, which passes `ignore_quiet=True` to immediately dispatch test notifications. |
 | Vite dev command fails with `--host` error | Command argument parsing | Host (`127.0.0.1`) and port (`5173`) are pre-configured in `apps/web/vite.config.ts`. Run `npm --workspace apps/web run dev`. |
 | Missing `@react-three/fiber` or `three` | Dependencies not installed in root | Run `npm install` at the workspace root to install all workspace dependencies. |
+

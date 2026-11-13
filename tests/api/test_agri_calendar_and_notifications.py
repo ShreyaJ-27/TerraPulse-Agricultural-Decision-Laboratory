@@ -79,3 +79,4 @@ def test_notifications_endpoints():
     deliv_data = res.json()["data"]
     assert "deliveries" in deliv_data
     assert len(deliv_data["deliveries"]) >= 1
+

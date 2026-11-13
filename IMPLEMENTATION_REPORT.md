@@ -116,3 +116,4 @@ A dedicated seeding script (`scripts/seed_demo_data.py`) was created and execute
 
 1. **Telegram Bot Delivery**: Test dispatches work end to end through the outbox pipeline. Live external message reception on a physical phone requires a valid token issued by `@BotFather` and an active chat session with the bot. When a mock/demo token is active, the engine records simulated successful delivery with actual message IDs and full status tracking.
 2. **External Paid Services**: In accordance with specification invariants, no paid SMS, WhatsApp, or cloud compute credits were required or consumed.
+

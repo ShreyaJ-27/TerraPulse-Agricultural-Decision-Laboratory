@@ -156,3 +156,4 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/notifications/farms/00000000-0000-0
 # 5. Check Telegram Subscription Status
 curl -s http://127.0.0.1:8000/api/v1/notifications/telegram/status/00000000-0000-0000-0000-000000000001 | jq .
 ```
+
