@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.0.0",
   "engines": {
-    "node": "20.11.1"
+    "node": "26.x"
   },
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
