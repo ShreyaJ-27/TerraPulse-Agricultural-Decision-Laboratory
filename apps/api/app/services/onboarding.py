@@ -108,7 +108,7 @@ class OnboardingService:
         self.session = session
         self.crop_resolver = crop_resolver or CropLensResolver(CROP_REGISTRY)
 
-    async def create_farm(self, request: FarmCreateRequest) -> FarmResponse:
+    async def create_farm(self, request: FarmCreateRequest, *, workspace_key_hash: str | None = None) -> FarmResponse:
         farm_id = uuid4()
         now = datetime.now(UTC)
 
@@ -132,6 +132,7 @@ class OnboardingService:
                 timezone=farm_resp.timezone,
                 location=loc_wkt,
                 boundary=None,
+                workspace_key_hash=workspace_key_hash,
             )
             self.session.add(db_farm)
             await self.session.commit()
@@ -153,11 +154,13 @@ class OnboardingService:
 
         return self._in_memory_farms.get(farm_id)
 
-    async def list_farms(self) -> list[FarmResponse]:
+    async def list_farms(self, *, workspace_key_hash: str | None = None) -> list[FarmResponse]:
         if self.session is not None:
             stmt = select(Farm).options(
                 selectinload(Farm.plots).selectinload(Plot.resource_assignments)
             )
+            if workspace_key_hash is not None:
+                stmt = stmt.where(Farm.workspace_key_hash == workspace_key_hash)
             result = await self.session.execute(stmt)
             return [_farm_to_response(f) for f in result.scalars().all()]
 

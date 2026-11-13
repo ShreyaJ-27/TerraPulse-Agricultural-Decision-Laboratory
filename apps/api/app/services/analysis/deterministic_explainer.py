@@ -618,27 +618,39 @@ class DeterministicExplainer:
         # ------------------------------------------------------------------
         crop_name = bundle.crop_canonical_name
         farm_name = bundle.farm.farm_name
+        evidence_status = {
+            "en": (
+                "Environmental inputs are available." if bundle.c1_input is not None
+                else "Environmental inputs are unavailable."
+            ),
+            "hi": (
+                "पर्यावरणीय इनपुट उपलब्ध हैं।" if bundle.c1_input is not None
+                else "पर्यावरणीय इनपुट उपलब्ध नहीं हैं।"
+            ),
+            "kn": (
+                "ಪರಿಸರದ ಒಳಾಂಶಗಳು ಲಭ್ಯವಿವೆ." if bundle.c1_input is not None
+                else "ಪರಿಸರದ ಒಳಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ."
+            ),
+        }
+        simulation_status = {
+            "en": "Simulation results are unavailable.",
+            "hi": "सिमुलेशन के परिणाम उपलब्ध नहीं हैं।",
+            "kn": "ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ.",
+        }
+        if bundle.c3_states:
+            engine = bundle.c3_states[-1].engine.name
+            simulation_status = {
+                "en": f"Simulation results from {engine} are available.",
+                "hi": f"{engine} सिमुलेशन के परिणाम उपलब्ध हैं।",
+                "kn": f"{engine} ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶಗಳು ಲಭ್ಯವಿವೆ.",
+            }
 
         if language == "kn":
-            summary = (
-                f"ಕೃಷಿ ಕ್ಷೇತ್ರ '{farm_name}'ದ ಬೆಳೆ '{crop_name}'ಗೆ ಸಂಬಂಧಿಸಿದಂತೆ ವಿಶ್ಲೇಷಣೆ ಪೂರ್ಣಗೊಂಡಿದೆ. "
-                f"ಮಾದರಿ ಎಂಜಿನ್: {bundle.crop_capability.selected_engine}. "
-                f"ಲಭ್ಯವಿರುವ ಹವಾಮಾನ, ಮಣ್ಣು ಮತ್ತು ಜೈವಿಕ ಭೌತಿಕ ಸಾಕ್ಷ್ಯಾಧಾರಗಳನ್ನು ಆಧರಿಸಿ ವಿವರಣೆ ಸಿದ್ಧಪಡಿಸಲಾಗಿದೆ. "
-                f"ರೋಗ ಪತ್ತೆ ಮತ್ತು ಮಾರುಕಟ್ಟೆ ಬೆಲೆ ಅಂದಾಜುಗಳು ವೈಜ್ಞಾನಿಕ ಸಿಮ್ಯುಲೇಶನ್ ವ್ಯಾಪ್ತಿಯಿಂದ ಹೊರಗಿವೆ."
-            )
+            subject = f"ಕೃಷಿ ಕ್ಷೇತ್ರ '{farm_name}'ದ ಬೆಳೆ '{crop_name}'ಗೆ ಸಂಬಂಧಿಸಿದ ವಿಶ್ಲೇಷಣೆ."
         elif language == "hi":
-            summary = (
-                f"खेत '{farm_name}' की फसल '{crop_name}' का साक्ष्य-आधारित विश्लेषण तैयार है। "
-                f"सिमुलेशन इंजन: {bundle.crop_capability.selected_engine}। "
-                f"उपलब्ध मौसम, मृदा और जल संतुलन डेटा के आधार पर रिपोर्ट तैयार की गई है। "
-                f"रोग निदान एवं मंडी भाव पूर्वानुमान बायोफिजिकल मॉडल के दायरे से बाहर हैं।"
-            )
+            subject = f"खेत '{farm_name}' की फसल '{crop_name}' का विश्लेषण।"
         else:
-            summary = (
-                f"Evidence-grounded agro-ecological analysis completed for crop '{crop_name}' at farm '{farm_name}'. "
-                f"Simulated via {bundle.crop_capability.selected_engine}. "
-                f"All quantitative assessments reflect verified soil, weather, and biophysical water balances. "
-                f"Disease diagnosis and market commodity pricing are strictly out of scope and referred to local authorities."
-            )
+            subject = f"Analysis for crop '{crop_name}' at farm '{farm_name}'."
 
+        summary = f"{subject} {evidence_status[language]} {simulation_status[language]}"
         return summary, sections, claims

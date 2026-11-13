@@ -105,15 +105,20 @@ def create_deep_link(bot_username: str, token: str) -> str:
 def command_from_update(update: dict) -> tuple[int, int, str, str] | None:
     """Return (chatId, userId, language, command) for private messages only."""
     message = update.get("message") or {}
+    if not isinstance(message, dict):
+        return None
     chat = message.get("chat") or {}
     author = message.get("from") or {}
-    chat_id, user_id = chat.get("id"), author.get("id")
-    if chat.get("type") != "private" or not isinstance(chat_id, int) or not isinstance(user_id, int):
+    if not isinstance(chat, dict) or not isinstance(author, dict):
         return None
-    if chat_id <= 0 or user_id <= 0 or author.get("is_bot"):
+    chat_id, user_id = chat.get("id"), author.get("id")
+    if chat.get("type") != "private" or type(chat_id) is not int or type(user_id) is not int:
+        return None
+    if not 0 < chat_id == user_id < 2**63 or author.get("is_bot"):
         return None
     content = message.get("text")
     if not isinstance(content, str) or not content.strip().startswith("/"):
         return None
-    language = (author.get("language_code") or "en").lower().split("-", 1)[0]
+    language_code = author.get("language_code")
+    language = language_code.lower().split("-", 1)[0] if isinstance(language_code, str) else "en"
     return chat_id, user_id, language if language in {"en", "hi", "kn"} else "en", content.strip()

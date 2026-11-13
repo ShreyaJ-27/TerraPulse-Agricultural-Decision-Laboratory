@@ -209,7 +209,7 @@ def test_interaction_crop_capability_aquacrop_maize(interaction_service: Bounded
     assert res.resolved_crop is not None
     assert res.resolved_crop.canonical_name == "Maize"
     assert "AquaCrop" in res.response_text
-    assert "biomass and dry-matter yield estimation is supported" in res.response_text
+    assert "Farm-scale simulation is unavailable" in res.response_text
 
 
 def test_interaction_water_guidance_finger_millet(interaction_service: BoundedInteractionService):

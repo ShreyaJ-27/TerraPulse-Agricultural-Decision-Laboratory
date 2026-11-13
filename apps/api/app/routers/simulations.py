@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm, require_farm_access, workspace_digest
 from app.core.db import SessionFactory, get_session
 from app.models import ScientificState
 from app.schemas import ApiResponse
@@ -45,6 +46,7 @@ async def submit_simulation(
     background: BackgroundTasks,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await require_farm_access(session, payload.farm_id, workspace_digest(request))
     try:
         run = await SimulationService(session).submit(payload)
     except ValueError as exc:
@@ -60,9 +62,11 @@ async def submit_simulation(
 async def get_simulation(
     run_id: UUID, request: Request, session: Annotated[AsyncSession, Depends(get_session)]
 ):
+    digest = workspace_digest(request)
     run = await SimulationService(session).get_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Simulation run was not found.")
+    await require_farm_access(session, run.farm_id, digest)
     from sqlalchemy import select
 
     result = await session.execute(
@@ -74,7 +78,7 @@ async def get_simulation(
     return ApiResponse(data=_response(run, states), correlationId=request.state.correlation_id)
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/simulations", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/simulations", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def list_simulations(
     farm_id: UUID,
     plot_id: UUID,

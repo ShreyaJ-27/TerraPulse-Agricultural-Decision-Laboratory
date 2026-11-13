@@ -4,30 +4,26 @@ import { LanguageSelector } from "./ui";
 
 export type Route = string;
 
-type NavItem = { route?: Route; label: string; icon: string; upcoming?: boolean };
+type NavItem = { route: Route; label: string; icon: string };
 
 export function NavigationItem({
   item,
   active,
   onNavigate,
-  upcomingLabel,
 }: {
   item: NavItem;
   active: boolean;
   onNavigate: (route: Route) => void;
-  upcomingLabel: string;
 }) {
   return (
     <button
-      className={`nav-item ${active ? "active" : ""} ${item.upcoming ? "disabled" : ""}`}
-      onClick={() => item.route && onNavigate(item.route)}
-      disabled={item.upcoming}
+      className={`nav-item ${active ? "active" : ""} `}
+      onClick={() => onNavigate(item.route)}
       aria-current={active ? "page" : undefined}
-      aria-label={item.upcoming ? `${item.label}, ${upcomingLabel}` : item.label}
+      aria-label={item.label}
     >
       <span className="nav-icon" aria-hidden="true">{item.icon}</span>
       <span>{item.label}</span>
-      {item.upcoming && <span className="nav-badge">{upcomingLabel}</span>}
     </button>
   );
 }
@@ -46,15 +42,16 @@ export function Sidebar({
   onNavigate: (route: Route) => void;
 }) {
   const primary: NavItem[] = [
-    { route: "connect", label: copy.connect, icon: "⌂" },
-    { route: "assisted", label: copy.assisted, icon: "◎" },
+    { route: "connect", label: copy.workspace, icon: "⌂" },
+    { route: "advisories", label: "Advisories", icon: "◎" },
     { route: "observatory", label: copy.observatory, icon: "◌" },
   ];
-  const upcoming: NavItem[] = [
-    { label: copy.workspace, icon: "▦", upcoming: true },
-    { label: copy.cropPlanning, icon: "◇", upcoming: true },
-    { label: copy.futureFold, icon: "↗", upcoming: true },
-    { label: copy.savedDecisions, icon: "♡", upcoming: true },
+  const workspace: NavItem[] = [
+    { route: "crop-planning", label: copy.cropPlanning, icon: "◇" },
+    { route: "calendar", label: "Calendar", icon: "▤" },
+    { route: "future-fold", label: copy.futureFold, icon: "↗" },
+    { route: "living-field", label: "Living Field", icon: "▦" },
+    { route: "saved-decisions", label: copy.savedDecisions, icon: "♡" },
   ];
   return (
     <aside className="sidebar" aria-label="Primary navigation">
@@ -64,11 +61,11 @@ export function Sidebar({
       </div>
       <div className="nav-section">
         <p className="nav-label">Explore</p>
-        {primary.map((item) => <NavigationItem key={item.label} item={item} active={route === item.route} onNavigate={onNavigate} upcomingLabel={copy.upcoming} />)}
+        {primary.map((item) => <NavigationItem key={item.label} item={item} active={route === item.route} onNavigate={onNavigate} />)}
       </div>
       <div className="nav-section nav-section-secondary">
         <p className="nav-label">Workspace</p>
-        {upcoming.map((item) => <NavigationItem key={item.label} item={item} active={false} onNavigate={onNavigate} upcomingLabel={copy.upcoming} />)}
+        {workspace.map((item) => <NavigationItem key={item.route} item={item} active={route === item.route} onNavigate={onNavigate} />)}
       </div>
       <div className="sidebar-footer">
         <LanguageSelector locale={locale} onChange={onLocaleChange} label={copy.language} />
@@ -124,7 +121,7 @@ export function AppShell({ children, ...props }: { children: ReactNode } & Omit<
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="app-shell">
-      <div className={`sidebar-wrap ${menuOpen ? "open" : ""}`}><Sidebar {...props} /></div>
+      <div className={`sidebar-wrap ${menuOpen ? "open" : ""}`}><Sidebar {...props} onNavigate={(route) => { setMenuOpen(false); props.onNavigate(route); }} /></div>
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation" />}
       <div className="app-main"><TopHeader {...props} onMenu={() => setMenuOpen(true)} /><div className="content-wrap">{children}</div></div>
     </div>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,13 +13,14 @@ from app.contracts import (
     Provenance,
     SoilProperties,
 )
-from app.services.soil.client import SoilGridsClient
-from app.services.soil.exceptions import InvalidCoordinatesError
+from app.services.soil.client import DEFAULT_SOILGRIDS_DEPTHS, SoilGridsClient
+from app.services.soil.exceptions import InvalidCoordinatesError, SoilResponseMalformedError
 from app.services.soil.models import (
     SoilDepthObservation,
     SoilLayerProperty,
     SoilResult,
 )
+from app.services.soil.wcs import SoilGridsWcsClient, depth_bounds
 
 logger = logging.getLogger("terrapulse.soil.adapter")
 
@@ -190,8 +192,8 @@ def _build_measurement(
 class SoilGridsAdapter:
     """Adapter for retrieving, normalizing, and attributing soil data from ISRIC SoilGrids v2.0."""
 
-    def __init__(self, client: SoilGridsClient | None = None) -> None:
-        self.client = client or SoilGridsClient()
+    def __init__(self, client: SoilGridsClient | SoilGridsWcsClient | None = None) -> None:
+        self.client = client or SoilGridsWcsClient()
 
     def _validate_coordinates(self, latitude: float, longitude: float) -> None:
         """Validate latitude and longitude against geographic WGS 84 bounds."""
@@ -303,6 +305,8 @@ class SoilGridsAdapter:
         self,
         layer: SoilLayerProperty | None,
         target_depth_cm: float = 30.0,
+        *,
+        require_full_profile: bool = False,
     ) -> float | None:
         """Compute depth-weighted mean for a soil property over interval [0, target_depth_cm]."""
         if layer is None or not layer.depths:
@@ -325,6 +329,8 @@ class SoilGridsAdapter:
                 total_thickness += overlap
 
         if total_thickness > 0:
+            if require_full_profile and not math.isclose(total_thickness, target_depth_cm):
+                return None
             return round(weighted_sum / total_thickness, 4)
 
         return None
@@ -348,14 +354,22 @@ class SoilGridsAdapter:
             SoilResult containing C1 SoilProperties, detailed multi-depth layers, and provenance.
         """
         self._validate_coordinates(latitude, longitude)
-        retrieved_at = datetime.now(UTC)
+        if not math.isfinite(target_depth_cm) or target_depth_cm <= 0:
+            raise SoilResponseMalformedError("Soil profile depth must be finite and positive.")
+        using_wcs = isinstance(self.client, SoilGridsWcsClient)
+        depths = (
+            [label for label in DEFAULT_SOILGRIDS_DEPTHS if depth_bounds(label)[0] < target_depth_cm]
+            if using_wcs else None
+        )
 
         raw_response = await self.client.query_properties(
             lat=latitude,
             lon=longitude,
             properties=properties,
+            depths=depths,
         )
 
+        retrieved_at = datetime.now(UTC)
         layers_payload = raw_response.get("properties", {}).get("layers", [])
         parsed_layers = self._parse_layers(layers_payload)
 
@@ -371,9 +385,14 @@ class SoilGridsAdapter:
         silt_layer = parsed_layers.get("silt")
         sand_layer = parsed_layers.get("sand")
 
-        clay_val = self._aggregate_property_for_depth(clay_layer, target_depth_cm)
-        silt_val = self._aggregate_property_for_depth(silt_layer, target_depth_cm)
-        sand_val = self._aggregate_property_for_depth(sand_layer, target_depth_cm)
+        def aggregate(layer: SoilLayerProperty | None) -> float | None:
+            return self._aggregate_property_for_depth(
+                layer, target_depth_cm, require_full_profile=using_wcs
+            )
+
+        clay_val = aggregate(clay_layer)
+        silt_val = aggregate(silt_layer)
+        sand_val = aggregate(sand_layer)
 
         texture_class: str | None = None
         if clay_val is not None and silt_val is not None and sand_val is not None:
@@ -381,7 +400,7 @@ class SoilGridsAdapter:
 
         # 3. Field Capacity (wv0033)
         fc_layer = parsed_layers.get("wv0033")
-        fc_val = self._aggregate_property_for_depth(fc_layer, target_depth_cm)
+        fc_val = aggregate(fc_layer)
         fc_m = _build_measurement(
             fc_val,
             unit="m3/m3",
@@ -392,7 +411,7 @@ class SoilGridsAdapter:
 
         # 4. Wilting Point (wv1500)
         wp_layer = parsed_layers.get("wv1500")
-        wp_val = self._aggregate_property_for_depth(wp_layer, target_depth_cm)
+        wp_val = aggregate(wp_layer)
         wp_m = _build_measurement(
             wp_val,
             unit="m3/m3",
@@ -403,7 +422,7 @@ class SoilGridsAdapter:
 
         # 5. Bulk Density (bdod)
         bd_layer = parsed_layers.get("bdod")
-        bd_val = self._aggregate_property_for_depth(bd_layer, target_depth_cm)
+        bd_val = aggregate(bd_layer)
         bd_m: Measurement | None = None
         if bd_layer is not None:
             bd_m = _build_measurement(
@@ -433,16 +452,37 @@ class SoilGridsAdapter:
                 status=DataStatus.MISSING,
                 reason="One or more mandatory soil hydraulic parameters (field capacity, wilting point) are missing.",
             )
+        elif fc_val is not None and wp_val is not None and fc_val <= wp_val:
+            overall_avail = Availability(
+                status=DataStatus.INVALID,
+                reason="Field capacity must exceed wilting point.",
+            )
         else:
             overall_avail = Availability(status=DataStatus.AVAILABLE)
 
         # Build Provenance (explicitly identifying data as gridded/modelled, not in-situ field measurement)
+        source_id = self.client.source_id if using_wcs else "isric:soilgrids"
+        service = self.client.service_name if using_wcs else "SoilGrids REST API v2.0"
+        coverages = {
+            depth["coverage"]: depth["error"] or (
+                "NoData" if depth["values"]["mean"] is None else "sampled"
+            )
+            for layer in layers_payload for depth in layer["depths"]
+        } if using_wcs else {}
+        sampled = [name for name, status in coverages.items() if status == "sampled"]
+        reference = "https://www.isric.org/explore/soilgrids (modelled gridded soil predictions at 250m resolution)"
+        if using_wcs:
+            reference = (
+                f"{self.client.api_url} (SoilGrids 250m modelled mean predictions, WCS 2.0.1, "
+                f"WGS84 pixel containing {latitude}, {longitude}, requested profile 0–{target_depth_cm:g} cm. "
+                f"Sampled coverages: {', '.join(sampled) or 'none'}.)"
+            )
         provenance = [
             Provenance(
-                sourceId="isric:soilgrids",
+                sourceId=source_id,
                 sourceVersion="v2.0",
                 retrievedAt=retrieved_at,
-                reference="https://www.isric.org/explore/soilgrids (modelled gridded soil predictions at 250m resolution)",
+                reference=reference,
             )
         ]
 
@@ -453,16 +493,17 @@ class SoilGridsAdapter:
             profileDepthCm=target_depth_cm,
             soilProperties=c1_soil,
             layers=parsed_layers,
-            dataSourceIds=["isric:soilgrids"],
+            dataSourceIds=[source_id],
             provenance=provenance,
             retrievedAt=retrieved_at,
             availability=overall_avail,
             rawMetadata={
                 "provider": "ISRIC - World Soil Information",
-                "service": "SoilGrids REST API v2.0",
+                "service": service,
                 "endpoint": self.client.api_url,
                 "model": "SoilGrids 250m",
                 "dataType": "modelled_gridded",
+                **({"coverages": coverages} if using_wcs else {}),
                 "citation": "Poggio et al. (2021) SoilGrids 2.0: producing soil information for the globe with quantified spatial uncertainty. SOIL 7, 217-240",
             },
         )

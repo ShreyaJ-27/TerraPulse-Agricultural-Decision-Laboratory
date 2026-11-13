@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm
 from app.core.db import get_session
 from app.schemas import ApiError, ApiErrorDetail, ApiResponse
 from app.services.resources import ResourceService
@@ -37,7 +38,7 @@ def _error(request: Request, code: str) -> JSONResponse:
     return JSONResponse(status_code=_ERROR_STATUS.get(code, 422), content=body.model_dump(by_alias=True))
 
 
-@router.post("/{farm_id}/resources", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{farm_id}/resources", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
 async def create_resource(
     farm_id: UUID, payload: ResourceCreateRequest, request: Request, session: SessionDep
 ) -> ApiResponse:
@@ -54,7 +55,7 @@ async def create_resource(
     return ApiResponse(data=resource_data(resource), correlationId=request.state.correlation_id)
 
 
-@router.get("/{farm_id}/resources", response_model=ApiResponse)
+@router.get("/{farm_id}/resources", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def list_resources(farm_id: UUID, request: Request, session: SessionDep) -> ApiResponse:
     resources = await ResourceService(session).list_resources(farm_id)
     return ApiResponse(
@@ -63,7 +64,7 @@ async def list_resources(farm_id: UUID, request: Request, session: SessionDep) -
     )
 
 
-@router.get("/{farm_id}/resources/{resource_id}", response_model=ApiResponse)
+@router.get("/{farm_id}/resources/{resource_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_resource(
     farm_id: UUID, resource_id: UUID, request: Request, session: SessionDep
 ) -> ApiResponse | JSONResponse:
@@ -76,7 +77,7 @@ async def get_resource(
 
 @router.post(
     "/{farm_id}/resources/{resource_id}/plots/{plot_id}",
-    response_model=ApiResponse,
+    dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def assign_plot(
@@ -98,7 +99,7 @@ async def assign_plot(
 
 @router.get(
     "/{farm_id}/resources/{resource_id}/branches/{branch_id}/ledger",
-    response_model=ApiResponse,
+    dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse,
 )
 async def get_ledger(
     farm_id: UUID, resource_id: UUID, branch_id: UUID, request: Request, session: SessionDep
@@ -121,7 +122,7 @@ async def get_ledger(
 
 @router.get(
     "/{farm_id}/resources/{resource_id}/branches/{branch_id}/allocations",
-    response_model=ApiResponse,
+    dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse,
 )
 async def list_allocations(
     farm_id: UUID, resource_id: UUID, branch_id: UUID, request: Request, session: SessionDep
@@ -151,7 +152,7 @@ async def list_allocations(
 
 @router.get(
     "/{farm_id}/resources/{resource_id}/branches/{branch_id}/ledger/versions",
-    response_model=ApiResponse,
+    dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse,
 )
 async def list_ledger_versions(
     farm_id: UUID, resource_id: UUID, branch_id: UUID, request: Request, session: SessionDep
@@ -182,7 +183,7 @@ async def list_ledger_versions(
 
 @router.post(
     "/{farm_id}/resources/{resource_id}/branches/{branch_id}/allocations",
-    response_model=ApiResponse,
+    dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_allocation(

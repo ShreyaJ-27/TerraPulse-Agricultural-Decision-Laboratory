@@ -10,7 +10,7 @@ from .calendar import CropCalendarProfile, PlantingDate
 
 
 def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
-                        crop_name: str, region_id: str | None, planting: PlantingDate,
+                        crop_name: str, plot_name: str, region_id: str | None, planting: PlantingDate,
                         on_date: date, profile: CropCalendarProfile | None) -> dict:
     matched = profile if profile and profile.region_id == region_id and profile.crop_id == crop_id else None
     end = on_date + timedelta(days=31)
@@ -18,7 +18,7 @@ def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
     if planting.date and on_date <= planting.date <= end:
         events.append({"date": planting.date.isoformat(),
             "title": f"Planned {crop_name} sowing", "action": "Confirm field readiness and your recorded plan.",
-            "source": "farmer-entered crop plan",
+            "source": "Farmer-entered crop plan", "sourceVersion": "recorded-date-v1",
             "certainty": planting.certainty})
     if matched:
         for window in matched.planting_windows:
@@ -27,24 +27,27 @@ def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
                 events.append({"date": window.start.isoformat(),
                     "title": f"{crop_name} regional planting window",
                     "action": "Consider field conditions and the published regional guidance.",
-                    "source": window.source_id,
+                    "source": window.source_id, "sourceVersion": window.evidence_version,
                     "certainty": "Regional guidance, not a farm-specific prediction."})
         for stage in matched.milestones:
             due = matched.date_for(planting, stage)
             if due is not None and on_date <= due <= end:
                 events.append({"date": due.isoformat(), "title": stage.label,
-                    "action": stage.guidance, "source": stage.source_id,
+                    "action": stage.guidance, "source": stage.source_id, "sourceVersion": stage.evidence_version,
                     "certainty": "Indicative timing; actual crop development depends on field conditions."})
-    undated = [{"title": m.label, "guidance": m.guidance, "source": m.source_id}
-               for m in matched.milestones if m.days_after_planting is None] if matched else []
+    undated = [{"title": m.label, "guidance": m.guidance, "source": m.source_id,
+                "sourceVersion": m.evidence_version}
+               for m in matched.milestones if matched.date_for(planting, m) is None] if matched else []
     return {
-        "farmId": str(farm_id), "plotId": str(plot_id),
+        "farmId": str(farm_id), "plotId": str(plot_id), "plotName": plot_name,
         "cropId": str(crop_id) if crop_id else None,
         "cropName": crop_name, "plantingDate": planting.date.isoformat() if planting.date else None,
         "plantingCertainty": planting.certainty,
         "regionId": region_id,
         "regionalGuidanceAvailable": matched is not None,
         "regionalSource": matched.source_id if matched else None,
+        "regionalSourceVersion": matched.source_version if matched else None,
+        "regionalSourceUrl": matched.source_url if matched else None,
         "plantingWindowNote": matched.planting_window_note if matched else None,
         "next31Days": sorted(events, key=lambda row: (row["date"], row["title"])),
         "undatedActivities": undated,

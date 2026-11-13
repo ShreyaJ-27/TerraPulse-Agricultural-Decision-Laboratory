@@ -1,6 +1,7 @@
 """Add branch-scoped shared-water resources and append-only allocations."""
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
 from alembic import op
 
 revision = "0004_shared_water_ledger"
@@ -20,15 +21,15 @@ def _add(table: str, column: sa.Column) -> None:
 
 def upgrade() -> None:
     _add("farm_resources", sa.Column("name", sa.String(200), nullable=True))
-    _add("farm_resources", sa.Column("metadata", sa.JSON(), nullable=True))
-    _add("farm_resources", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
-    _add("farm_resources", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
+    _add("farm_resources", sa.Column("metadata", JSONB(), nullable=True))
+    _add("farm_resources", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
+    _add("farm_resources", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
     _add("resource_ledgers", sa.Column("version", sa.Integer(), nullable=True))
     _add("resource_ledgers", sa.Column("ledger_hash", sa.String(128), nullable=True))
     _add("resource_ledgers", sa.Column("parent_ledger_id", sa.Uuid(), nullable=True))
     _add("resource_ledgers", sa.Column("validation_status", sa.String(30), nullable=True))
-    _add("resource_ledgers", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
-    _add("resource_ledgers", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()))
+    _add("resource_ledgers", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
+    _add("resource_ledgers", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
 
     inspector = sa.inspect(op.get_bind())
     if "resource_plot_authorizations" not in inspector.get_table_names():
@@ -37,7 +38,7 @@ def upgrade() -> None:
             sa.Column("id", sa.Uuid(), primary_key=True),
             sa.Column("resource_id", sa.Uuid(), sa.ForeignKey("farm_resources.id"), nullable=False),
             sa.Column("plot_id", sa.Uuid(), sa.ForeignKey("plots.id"), nullable=False),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
             sa.UniqueConstraint("resource_id", "plot_id"),
         )
         op.create_index("ix_resource_plot_authorizations_resource_id", "resource_plot_authorizations", ["resource_id"])
@@ -57,10 +58,10 @@ def upgrade() -> None:
             sa.Column("withdrawn_litres", sa.Numeric(16, 6), nullable=False),
             sa.Column("effective_litres", sa.Numeric(16, 6), nullable=False),
             sa.Column("loss_litres", sa.Numeric(16, 6), nullable=False),
-            sa.Column("measurement_provenance", sa.JSON(), nullable=False),
+            sa.Column("measurement_provenance", JSONB(), nullable=False),
             sa.Column("inherited", sa.Boolean(), nullable=False, server_default=sa.false()),
             sa.Column("source_allocation_id", sa.Uuid(), sa.ForeignKey("resource_allocations.id")),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
             sa.UniqueConstraint("resource_id", "branch_id", "allocation_id"),
             sa.UniqueConstraint("resource_id", "branch_id", "idempotency_key"),
         )

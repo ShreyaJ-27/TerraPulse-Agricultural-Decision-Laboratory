@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm
 from app.core.db import get_session
 from app.models import CropIdentity, Farm, Plot
 from app.schemas import ApiResponse
@@ -20,7 +21,7 @@ from app.services.farmer_alerts.profile_loader import load_profiles_file
 router = APIRouter(prefix="/api/v1/agri-calendar", tags=["agricultural-calendar"])
 
 
-@router.get("/farms/{farm_id}", response_model=ApiResponse)
+@router.get("/farms/{farm_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def calendar_for_farm(farm_id: UUID, request: Request,
                             session: Annotated[AsyncSession, Depends(get_session)]) -> ApiResponse:
     farm = await session.get(Farm, farm_id)
@@ -33,20 +34,18 @@ async def calendar_for_farm(farm_id: UUID, request: Request,
     # Regional profiles are optional; a farmer's own plan still appears without them.
     try:
         profiles = load_profiles_file(os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE"))
-    except (ValueError, OSError) as exc:
+    except (ValueError, TypeError, KeyError, OSError) as exc:
         raise HTTPException(status_code=503, detail="Regional calendar data currently unavailable") from exc
-    plots = list((await session.scalars(select(Plot).where(Plot.farm_id == farm_id))).all())
+    plots = list((await session.scalars(select(Plot).where(Plot.farm_id == farm_id).order_by(Plot.created_at, Plot.id))).all())
     result = []
-    for plot in plots:
+    for index, plot in enumerate(plots, start=1):
         metadata = plot.management or {}
         region = metadata.get("regionId")
-        certainty = metadata.get("plantingDateCertainty", "recorded") if plot.planting_date else "unconfirmed"
-        if certainty not in {"recorded", "confirmed", "estimated", "unconfirmed"} or (plot.planting_date and certainty == "unconfirmed"):
-            certainty = "recorded"
         crop = await session.get(CropIdentity, plot.crop_id) if plot.crop_id else None
         result.append(build_calendar_view(farm_id=farm_id, plot_id=plot.id,
             crop_id=plot.crop_id, crop_name=crop.canonical_name if crop else "Your crop",
-            region_id=region, planting=PlantingDate(plot.planting_date, certainty),
-            on_date=today, profile=profiles.get((region, plot.crop_id))))
+            plot_name=metadata.get("plotName") or f"Plot {index}",
+            region_id=region, planting=PlantingDate.from_plot(plot.planting_date, metadata),
+            on_date=today, profile=profiles.get((region, plot.crop_id)) if isinstance(region, str) else None))
     return ApiResponse(data={"farmId":str(farm_id), "asOfDate":today.isoformat(),
         "plots": result, "total":len(result)}, correlationId=request.state.correlation_id)

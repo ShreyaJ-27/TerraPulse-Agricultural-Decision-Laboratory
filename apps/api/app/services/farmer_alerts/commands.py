@@ -23,6 +23,7 @@ HELP = ("TerraPulse 🌱\n"
 
 async def handle_command(session: Any, *, chat_id: int, user_id: int, language: str,
                          text: str, operations: Any = None) -> str:
+    """Apply a command within the caller's transaction."""
     if operations is None:
         from . import persistence as operations
     db = operations

@@ -10,6 +10,7 @@ class SimulationSubmitRequest(BaseModel):
     environmental_snapshot_id: UUID = Field(alias="environmentalSnapshotId")
     branch_id: UUID | None = Field(default=None, alias="branchId")
     turmeric_mapping: str | None = Field(default=None, alias="turmericMapping")
+    fallow_kc: float | None = Field(default=None, alias="fallowKc", ge=0, allow_inf_nan=False)
     irrigation_mode: str = Field(alias="irrigationMode")
     resource_id: UUID | None = Field(default=None, alias="resourceId")
     model_config = ConfigDict(populate_by_name=True)

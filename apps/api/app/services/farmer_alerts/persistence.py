@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .decision import AdvisoryEvent
 from .models import (FarmerAlert, TelegramDelivery, TelegramLink, TelegramSubscription,
-                     TelegramUpdateCursor)
+                     TelegramUpdateCursor, TelegramWebhookUpdate)
 
 DEFAULT_CATEGORIES = {"calendar": True, "weather": True, "science": True}
 
@@ -85,7 +85,6 @@ async def consume_link(session: AsyncSession, *, token: str, chat_id: int, user_
         existing.updated_at = now_utc()
     intent.used_at = now_utc()
     intent.used_chat_id = chat_id
-    await session.commit()
     return intent.farm_id
 
 
@@ -100,7 +99,6 @@ async def resume_subscriptions(session: AsyncSession, chat_id: int) -> int:
     result = await session.execute(update(TelegramSubscription)
         .where(TelegramSubscription.chat_id == chat_id, TelegramSubscription.active.is_(False))
         .values(active=True, updated_at=now_utc()))
-    await session.commit()
     return result.rowcount
 
 
@@ -114,7 +112,6 @@ async def unsubscribe(session: AsyncSession, chat_id: int) -> int:
         TelegramDelivery.subscription_id.in_(ids),
         TelegramDelivery.status.in_(("pending", "sending"))).values(
         status="cancelled", lease_until=None, updated_at=now_utc()))
-    await session.commit()
     return result.rowcount
 
 
@@ -136,8 +133,16 @@ async def change_preference(session: AsyncSession, chat_id: int, *,
             sub.locale = locale
         sub.updated_at = now_utc()
         changed += 1
-    await session.commit()
     return changed
+
+
+async def claim_webhook_update(session: AsyncSession, update_id: int) -> bool:
+    """Claim once, in the same transaction as the command."""
+    stmt = pg_insert(TelegramWebhookUpdate).values(update_id=update_id)
+    claimed = await session.scalar(stmt.on_conflict_do_nothing().returning(
+        TelegramWebhookUpdate.update_id
+    ))
+    return claimed is not None
 
 
 async def get_cursor(session: AsyncSession) -> int:
@@ -164,9 +169,13 @@ async def enqueue_events(session: AsyncSession, events: list[AdvisoryEvent]) -> 
             plot_id=event.plot_id, category=event.category, kind=event.kind,
             event_date=event.event_date, evidence_hash=event.evidence_hash,
             payload=event.payload(), created_at=now_utc())
-        res = await session.execute(stmt.on_conflict_do_nothing(index_elements=[FarmerAlert.dedupe_key]))
-        new_events += int(res.rowcount or 0)
-        record = await session.scalar(select(FarmerAlert).where(FarmerAlert.dedupe_key == event.dedupe_key))
+        alert_id = await session.scalar(stmt.on_conflict_do_nothing(
+            index_elements=[FarmerAlert.dedupe_key]).returning(FarmerAlert.id))
+        if alert_id is None:
+            alert_id = await session.scalar(select(FarmerAlert.id).where(
+                FarmerAlert.dedupe_key == event.dedupe_key))
+        else:
+            new_events += 1
         rows = await session.scalars(select(TelegramSubscription).where(
             TelegramSubscription.farm_id == event.farm_id,
             TelegramSubscription.active.is_(True)))
@@ -174,11 +183,11 @@ async def enqueue_events(session: AsyncSession, events: list[AdvisoryEvent]) -> 
             if not (sub.categories or {}).get(event.category, False):
                 continue
             delivery_stmt = pg_insert(TelegramDelivery).values(
-                id=uuid4(), alert_id=record.id, subscription_id=sub.id,
+                id=uuid4(), alert_id=alert_id, subscription_id=sub.id,
                 status="pending", attempts=0, next_attempt_at=now_utc(), updated_at=now_utc())
-            result = await session.execute(delivery_stmt.on_conflict_do_nothing(
-                index_elements=[TelegramDelivery.alert_id, TelegramDelivery.subscription_id]))
-            new_deliveries += int(result.rowcount or 0)
+            delivery_id = await session.scalar(delivery_stmt.on_conflict_do_nothing(
+                index_elements=[TelegramDelivery.alert_id, TelegramDelivery.subscription_id]).returning(TelegramDelivery.id))
+            new_deliveries += int(delivery_id is not None)
     await session.commit()
     return new_events, new_deliveries
 
@@ -246,7 +255,7 @@ async def ack_delivery(session: AsyncSession, delivery_id: UUID, *,
         row.last_error = None
     elif error_code in ("BOT_BLOCKED", "BAD_REQUEST", "INVALID_CHAT"):
         row.status = "failed"
-        row.last_error = "BOT_BLOCKED"
+        row.last_error = error_code
         sub = await session.get(TelegramSubscription, row.subscription_id)
         if sub and error_code == "BOT_BLOCKED":
             await session.execute(update(TelegramSubscription).where(
