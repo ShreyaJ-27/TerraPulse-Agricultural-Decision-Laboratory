@@ -88,3 +88,8 @@ class TelegramUpdateCursor(Base):
     __tablename__ = "telegram_update_cursor"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     next_update_id: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class TelegramWebhookUpdate(Base):
+    __tablename__ = "telegram_webhook_updates"
+    update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)

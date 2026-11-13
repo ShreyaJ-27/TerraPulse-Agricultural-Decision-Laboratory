@@ -1,4 +1,5 @@
 """HTTP regressions for secured webhook, daily cron, and one-bot activation."""
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,6 +10,17 @@ import pytest
 from app.core.db import get_session
 from app.routers import telegram_integration as telegram
 
+WEBHOOK_HEADERS = {"X-Telegram-Bot-Api-Secret-Token": "safe_test_webhook_secret_12345"}
+PRIVATE_COMMAND = {
+    "chat": {"type": "private", "id": 123},
+    "from": {"id": 123, "language_code": "en", "is_bot": False},
+    "text": "/start SECURE-ONETIME-CODE",
+}
+
+
+@asynccontextmanager
+async def transaction():
+    yield
 
 @pytest.fixture
 def client(monkeypatch):
@@ -17,7 +29,7 @@ def client(monkeypatch):
     monkeypatch.setenv("CRON_SECRET", "safe_test_cron_secret_67890")
     app = FastAPI()
     app.include_router(telegram.router)
-    app.dependency_overrides[get_session] = lambda: object()
+    app.dependency_overrides[get_session] = lambda: SimpleNamespace(begin=transaction)
     with TestClient(app) as test_client:
         yield test_client
 
@@ -33,20 +45,20 @@ def test_webhook_requires_secret_and_does_not_echo_sensitive_data(client):
 
 
 def test_webhook_ignored_replay_is_idempotent(client, monkeypatch):
-    cursor = AsyncMock(return_value=42)
-    advance = AsyncMock()
-    monkeypatch.setattr(telegram, "get_cursor", cursor)
-    monkeypatch.setattr(telegram, "advance_cursor", advance)
-    response = client.post("/api/v1/telegram/webhook", json={"update_id": 41},
-                           headers={"X-Telegram-Bot-Api-Secret-Token": "safe_test_webhook_secret_12345"})
+    claim = AsyncMock(return_value=False)
+    command = AsyncMock()
+    monkeypatch.setattr(telegram, "claim_webhook_update", claim)
+    monkeypatch.setattr(telegram, "handle_command", command)
+    response = client.post("/api/v1/telegram/webhook", headers=WEBHOOK_HEADERS,
+                           json={"update_id": 41, "message": PRIVATE_COMMAND})
     assert response.status_code == 200
     assert response.json() == {"ok": True, "duplicate": True}
-    advance.assert_not_awaited()
+    claim.assert_awaited_once()
+    command.assert_not_awaited()
 
 
 def test_webhook_consumes_one_update_and_replies(client, monkeypatch):
-    get_cursor = AsyncMock(return_value=42)
-    advance = AsyncMock()
+    claim = AsyncMock(side_effect=[True, False, True])
     command = AsyncMock(return_value="🌱 Connected")
     sends = []
 
@@ -55,21 +67,39 @@ def test_webhook_consumes_one_update_and_replies(client, monkeypatch):
             sends.append((chat_id, message))
             return SimpleNamespace(success=True)
 
-    monkeypatch.setattr(telegram, "get_cursor", get_cursor)
-    monkeypatch.setattr(telegram, "advance_cursor", advance)
+    monkeypatch.setattr(telegram, "claim_webhook_update", claim)
     monkeypatch.setattr(telegram, "handle_command", command)
     monkeypatch.setattr(telegram, "TelegramClient", FakeTelegram)
-    update = {"update_id": 42, "message": {"chat": {"type": "private", "id": 123},
-        "from": {"id": 123, "language_code": "en", "is_bot": False},
-        "text": "/start SECURE-ONETIME-CODE"}}
+    update = {"update_id": 42, "message": PRIVATE_COMMAND}
     response = client.post("/api/v1/telegram/webhook", json=update,
                            headers={"X-Telegram-Bot-Api-Secret-Token": "safe_test_webhook_secret_12345"})
     assert response.status_code == 200
     assert response.json() == {"ok": True, "duplicate": False}
     command.assert_awaited_once()
-    advance.assert_awaited_once()
     assert sends == [(123, "🌱 Connected")]
     assert "SECURE-ONETIME-CODE" not in response.text
+    replay = client.post("/api/v1/telegram/webhook", json=update, headers=WEBHOOK_HEADERS)
+    assert replay.json() == {"ok": True, "duplicate": True}
+    lower = client.post("/api/v1/telegram/webhook", headers=WEBHOOK_HEADERS,
+                        json={**update, "update_id": 17})
+    assert lower.json() == {"ok": True, "duplicate": False}
+    assert sends == [(123, "🌱 Connected")] * 2
+
+
+def test_webhook_bounds_input_and_rejects_ambiguous_auth(client, monkeypatch):
+    claim = AsyncMock()
+    monkeypatch.setattr(telegram, "claim_webhook_update", claim)
+    url = "/api/v1/telegram/webhook"
+    name, secret = next(iter(WEBHOOK_HEADERS.items()))
+    assert client.post(url, headers=[(name, secret), (name, secret)]).status_code == 403
+    assert client.post(url, headers=[(name.encode(), b"\xff")]).status_code == 403
+    assert client.post(url, headers=WEBHOOK_HEADERS,
+                       content=b" " * (telegram.MAX_UPDATE_BYTES + 1)).status_code == 413
+    assert client.post(url, headers=WEBHOOK_HEADERS,
+                       json={"update_id": 2**63}).status_code == 400
+    assert client.post(url, headers=WEBHOOK_HEADERS,
+                       json={"update_id": 2, "message": ["bad"]}).status_code == 200
+    claim.assert_not_awaited()
 
 
 def test_webhook_disabled_and_malformed(client, monkeypatch):
@@ -109,11 +139,15 @@ def test_cron_only_uses_existing_persisted_evidence(client, monkeypatch):
     send.assert_awaited_once()
 
 
-def test_activation_refuses_protected_preview(client, monkeypatch):
+@pytest.mark.parametrize("status", [401, 403])
+def test_activation_refuses_protected_preview(client, monkeypatch, status):
     monkeypatch.setenv("VERCEL_ENV", "preview")
     monkeypatch.setenv("VERCEL_URL", "preview.example.vercel.app")
     class Response:
-        status_code = 401
+        status_code = status
+
+        def json(self):
+            return {"detail": "Edge access denied"}
     class FakeHttp:
         def __init__(self, **kwargs): pass
         async def __aenter__(self): return self
@@ -129,6 +163,9 @@ def test_activation_requires_public_webhook_and_sets_single_connection(client, m
     monkeypatch.setenv("VERCEL_URL", "preview.example.vercel.app")
     class Response:
         status_code = 403
+
+        def json(self):
+            return {"detail": "Telegram webhook authentication failed"}
     class FakeHttp:
         def __init__(self, **kwargs): pass
         async def __aenter__(self): return self

@@ -39,6 +39,7 @@ async def process_updates(session_factory: Callable, telegram: TelegramClient) -
             async with session_factory() as session:
                 reply = await handle_command(session, chat_id=chat_id, user_id=user_id,
                                              language=locale, text=message)
+                await session.commit()
             # One-time linking is committed before the greeting is sent. If the
             # greeting fails, the subscription still works for future alerts.
             result = await telegram.send(chat_id, reply)

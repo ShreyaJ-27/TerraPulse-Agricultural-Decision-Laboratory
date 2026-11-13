@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -19,13 +20,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionFactory, get_session
 from app.services.farmer_alerts.commands import handle_command
-from app.services.farmer_alerts.persistence import advance_cursor, get_cursor
+from app.services.farmer_alerts.persistence import claim_webhook_update
 from app.services.farmer_alerts.profile_loader import load_profiles_file
 from app.services.farmer_alerts.telegram import TelegramClient, command_from_update
 from app.services.farmer_alerts.worker import deliver_queued, evaluate_registered_farms
 
 router = APIRouter(prefix="/api/v1/telegram", tags=["telegram-alerts"])
+logger = logging.getLogger("terrapulse.telegram")
 MAX_UPDATE_BYTES = 64 * 1024
+MAX_UPDATE_ID = 2**63 - 1
 HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$", re.I)
 SECRET_RE = re.compile(r"^[a-zA-Z0-9_-]{16,256}$")
 
@@ -36,10 +39,13 @@ def _enabled() -> bool:
 
 def _verify(request: Request, env_key: str, header_name: str, *, prefix: str = "") -> None:
     expected = os.environ.get(env_key, "")
-    actual = request.headers.get(header_name, "")
-    if not expected or not hmac.compare_digest(actual, prefix + expected):
+    actual = request.headers.getlist(header_name)
+    if not expected or len(actual) != 1 or not hmac.compare_digest(
+        actual[0].encode("latin-1"), (prefix + expected).encode("utf-8")
+    ):
         # Reject unconfigured endpoints, even if caller supplies an empty value.
-        raise HTTPException(status_code=403, detail="Forbidden")
+        detail = "Telegram webhook authentication failed" if not prefix else "Forbidden"
+        raise HTTPException(status_code=403, detail=detail)
 
 
 def _admin(request: Request) -> None:
@@ -68,50 +74,42 @@ async def telegram_webhook(
 ) -> dict[str, bool]:
     """Accept Telegram private-chat commands only after verifying its secret header.
 
-    setWebhook uses max_connections=1. update_id is monotonically acknowledged in
-    the existing DB cursor. Acknowledgment precedes sending the greeting to avoid
-    duplicate subscription changes if a downstream Telegram reply fails. The
-    linked subscription persists even if the courtesy reply cannot be delivered.
+    Store each command's update ID with its subscription changes, then send the
+    courtesy reply. Retries acknowledge the stored update without a second reply.
     """
     if not _enabled():
         raise HTTPException(status_code=503, detail="Telegram integration not activated")
     _verify(request, "TELEGRAM_WEBHOOK_SECRET", "x-telegram-bot-api-secret-token")
-    if len(await request.body()) > MAX_UPDATE_BYTES:
-        raise HTTPException(status_code=413, detail="Telegram update too large")
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_UPDATE_BYTES:
+            raise HTTPException(status_code=413, detail="Telegram update too large")
+        body.extend(chunk)
     try:
-        update = json.loads(await request.body())
-    except (UnicodeError, ValueError) as exc:
+        update = json.loads(body)
+    except (ValueError, RecursionError) as exc:
         raise HTTPException(status_code=400, detail="Invalid Telegram update") from exc
     if not isinstance(update, dict):
         raise HTTPException(status_code=400, detail="Invalid Telegram update")
     update_id = update.get("update_id")
-    if type(update_id) is not int or update_id < 0:
+    if type(update_id) is not int or not 0 <= update_id <= MAX_UPDATE_ID:
         raise HTTPException(status_code=400, detail="Invalid Telegram update ID")
-    if update_id < await get_cursor(session):
-        return {"ok": True, "duplicate": True}
-
     parsed = command_from_update(update)
-    if parsed:
+    if parsed is None:
+        return {"ok": True, "duplicate": False}
+    async with session.begin():
+        if not await claim_webhook_update(session, update_id):
+            return {"ok": True, "duplicate": True}
         chat_id, user_id, language, text = parsed
-        # Existing persistence commands commit the one-time link atomically.
         reply = await handle_command(
             session, chat_id=chat_id, user_id=user_id, language=language, text=text
         )
-    await advance_cursor(session, update_id)
-    if parsed:
-        try:
-            result = await TelegramClient().send(chat_id, reply)
-            if not result.success:
-                # Do not leak Telegram chat IDs, tokens, or raw provider responses.
-                import logging
-                logging.getLogger("terrapulse.telegram").warning(
-                    "Telegram acknowledgment delivery failed: %s", result.error_code
-                )
-        except (RuntimeError, ValueError, OSError):
-            import logging
-            logging.getLogger("terrapulse.telegram").warning(
-                "Telegram acknowledgment delivery temporarily unavailable"
-            )
+    try:
+        result = await TelegramClient().send(chat_id, reply)
+        if not result.success:
+            logger.warning("Telegram acknowledgment delivery failed: %s", result.error_code)
+    except (RuntimeError, ValueError, OSError):
+        logger.warning("Telegram acknowledgment delivery temporarily unavailable")
     return {"ok": True, "duplicate": False}
 
 
@@ -121,9 +119,8 @@ async def telegram_daily_cron(request: Request) -> dict:
     _admin(request)
     if not _enabled():
         raise HTTPException(status_code=503, detail="Telegram integration not activated")
-    # Fail closed if a webhook was never configured for command opt-ins.
-    if not os.environ.get("TELEGRAM_WEBHOOK_SECRET"):
-        raise HTTPException(status_code=503, detail="Webhook configuration missing")
+    if not SECRET_RE.fullmatch(os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")):
+        raise HTTPException(status_code=503, detail="Invalid webhook secret configuration")
     client = TelegramClient()
     profiles = load_profiles_file(os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE"))
     async with SessionFactory() as session:
@@ -160,7 +157,13 @@ async def telegram_activate_webhook(request: Request) -> dict[str, bool]:
             )
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=409, detail="Webhook endpoint not publicly reachable") from exc
-    if probe.status_code != 403:
+    try:
+        webhook_response = probe.status_code == 403 and probe.json() == {
+            "detail": "Telegram webhook authentication failed"
+        }
+    except ValueError:
+        webhook_response = False
+    if not webhook_response:
         raise HTTPException(status_code=409, detail="Webhook endpoint not publicly reachable")
     status, result = await TelegramClient()._call("setWebhook", {
         "url": url,

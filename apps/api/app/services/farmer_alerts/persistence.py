@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .decision import AdvisoryEvent
 from .models import (FarmerAlert, TelegramDelivery, TelegramLink, TelegramSubscription,
-                     TelegramUpdateCursor)
+                     TelegramUpdateCursor, TelegramWebhookUpdate)
 
 DEFAULT_CATEGORIES = {"calendar": True, "weather": True, "science": True}
 
@@ -85,7 +85,6 @@ async def consume_link(session: AsyncSession, *, token: str, chat_id: int, user_
         existing.updated_at = now_utc()
     intent.used_at = now_utc()
     intent.used_chat_id = chat_id
-    await session.commit()
     return intent.farm_id
 
 
@@ -100,7 +99,6 @@ async def resume_subscriptions(session: AsyncSession, chat_id: int) -> int:
     result = await session.execute(update(TelegramSubscription)
         .where(TelegramSubscription.chat_id == chat_id, TelegramSubscription.active.is_(False))
         .values(active=True, updated_at=now_utc()))
-    await session.commit()
     return result.rowcount
 
 
@@ -114,7 +112,6 @@ async def unsubscribe(session: AsyncSession, chat_id: int) -> int:
         TelegramDelivery.subscription_id.in_(ids),
         TelegramDelivery.status.in_(("pending", "sending"))).values(
         status="cancelled", lease_until=None, updated_at=now_utc()))
-    await session.commit()
     return result.rowcount
 
 
@@ -136,8 +133,16 @@ async def change_preference(session: AsyncSession, chat_id: int, *,
             sub.locale = locale
         sub.updated_at = now_utc()
         changed += 1
-    await session.commit()
     return changed
+
+
+async def claim_webhook_update(session: AsyncSession, update_id: int) -> bool:
+    """Claim once, in the same transaction as the command."""
+    stmt = pg_insert(TelegramWebhookUpdate).values(update_id=update_id)
+    claimed = await session.scalar(stmt.on_conflict_do_nothing().returning(
+        TelegramWebhookUpdate.update_id
+    ))
+    return claimed is not None
 
 
 async def get_cursor(session: AsyncSession) -> int:
