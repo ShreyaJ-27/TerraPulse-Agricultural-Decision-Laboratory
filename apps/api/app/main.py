@@ -13,6 +13,7 @@ from app.routers.comparisons import router as comparisons_router
 from app.routers.crops import router as crops_router
 from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
+from app.routers.advisory import router as advisory_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
 from app.routers.resources import router as resources_router
@@ -78,6 +79,7 @@ async def unhandled_error(request: Request, exc: Exception):
 app.include_router(health_router)
 app.include_router(crops_router)
 app.include_router(farms_router)
+app.include_router(advisory_router)
 app.include_router(environment_router)
 app.include_router(simulations_router)
 app.include_router(branches_router)
