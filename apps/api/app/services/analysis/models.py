@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+from datetime import date, datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from app.contracts import (
@@ -13,7 +13,7 @@ from app.contracts import (
     PlotDefinition,
     Provenance,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ClaimCategory = Literal[
     "observation",
@@ -40,7 +40,7 @@ class GroundedClaim(BaseModel):
         description="Scientific limitations or assumptions attached to this claim",
     )
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
 class StalenessAssessment(BaseModel):
@@ -95,13 +95,42 @@ class EvidenceSummary(BaseModel):
     farm_id: UUID = Field(alias="farmId")
     plot_id: UUID = Field(alias="plotId")
     crop_canonical_name: str = Field(alias="cropCanonicalName")
+    crop_scientific_name: str | None = Field(default=None, alias="cropScientificName")
     crop_engine: str = Field(alias="cropEngine")
+    crop_engine_version: str = Field(alias="cropEngineVersion")
     c1_available: bool = Field(alias="c1Available")
     weather_days_count: int = Field(alias="weatherDaysCount")
     soil_available: bool = Field(alias="soilAvailable")
     c3_states_count: int = Field(alias="c3StatesCount")
     c5_comparison_available: bool = Field(alias="c5ComparisonAvailable")
     missing_fields: list[str] = Field(default_factory=list, alias="missingFields")
+    branch_id: UUID | None = Field(default=None, alias="branchId")
+    simulation_run_id: UUID | None = Field(default=None, alias="simulationRunId")
+    simulation_status: str | None = Field(default=None, alias="simulationStatus")
+    simulation_completed_at: datetime | None = Field(default=None, alias="simulationCompletedAt")
+    simulation_engine: str | None = Field(default=None, alias="simulationEngine")
+    simulation_engine_version: str | None = Field(default=None, alias="simulationEngineVersion")
+    parameter_version: str | None = Field(default=None, alias="parameterVersion")
+    simulation_warnings: list[str] = Field(default_factory=list, alias="simulationWarnings")
+    environmental_snapshot_id: UUID | None = Field(default=None, alias="environmentalSnapshotId")
+    environmental_input_hash: str | None = Field(default=None, alias="environmentalInputHash")
+    environmental_source: str | None = Field(default=None, alias="environmentalSource")
+    weather_member_id: str | None = Field(default=None, alias="weatherMemberId")
+    comparison_id: UUID | None = Field(default=None, alias="comparisonId")
+    comparison_status: str | None = Field(default=None, alias="comparisonStatus")
+    comparison_matched_inputs: bool | None = Field(default=None, alias="comparisonMatchedInputs")
+    comparison_baseline_branch_id: UUID | None = Field(default=None, alias="comparisonBaselineBranchId")
+    comparison_alternative_branch_id: UUID | None = Field(default=None, alias="comparisonAlternativeBranchId")
+    comparison_baseline_run_id: UUID | None = Field(default=None, alias="comparisonBaselineRunId")
+    comparison_alternative_run_id: UUID | None = Field(default=None, alias="comparisonAlternativeRunId")
+    comparison_date: date | None = Field(default=None, alias="comparisonDate")
+    comparison_assumptions: list[str] = Field(default_factory=list, alias="comparisonAssumptions")
+    comparison_provenance: list[Provenance] = Field(default_factory=list, alias="comparisonProvenance")
+    comparison_reasons: list[str] = Field(default_factory=list, alias="comparisonReasons")
+    crop_supported_outputs: list[str] = Field(default_factory=list, alias="cropSupportedOutputs")
+    crop_parameter_versions: list[str] = Field(default_factory=list, alias="cropParameterVersions")
+    crop_parameter_sources: list[Provenance] = Field(default_factory=list, alias="cropParameterSources")
+    crop_limitations: list[str] = Field(default_factory=list, alias="cropLimitations")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -124,6 +153,7 @@ class AnalysisRequest(BaseModel):
     plot_id: UUID = Field(alias="plotId")
     branch_id: UUID | None = Field(default=None, alias="branchId")
     comparison_branch_id: UUID | None = Field(default=None, alias="comparisonBranchId")
+    comparison_id: UUID | None = Field(default=None, alias="comparisonId")
     simulation_run_id: UUID | None = Field(default=None, alias="simulationRunId")
     question: str | None = None
     language: Literal["en", "kn", "hi"] = "en"
@@ -135,6 +165,12 @@ class AnalysisRequest(BaseModel):
     force_refresh: bool = Field(default=False, alias="forceRefresh")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def comparison_pair_is_complete(self) -> AnalysisRequest:
+        if self.comparison_branch_id is not None and self.branch_id is None:
+            raise ValueError("comparisonBranchId requires branchId to identify the comparison pair.")
+        return self
 
 
 class AnalysisResponseData(BaseModel):
@@ -171,5 +207,10 @@ class EvidenceBundle(BaseModel):
     c5_comparison: C5Comparison | None = Field(default=None, alias="c5Comparison")
     provenance: list[Provenance] = Field(default_factory=list)
     missing_evidence: list[str] = Field(default_factory=list, alias="missingEvidence")
+    simulation_metadata: dict[str, Any] | None = Field(default=None, alias="simulationMetadata")
+    environmental_metadata: dict[str, Any] = Field(
+        default_factory=dict, alias="environmentalMetadata"
+    )
+    comparison_metadata: dict[str, Any] | None = Field(default=None, alias="comparisonMetadata")
 
     model_config = ConfigDict(populate_by_name=True)

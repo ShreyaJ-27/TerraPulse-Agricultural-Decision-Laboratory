@@ -100,13 +100,14 @@ Issue #22 implements end-to-end local-language text and voice interaction for sm
 - **Graceful Detection & Failure Handling:**
   - If microphone access is denied by the user, or if the browser does not support Web Speech: the UI displays an informative status banner and leaves the text/touch input completely usable.
   - Microphone access is **never required** to use TerraPulse.
-  - Offline speech recognition is not claimed; it depends on device-installed language packs.
+  - Recognition is provided by the browser/device speech service and may require connectivity. Offline speech recognition is not claimed.
 
 ### Text-to-Speech (TTS)
 - Uses `window.speechSynthesis`.
 - Speaks the backend-generated `speechText` tailored for concise auditory consumption.
 - If a native Kannada or Hindi voice is not installed on the operating system, the system warns gracefully without breaking UI state.
 - Playback can be stopped at any time via the Stop Audio button.
+- Speech synthesis is not promised to work offline; it requires a matching voice exposed by the browser/device.
 
 ---
 
@@ -141,8 +142,16 @@ Issue #22 implements end-to-end local-language text and voice interaction for sm
 ---
 
 ## 7. Test Results
-- **Full Backend Suite:** 188 tests passed (`.venv/bin/pytest tests/`).
-- **Cross-Contract Science Suite:** 15 tests passed (`packages/science/tests/`).
-- **Frontend Build & Typecheck:** 0 errors (`npm run build`).
-- **Frontend Linter:** 0 errors (`npm run lint`).
-- **Python Ruff Linter:** 0 errors (`ruff check`).
+- **Application Backend Suite:** 201 tests passed (`python -m pytest tests/`).
+- **Frontend Build, Typecheck, and Linter:** Passed (`npm run build:web`, `npm run typecheck:web`, `npm run lint:web`).
+- **Changed-File Ruff Checks:** Passed.
+- **Science Suite:** Not fully verifiable in this checkout because licensed AquaCrop fixture archives and shipped example files are absent; the combined run reported missing files rather than implementation failures.
+
+## 8. Assisted Integration
+
+Assisted now presents the bounded crop-interaction API and farm-specific evidence analysis as two separate workflows:
+
+- **Quick crop assistance** uses `POST /api/v1/crops/interact` for crop resolution/capability, bounded general water guidance, ambiguity clarification, pathology escalation, and pricing refusal.
+- **Farm evidence analysis** loads farms, plots, branches, completed runs, and comparisons from the application APIs and submits the selected evidence context to `POST /api/v1/analysis`. The user does not enter database UUIDs.
+
+Both workflows use the selected English, Kannada, or Hindi locale. Microphone recognition fills an editable transcript and does not auto-submit. Farm-analysis responses display evidence-backed sections, validated claims and sources, freshness warnings, model limitations, escalation instructions, and whether Gemini or deterministic processing produced the answer. See [Issue #21 evidence-grounded analysis](./issue-21-evidence-grounded-analysis.md) for request semantics, persistence validation, and provider fallback details.

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     open_meteo_timeout_seconds: float = 10.0
     soilgrids_api_url: str = "https://rest.isric.org/soilgrids/v2.0/properties/query"
     soilgrids_timeout_seconds: float = 10.0
+    gemini_api_key: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 
 

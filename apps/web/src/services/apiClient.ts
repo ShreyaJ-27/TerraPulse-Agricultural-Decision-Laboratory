@@ -47,6 +47,8 @@ export const apiClient = {
   createComparison: (farmId: string, plotId: string, value: unknown) => api<Comparison>(`/api/v1/farms/${farmId}/plots/${plotId}/comparisons`, { method: "POST", body: JSON.stringify(value) }),
   interactCrop: (payload: { query: string; language: "en" | "kn" | "hi" }) =>
     api<CropInteraction>("/api/v1/crops/interact", { method: "POST", body: JSON.stringify(payload) }),
+  analyzeFarm: (payload: AnalysisRequest) =>
+    api<AnalysisResult>("/api/v1/analysis", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export type CropInteraction = {
@@ -87,3 +89,86 @@ export type Branch = { branchId: string; farmId: string; plotId: string; parentB
 export type TimelineEvent = { eventId: string; eventType: string; eventDate: string; branchId?: string; description: string; payload: Record<string, unknown>; createdAt?: string };
 export type ScientificState = { farmId: string; plotId: string; branchId: string; simulationRunId: string; date: string; availability: string; state: Record<string, unknown>; provenance: { engine?: string; engineVersion?: string; parameterVersion?: string; environmentalSnapshotId?: string; inputHash: string; weatherRealizationId?: string; weatherMemberId?: string; warnings: string[]; visualInterpolation: { allowed: boolean; scientificValuesMutated: boolean; label: string } } };
 export type Comparison = { comparisonId: string; farmId: string; plotId: string; baselineBranchId: string; alternativeBranchId: string; baselineRunId: string; alternativeRunId: string; comparisonDate: string; status: string; matchedInputs: boolean; reasons: string[]; payload: { result?: { daily?: { date: string; metrics: { name: string; unit: string; branchA: number; branchB: number; differenceBMinusA: number }[] }[]; metrics?: unknown[] }; provenance?: Record<string, unknown> } };
+export type AnalysisRequest = {
+  farmId: string;
+  plotId: string;
+  branchId?: string;
+  comparisonBranchId?: string;
+  comparisonId?: string;
+  simulationRunId?: string;
+  question: string;
+  language: "en" | "kn" | "hi";
+  includeWeather: boolean;
+  includeSoil: boolean;
+  includeCrop: boolean;
+  includeSimulation: boolean;
+  includeComparison: boolean;
+};
+export type GroundedClaim = {
+  claimId: string;
+  metric: string;
+  value: number;
+  unit: string;
+  sourceField: string;
+  sourceId: string;
+  category: string;
+  isStale: boolean;
+  qualifications: string[];
+};
+export type AnalysisSection = { key: string; title: string; content: string; claims: GroundedClaim[] };
+export type AnalysisResult = {
+  analysisId: string;
+  farmId: string;
+  plotId: string;
+  language: "en" | "kn" | "hi";
+  summary: string;
+  sections: AnalysisSection[];
+  claims: GroundedClaim[];
+  evidenceSummary: {
+    farmId: string;
+    plotId: string;
+    cropCanonicalName: string;
+    cropScientificName?: string;
+    cropEngine: string;
+    cropEngineVersion: string;
+    c1Available: boolean;
+    weatherDaysCount: number;
+    soilAvailable: boolean;
+    c3StatesCount: number;
+    c5ComparisonAvailable: boolean;
+    missingFields: string[];
+    branchId?: string;
+    simulationRunId?: string;
+    simulationStatus?: string;
+    simulationCompletedAt?: string;
+    simulationEngine?: string;
+    simulationEngineVersion?: string;
+    parameterVersion?: string;
+    simulationWarnings: string[];
+    environmentalSnapshotId?: string;
+    environmentalInputHash?: string;
+    environmentalSource?: string;
+    weatherMemberId?: string;
+    comparisonId?: string;
+    comparisonStatus?: string;
+    comparisonMatchedInputs?: boolean;
+    comparisonBaselineBranchId?: string;
+    comparisonAlternativeBranchId?: string;
+    comparisonBaselineRunId?: string;
+    comparisonAlternativeRunId?: string;
+    comparisonDate?: string;
+    comparisonAssumptions: string[];
+    comparisonProvenance: { sourceId: string; sourceVersion?: string; retrievedAt: string; reference?: string }[];
+    comparisonReasons: string[];
+    cropSupportedOutputs: string[];
+    cropParameterVersions: string[];
+    cropParameterSources: { sourceId: string; sourceVersion?: string; retrievedAt: string; reference?: string }[];
+    cropLimitations: string[];
+  };
+  dataFreshness: { sourceId: string; dataType: string; isStale: boolean; ageHours?: number; freshnessLabel: string; warning?: string }[];
+  scientificLimitations: { category: string; code: string; description: string; implications: string }[];
+  escalations: { category: string; reason: string; recommendedAction: string; recommendedAuthority: string }[];
+  guardrailStatus: { passed: boolean; flags: string[]; restrictedTopics: string[]; escalationRequired: boolean };
+  generationMode: "deterministic" | "llm" | "deterministic_fallback";
+  createdAt: string;
+};

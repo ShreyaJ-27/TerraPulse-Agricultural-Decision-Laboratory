@@ -35,6 +35,7 @@ from app.services.analysis import (
     QuantitativeClaimValidator,
     StalenessEvaluator,
 )
+from app.services.analysis.evidence_builder import AnalysisEvidenceError
 from app.services.analysis.staleness import format_measurement_str, safe_measurement_val
 from app.services.crop_lens.registry import CROP_REGISTRY, get_crop_by_id
 from app.services.crop_lens.resolver import CropLensResolver
@@ -196,6 +197,13 @@ async def test_guardrail_fao56_yield_limitation(in_memory_onboarding, crop_resol
     assert not status.passed
     assert "yield_forecasting" in status.restricted_topics
     assert any(lim.code == "FAO56_YIELD_UNSUPPORTED" for lim in limitations)
+    _, limitations_hi, _ = GuardrailEvaluator.evaluate(
+        "क्या उपज का अनुमान मिलेगा?", bundle, "hi"
+    )
+    yield_limitation_hi = next(
+        limitation for limitation in limitations_hi if limitation.code == "FAO56_YIELD_UNSUPPORTED"
+    )
+    assert "उपज" in yield_limitation_hi.description
 
 
 @pytest.mark.asyncio
@@ -234,15 +242,22 @@ def test_staleness_evaluator_fresh_and_stale_weather():
     assessments = StalenessEvaluator.evaluate(bundle)
     weather_ass = next(a for a in assessments if a.data_type == "daily_weather_forecast")
     assert not weather_ass.is_stale
-    assert "fresh" in weather_ass.freshness_label
+    assert weather_ass.freshness_label == "historical"
+    assert "past simulation period" in weather_ass.warning
+    localized_weather = next(
+        assessment
+        for assessment in StalenessEvaluator.evaluate(bundle, language="kn")
+        if assessment.data_type == "daily_weather_forecast"
+    )
+    assert "ಹಿಂದಿನ ಸಿಮ್ಯುಲೇಶನ್ ಅವಧಿ" in localized_weather.warning
 
     # Make c1 retrieved 30 hours ago (> 24h threshold)
     c1_model.retrieved_at = datetime.now(UTC) - timedelta(hours=30)
     assessments_stale = StalenessEvaluator.evaluate(bundle)
     weather_stale = next(a for a in assessments_stale if a.data_type == "daily_weather_forecast")
     assert weather_stale.is_stale
-    assert "stale (> 24h)" in weather_stale.freshness_label
-    assert weather_stale.warning is not None
+    assert weather_stale.freshness_label == "historical"
+    assert "30.0 hours ago" in weather_stale.warning
 
 
 def test_safe_measurement_missingness_preservation():
@@ -275,7 +290,7 @@ async def test_validator_grounded_vs_hallucinated(in_memory_onboarding, crop_res
         value=10000.0,
         unit="m2",
         sourceField="c2.plot.areaM2",
-        sourceId="c2-farm-plot",
+        sourceId=f"terrapulse-onboarding-c2-{farm.farm_id}",
         category="observation",
     )
     is_valid, errors = QuantitativeClaimValidator.validate_claims([valid_claim], bundle)
@@ -295,7 +310,7 @@ async def test_validator_grounded_vs_hallucinated(in_memory_onboarding, crop_res
     is_valid_fake, errors_fake = QuantitativeClaimValidator.validate_claims([fake_claim], bundle)
     assert not is_valid_fake
     assert len(errors_fake) == 1
-    assert "does not exist or is unavailable" in errors_fake[0] or "cannot be grounded" in errors_fake[0]
+    assert "missing or unavailable" in errors_fake[0]
 
 
 def test_validator_text_number_check(in_memory_onboarding, crop_resolver, environmental_service):
@@ -313,9 +328,19 @@ def test_validator_text_number_check(in_memory_onboarding, crop_resolver, enviro
         c1Input=c1_model,
     )
 
-    # Grounded text using valid numbers (area 10000.0, year 2026, SoilGrids 250)
+    farm_source = f"terrapulse-onboarding-c2-{farm_model.farm_id}"
+    area_claim = GroundedClaim(
+        claimId="area",
+        metric="plot_area",
+        value=10000.0,
+        unit="m2",
+        sourceField="c2.plot.areaM2",
+        sourceId=farm_source,
+        category="observation",
+    )
+    # Dates and contextual model metadata are allowed; quantitative prose requires a claim.
     grounded_text = "The plot area is 10000 m2. Year 2026 model with 250m gridded data."
-    is_g, unmatched = QuantitativeClaimValidator.validate_text(grounded_text, bundle, [])
+    is_g, unmatched = QuantitativeClaimValidator.validate_text(grounded_text, bundle, [area_claim])
     assert is_g
     assert len(unmatched) == 0
 
@@ -388,6 +413,28 @@ async def test_llm_client_fallback_when_unconfigured(in_memory_onboarding, crop_
 
 
 @pytest.mark.asyncio
+async def test_llm_provider_payload_omits_precise_and_unneeded_farm_metadata(
+    in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot
+):
+    farm, plot = seeded_farm_and_plot
+    c1_model = C1EnvironmentalInput.model_validate(SAMPLE_C1)
+    builder = EvidenceBundleBuilder(in_memory_onboarding, crop_resolver, environmental_service)
+    bundle = await builder.build(
+        AnalysisRequest(farmId=farm.farm_id, plotId=plot.plot_id),
+        c1_override=c1_model,
+        c3_states=[C3ScientificState.model_validate(SAMPLE_C3)],
+    )
+
+    evidence = AnalysisLlmClient._provider_evidence(bundle)
+    assert "farm" not in evidence
+    assert "plotId" not in evidence["plot"]
+    assert "farmId" not in evidence["c1Input"]
+    assert "location" not in evidence["c1Input"]
+    assert "references" not in evidence
+    assert "branchId" not in evidence["c3States"][0]
+
+
+@pytest.mark.asyncio
 async def test_llm_client_fallback_on_hallucinated_number(in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot):
     farm, plot = seeded_farm_and_plot
     c1_model = C1EnvironmentalInput.model_validate(SAMPLE_C1)
@@ -413,6 +460,89 @@ async def test_llm_client_fallback_on_hallucinated_number(in_memory_onboarding, 
         res = await client.generate_explanation(bundle, "Will my crop grow well?")
         # Must be rejected because 8877.66 is not in evidence bundle!
         assert res is None
+
+
+@pytest.mark.asyncio
+async def test_llm_accepts_only_structured_claims_with_exact_sources(
+    in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot
+):
+    farm, plot = seeded_farm_and_plot
+    builder = EvidenceBundleBuilder(in_memory_onboarding, crop_resolver, environmental_service)
+    bundle = await builder.build(
+        AnalysisRequest(
+            farmId=farm.farm_id,
+            plotId=plot.plot_id,
+            includeWeather=False,
+            includeSoil=False,
+        )
+    )
+    claim = {
+        "claimId": "area-claim",
+        "metric": "plot_area",
+        "value": 10000,
+        "unit": "m2",
+        "sourceField": "c2.plot.areaM2",
+        "sourceId": f"terrapulse-onboarding-c2-{farm.farm_id}",
+        "category": "observation",
+        "isStale": False,
+        "qualifications": [],
+    }
+    response_data = {
+        "summary": "The plot area is 10000 m2.",
+        "sections": [
+            {
+                "key": "context",
+                "title": "Field area",
+                "content": "The registered plot area is 10000 m2.",
+                "claims": [claim],
+            }
+        ],
+    }
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: {
+        "candidates": [
+            {"content": {"parts": [{"text": json.dumps(response_data)}]}}
+        ]
+    }
+    client = AnalysisLlmClient(api_key="mock-api-key")
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
+        result = await client.generate_explanation(bundle, "Explain the plot area.")
+    assert result is not None
+    assert result[2][0].source_id == claim["sourceId"]
+
+    response_data["sections"][0]["claims"][0]["sourceId"] = "wrong-source"
+    mock_resp.json = lambda: {
+        "candidates": [
+            {"content": {"parts": [{"text": json.dumps(response_data)}]}}
+        ]
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
+        rejected = await client.generate_explanation(bundle, "Explain the plot area.")
+    assert rejected is None
+
+
+@pytest.mark.asyncio
+async def test_guardrails_do_not_match_disease_words_inside_crop_names(
+    in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot
+):
+    farm, plot = seeded_farm_and_plot
+    bundle = await EvidenceBundleBuilder(
+        in_memory_onboarding, crop_resolver, environmental_service
+    ).build(
+        AnalysisRequest(
+            farmId=farm.farm_id,
+            plotId=plot.plot_id,
+            includeWeather=False,
+            includeSoil=False,
+        )
+    )
+
+    status, _, escalations = GuardrailEvaluator.evaluate("I grow carrot.", bundle, "en")
+    assert status.passed
+    assert not status.escalation_required
+    assert escalations == []
 
 
 # -----------------------------------------------------------------------------
@@ -452,6 +582,10 @@ async def test_service_orchestration_full_pipeline(in_memory_onboarding, crop_re
     assert response_data.evidence_summary.c1_available
     assert response_data.evidence_summary.c3_states_count == 1
     assert response_data.evidence_summary.c5_comparison_available
+    assert response_data.evidence_summary.crop_scientific_name == "Curcuma longa"
+    assert response_data.evidence_summary.crop_engine_version == "1.0"
+    assert response_data.evidence_summary.comparison_baseline_branch_id == c5_model.branch_a
+    assert response_data.evidence_summary.comparison_assumptions == c5_model.assumptions
     assert len(response_data.claims) > 0
     assert len(response_data.sections) >= 5
     assert response_data.guardrail_status.passed
@@ -500,6 +634,15 @@ def test_validator_supports_negative_numbers():
         difference=Measurement(value=-12.5, unit="mm", availability=Availability(status=DataStatus.AVAILABLE)),
     )
     c5_model.metrics.append(neg_metric)
+    neg_claim = GroundedClaim(
+        claimId="negative-difference",
+        metric="water_difference_difference",
+        value=-12.5,
+        unit="mm",
+        sourceField="c5.metrics[water_difference].difference",
+        sourceId="terrapulse-compare-1.0",
+        category="comparison_derived",
+    )
 
     bundle = EvidenceBundle(
         farm=farm_model,
@@ -511,13 +654,13 @@ def test_validator_supports_negative_numbers():
 
     # Grounded text with negative value: should pass
     valid_text = "The difference in water balance between scenarios is -12.5 mm."
-    is_g, unmatched_g = QuantitativeClaimValidator.validate_text(valid_text, bundle, [])
+    is_g, unmatched_g = QuantitativeClaimValidator.validate_text(valid_text, bundle, [neg_claim])
     assert is_g
     assert len(unmatched_g) == 0
 
     # Opposite signed value: positive 12.5 should not match negative -12.5
     invalid_text = "The positive difference is 12.5 mm."
-    is_inv, unmatched_inv = QuantitativeClaimValidator.validate_text(invalid_text, bundle, [])
+    is_inv, unmatched_inv = QuantitativeClaimValidator.validate_text(invalid_text, bundle, [neg_claim])
     assert not is_inv
     assert "12.5" in unmatched_inv
 
@@ -549,7 +692,7 @@ def test_validator_cross_metric_collision_rejected():
     )
     is_valid, errors = QuantitativeClaimValidator.validate_claims([colliding_claim], bundle)
     assert not is_valid
-    assert any("does not match the actual value" in err for err in errors)
+    assert any("does not match the value at its cited source field" in err for err in errors)
 
 
 def test_deterministic_explainer_missing_irrigation_en_kn_hi():
@@ -675,6 +818,25 @@ def test_deterministic_explainer_ensemble_independent_trajectories():
     assert any(c.metric == "min_ensemble_rainfall" and c.value == 10.0 for c in claims)
     assert any(c.metric == "max_ensemble_rainfall" and c.value == 25.0 for c in claims)
 
+    day1_m1.rainfall_mm = Measurement(
+        value=None,
+        unit="mm",
+        availability=Availability(status=DataStatus.MISSING),
+    )
+    _, partial_sections, partial_claims = DeterministicExplainer.generate(
+        bundle, staleness, lim, esc, "en"
+    )
+    partial_weather = next(section for section in partial_sections if section.key == "weather_atmosphere")
+    partial_rainfall_claim = next(
+        claim for claim in partial_claims if claim.metric == "total_rainfall"
+    )
+    assert "1 of 2 ensemble members" in partial_weather.content
+    assert "incomplete_daily_coverage" in partial_rainfall_claim.qualifications
+    valid, validation_errors = QuantitativeClaimValidator.validate_claims(
+        partial_claims, bundle
+    )
+    assert valid, validation_errors
+
 
 def test_forecast_evidence_classification():
     """Verify that weather forecast claims are categorized as gridded_modelled, not observations."""
@@ -695,7 +857,30 @@ def test_forecast_evidence_classification():
     assert len(weather_claims) > 0
     for wc in weather_claims:
         assert wc.category == "gridded_modelled"
-        assert wc.source_id == "open-meteo"
+        assert wc.source_id == "weather-fixture"
+
+
+def test_non_comparable_comparison_has_localized_explanation_without_claims():
+    farm_model = C2FarmDefinition.model_validate(SAMPLE_C2)
+    bundle = EvidenceBundle(
+        farm=farm_model,
+        plot=farm_model.plots[0],
+        cropCanonicalName="Turmeric",
+        cropCapability=get_crop_by_id(TURMERIC_ID).to_c7_capability(),
+        comparisonMetadata={
+            "status": "not_comparable",
+            "reasons": ["Weather realizations differ."],
+        },
+    )
+
+    _, sections, claims = DeterministicExplainer.generate(bundle, [], [], [], "kn")
+    comparison_section = next(
+        section for section in sections if section.key == "comparison_evaluation"
+    )
+    assert "ಹೋಲಿಕೆಯನ್ನು ಪರಿಮಾಣಾತ್ಮಕ ಫಲಿತಾಂಶವಾಗಿ ಬಳಸಲಾಗುವುದಿಲ್ಲ" in comparison_section.content
+    assert "Weather realizations differ." in comparison_section.content
+    assert comparison_section.claims == []
+    assert not any(claim.source_field.startswith("c5.") for claim in claims)
 
 
 @pytest.mark.asyncio
@@ -732,38 +917,17 @@ async def test_llm_not_invoked_on_guardrail_failure(in_memory_onboarding, crop_r
 
 
 @pytest.mark.asyncio
-async def test_evidence_builder_c3_simulation_run_retrieval(in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot):
-    """Verify that EvidenceBundleBuilder retrieves C3 states when simulationRunId is present in store."""
+async def test_evidence_builder_requires_database_for_selected_run(in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot):
+    """A requested persisted run must not be silently ignored when persistence is unavailable."""
     farm, plot = seeded_farm_and_plot
-    c3_model = C3ScientificState.model_validate(SAMPLE_C3)
-    sim_run_id = uuid4()
-
-    # Seed in-memory simulation store
-    EvidenceBundleBuilder._in_memory_simulation_states[sim_run_id] = [c3_model]
-
     builder = EvidenceBundleBuilder(in_memory_onboarding, crop_resolver, environmental_service)
-
-    # 1. With valid simulationRunId in store
-    req_with_run = AnalysisRequest(
-        farmId=farm.farm_id,
-        plotId=plot.plot_id,
-        simulationRunId=sim_run_id,
-        includeWeather=False,
-        includeSoil=False,
-    )
-    bundle = await builder.build(req_with_run)
-    assert len(bundle.c3_states) == 1
-    assert bundle.c3_states[0].contract_version == "1.0"
-    assert "c3_simulation_states" not in bundle.missing_evidence
-
-    # 2. With unknown simulationRunId
-    req_unknown = AnalysisRequest(
-        farmId=farm.farm_id,
-        plotId=plot.plot_id,
-        simulationRunId=uuid4(),
-        includeWeather=False,
-        includeSoil=False,
-    )
-    bundle_unknown = await builder.build(req_unknown)
-    assert len(bundle_unknown.c3_states) == 0
-    assert "c3_simulation_states" in bundle_unknown.missing_evidence
+    with pytest.raises(AnalysisEvidenceError, match="cannot be retrieved without the database"):
+        await builder.build(
+            AnalysisRequest(
+                farmId=farm.farm_id,
+                plotId=plot.plot_id,
+                simulationRunId=uuid4(),
+                includeWeather=False,
+                includeSoil=False,
+            )
+        )

@@ -77,10 +77,15 @@ class EvidenceGroundedAnalysisService:
         guardrail_status, limitations, escalations = GuardrailEvaluator.evaluate(
             question=request.question,
             bundle=bundle,
+            language=request.language,
         )
 
         # 3. Staleness and data quality checks
-        staleness_assessments = StalenessEvaluator.evaluate(bundle=bundle, now=created_at)
+        staleness_assessments = StalenessEvaluator.evaluate(
+            bundle=bundle,
+            now=created_at,
+            language=request.language,
+        )
 
         # 4. Construct evidence summary
         weather_days_count = len(bundle.c1_input.daily_weather) if bundle.c1_input else 0
@@ -89,13 +94,47 @@ class EvidenceGroundedAnalysisService:
             farmId=bundle.farm.farm_id,
             plotId=bundle.plot.plot_id,
             cropCanonicalName=bundle.crop_canonical_name,
+            cropScientificName=bundle.crop_scientific_name,
             cropEngine=bundle.crop_capability.selected_engine,
+            cropEngineVersion=bundle.crop_capability.engine_version,
             c1Available=bundle.c1_input is not None,
             weatherDaysCount=weather_days_count,
             soilAvailable=soil_avail,
             c3StatesCount=len(bundle.c3_states),
             c5ComparisonAvailable=bundle.c5_comparison is not None,
             missingFields=list(bundle.missing_evidence),
+            branchId=(bundle.simulation_metadata or {}).get("branchId"),
+            simulationRunId=(bundle.simulation_metadata or {}).get("simulationRunId"),
+            simulationStatus=(bundle.simulation_metadata or {}).get("status"),
+            simulationCompletedAt=(bundle.simulation_metadata or {}).get("completedAt"),
+            simulationEngine=(bundle.simulation_metadata or {}).get("engine"),
+            simulationEngineVersion=(bundle.simulation_metadata or {}).get("engineVersion"),
+            parameterVersion=(bundle.simulation_metadata or {}).get("parameterVersion"),
+            simulationWarnings=(bundle.simulation_metadata or {}).get("warnings", []),
+            environmentalSnapshotId=bundle.environmental_metadata.get("snapshotId"),
+            environmentalInputHash=bundle.environmental_metadata.get("inputHash"),
+            environmentalSource=bundle.environmental_metadata.get("source"),
+            weatherMemberId=(bundle.simulation_metadata or {}).get("weatherMemberId")
+            or bundle.environmental_metadata.get("weatherMemberId"),
+            comparisonId=(bundle.comparison_metadata or {}).get("comparisonId"),
+            comparisonStatus=(bundle.comparison_metadata or {}).get("status"),
+            comparisonMatchedInputs=(bundle.comparison_metadata or {}).get("matchedInputs"),
+            comparisonBaselineBranchId=(bundle.comparison_metadata or {}).get("branchA"),
+            comparisonAlternativeBranchId=(bundle.comparison_metadata or {}).get("branchB"),
+            comparisonBaselineRunId=(bundle.comparison_metadata or {}).get("runA"),
+            comparisonAlternativeRunId=(bundle.comparison_metadata or {}).get("runB"),
+            comparisonDate=(bundle.comparison_metadata or {}).get("comparisonDate"),
+            comparisonAssumptions=(
+                bundle.c5_comparison.assumptions if bundle.c5_comparison is not None else []
+            ),
+            comparisonProvenance=(
+                bundle.c5_comparison.provenance if bundle.c5_comparison is not None else []
+            ),
+            comparisonReasons=(bundle.comparison_metadata or {}).get("reasons", []),
+            cropSupportedOutputs=bundle.crop_capability.supported_outputs,
+            cropParameterVersions=bundle.crop_capability.parameter_versions,
+            cropParameterSources=bundle.crop_capability.parameter_sources,
+            cropLimitations=bundle.crop_capability.known_limitations,
         )
 
         # 5. Explanation Generation & Mode Selection
