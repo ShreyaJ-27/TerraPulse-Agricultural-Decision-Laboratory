@@ -14,6 +14,7 @@ from app.routers.comparisons import router as comparisons_router
 from app.routers.crops import router as crops_router
 from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
+from app.routers.pitch_alerts import router as pitch_alerts_router
 from app.routers.advisory import router as advisory_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
@@ -87,3 +88,4 @@ app.include_router(observatory_router)
 app.include_router(resources_router)
 app.include_router(analysis_router)
 app.include_router(agri_calendar_router)
+app.include_router(pitch_alerts_router)

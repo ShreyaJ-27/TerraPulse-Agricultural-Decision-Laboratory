@@ -24,6 +24,7 @@ from app.services.farmer_alerts.persistence import claim_webhook_update
 from app.services.farmer_alerts.profile_loader import load_profiles_file
 from app.services.farmer_alerts.telegram import TelegramClient, command_from_update
 from app.services.farmer_alerts.worker import deliver_queued, evaluate_registered_farms
+from app.services.farmer_alerts.evidence_refresh import refresh_subscribed_evidence
 
 router = APIRouter(prefix="/api/v1/telegram", tags=["telegram-alerts"])
 logger = logging.getLogger("terrapulse.telegram")
@@ -122,14 +123,19 @@ async def telegram_daily_cron(request: Request) -> dict:
     if not SECRET_RE.fullmatch(os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")):
         raise HTTPException(status_code=503, detail="Invalid webhook secret configuration")
     client = TelegramClient()
+    current = datetime.now(timezone.utc)
+    # Fetch genuinely sourced weather only for subscribed farms, at bounded cost.
+    refresh = {"refreshed": 0, "skipped": 0, "failed": 0}
+    if os.environ.get("TERRAPULSE_ALERT_REFRESH_ENABLED") == "1":
+        refresh = await refresh_subscribed_evidence(SessionFactory, now=current, max_plots=2)
     profiles = load_profiles_file(os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE"))
     async with SessionFactory() as session:
         new_alerts, new_deliveries = await evaluate_registered_farms(
-            session, now=datetime.now(timezone.utc), regional_profiles=profiles
+            session, now=current, regional_profiles=profiles
         )
     delivery = await deliver_queued(SessionFactory, client, dry_run=False, limit=5)
     return {"ok": True, "newAlerts": new_alerts, "newDeliveries": new_deliveries,
-            "delivery": delivery}
+            "weatherRefresh": refresh, "delivery": delivery}
 
 
 @router.post("/activate-webhook", status_code=200)
