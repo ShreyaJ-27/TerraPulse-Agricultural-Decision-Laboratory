@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class BranchCreateRequest(BaseModel):
@@ -16,7 +16,7 @@ class BranchCreateRequest(BaseModel):
 
 
 class BranchResponse(BaseModel):
-    branch_id: UUID = Field(alias="branchId")
+    branch_id: UUID = Field(alias="branchId", validation_alias=AliasChoices("branchId", "branch_id", "id"))
     farm_id: UUID = Field(alias="farmId")
     plot_id: UUID = Field(alias="plotId")
     parent_branch_id: UUID | None = Field(alias="parentBranchId")
@@ -32,7 +32,7 @@ class BranchResponse(BaseModel):
 
 
 class TimelineResponse(BaseModel):
-    event_id: UUID = Field(alias="eventId")
+    event_id: UUID = Field(alias="eventId", validation_alias=AliasChoices("eventId", "event_id", "id"))
     event_type: str = Field(alias="eventType")
     event_date: date = Field(alias="eventDate")
     branch_id: UUID | None = Field(alias="branchId")

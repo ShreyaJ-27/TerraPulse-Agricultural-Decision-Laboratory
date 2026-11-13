@@ -3,7 +3,7 @@
 import asyncio
 import os
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.core.event_loop import new_event_loop
 from app.core.db import SessionFactory, engine
 from app.main import app
-from app.models import Farm
+from app.models import BranchDecision, DecisionBranch, EnvironmentalSnapshot, Farm, TimelineEvent
 from app.routers.farms import get_onboarding_service
 from app.services.farmer_alerts import persistence
 from app.services.farmer_alerts.models import TelegramDelivery, TelegramSubscription, TelegramUpdateCursor
@@ -125,6 +125,24 @@ async def check_workflow(monkeypatch):
             assert analysis.json()["data"]["evidenceSummary"]["cropCanonicalName"] == "Maize"
 
             async with SessionFactory() as session:
+                snapshot = EnvironmentalSnapshot(
+                    farm_id=UUID(farm_id), plot_id=UUID(plot_id), payload={},
+                    availability="unavailable", input_hash=uuid4().hex,
+                )
+                session.add(snapshot)
+                await session.commit()
+                snapshot_id = str(snapshot.id)
+            plot_path = f"{farm_path}/plots/{plot_id}"
+            decision = await client.post(f"{plot_path}/branches", headers=headers, json={
+                "plotId": plot_id, "environmentalSnapshotId": snapshot_id,
+                "effectiveDate": planting.isoformat(), "decisionType": "planting_date",
+                "decisionDiff": {"plantingDate": planting.isoformat()},
+            })
+            assert decision.status_code == 201, decision.text
+            timeline = await client.get(f"{plot_path}/timeline", headers=headers)
+            assert timeline.json()["data"]["events"][0]["payload"]["decisionType"] == "planting_date"
+
+            async with SessionFactory() as session:
                 existing_cursor = await session.get(TelegramUpdateCursor, 1)
                 cursor_id = existing_cursor.next_update_id if existing_cursor else None
             update_id = cursor_id or 1
@@ -163,6 +181,11 @@ async def check_workflow(monkeypatch):
         finally:
             async with SessionFactory() as session:
                 if farm_id:
+                    branches = select(DecisionBranch.id).where(DecisionBranch.farm_id == farm_id)
+                    await session.execute(delete(TimelineEvent).where(TimelineEvent.farm_id == farm_id))
+                    await session.execute(delete(BranchDecision).where(BranchDecision.branch_id.in_(branches)))
+                    await session.execute(delete(DecisionBranch).where(DecisionBranch.farm_id == farm_id))
+                    await session.execute(delete(EnvironmentalSnapshot).where(EnvironmentalSnapshot.farm_id == farm_id))
                     await session.execute(delete(Farm).where(Farm.id == farm_id))
                 cursor = await session.get(TelegramUpdateCursor, 1)
                 if cursor and cursor_id is None:

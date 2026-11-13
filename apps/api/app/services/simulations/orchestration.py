@@ -88,6 +88,7 @@ class SimulationService:
                     decision_diff={},
                 )
             )
+            await self.session.flush()
             self.session.add(BranchDecision(id=uuid4(), branch_id=branch_id, decision_type="baseline", payload={}))
             self.session.add(
                 TimelineEvent(
