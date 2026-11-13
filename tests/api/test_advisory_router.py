@@ -31,10 +31,34 @@ def test_offline_profiles_match_api_and_catalogue():
             headers={"X-Correlation-ID": "advisory-test"},
         )
         assert response.status_code == 200
+        # Preserve sourced aliases and append only aliases
+        # already established by the canonical Crop Lens catalogue.
+        catalogue_crop = next(
+            item for item in catalogue
+            if item["cropId"] == crop_id
+        )
+
+        sourced_aliases = profile["crop"]["aliases"]
+        extra_aliases = [
+            alias for alias in catalogue_crop["aliases"]
+            if alias not in sourced_aliases
+        ]
+
+        expected_aliases = sourced_aliases + extra_aliases
+        assert len(expected_aliases) == len(set(expected_aliases))
+
+        expected_profile = {
+            **profile,
+            "crop": {
+                **profile["crop"],
+                "aliases": expected_aliases,
+            },
+        }
+
         assert response.json() == {
             "contractVersion": "1.0",
             "correlationId": "advisory-test",
-            "data": profile,
+            "data": expected_profile,
         }
         crop = next(item for item in catalogue if item["cropId"] == crop_id)
         assert profile["crop"] == {key: crop[key] for key in profile["crop"]}
