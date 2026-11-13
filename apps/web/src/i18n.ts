@@ -53,6 +53,22 @@ export type Translation = {
   notFoundDescription: string;
   goToConnect: string;
   version: string;
+  interactionTitle: string;
+  interactionSubtitle: string;
+  interactionPlaceholder: string;
+  askButton: string;
+  listeningButton: string;
+  micUnavailable: string;
+  micPermissionDenied: string;
+  speechError: string;
+  ttsButton: string;
+  ttsStopButton: string;
+  ttsUnavailable: string;
+  suggestedPrompts: string;
+  askAnother: string;
+  limitationsTitle: string;
+  escalationTitle: string;
+  sourcesTitle: string;
 };
 
 export const translations: Record<Locale, Translation> = {
@@ -110,6 +126,22 @@ export const translations: Record<Locale, Translation> = {
     notFoundDescription: "That TerraPulse workspace does not exist yet.",
     goToConnect: "Go to Connect",
     version: "TerraPulse 2.0 · Browser workspace",
+    interactionTitle: "Farmer Voice & Text Advisory",
+    interactionSubtitle: "Ask bounded crop, water, and capability questions in English, Kannada, or Hindi with speech support.",
+    interactionPlaceholder: "Ask about crop identity, water needs, or capability (e.g., 'I grow turmeric')...",
+    askButton: "Ask Question",
+    listeningButton: "Listening… Speak now",
+    micUnavailable: "Speech recognition is not supported in this browser. Please use text/touch input.",
+    micPermissionDenied: "Microphone permission was denied. Please use text/touch input.",
+    speechError: "Speech recognition error. Please retry or type your question.",
+    ttsButton: "Listen to Answer",
+    ttsStopButton: "Stop Audio",
+    ttsUnavailable: "Speech synthesis voice is not available for this language.",
+    suggestedPrompts: "Suggested Questions",
+    askAnother: "Ask Another Question",
+    limitationsTitle: "Scientific Limitations & Biophysical Scope",
+    escalationTitle: "Expert Referral Required (ICAR / KVK)",
+    sourcesTitle: "Sources & Provenance",
   },
   kn: {
     connect: "ಕನೆಕ್ಟ್",
@@ -158,6 +190,22 @@ export const translations: Record<Locale, Translation> = {
     notFoundDescription: "ಈ TerraPulse ಕಾರ್ಯಕ್ಷೇತ್ರ ಇನ್ನೂ ಅಸ್ತಿತ್ವದಲ್ಲಿಲ್ಲ.",
     goToConnect: "ಕನೆಕ್ಟ್‌ಗೆ ಹೋಗಿ",
     version: "TerraPulse 2.0 · ಬ್ರೌಸರ್ ಕಾರ್ಯಕ್ಷೇತ್ರ",
+    interactionTitle: "ರೈತರ ಧ್ವನಿ ಮತ್ತು ಪಠ್ಯ ಸಮಾಲೋಚನೆ",
+    interactionSubtitle: "ಕನ್ನಡ, ಇಂಗ್ಲಿಷ್ ಅಥವಾ ಹಿಂದಿಯಲ್ಲಿ ಬೆಳೆ ಮತ್ತು ನೀರಿನ ನಿರ್ಧಾರಗಳ ಕುರಿತು ಧ್ವನಿ ಅಥವಾ ಪಠ್ಯದ ಮೂಲಕ ಪ್ರಶ್ನಿಸಿ.",
+    interactionPlaceholder: "ನಿಮ್ಮ ಬೆಳೆ ಅಥವಾ ನೀರಿನ ಅಗತ್ಯತೆಯ ಬಗ್ಗೆ ಕೇಳಿ (ಉದಾ: 'ನನ್ನ ಬೆಳೆ ಅರಿಶಿನ')...",
+    askButton: "ಪ್ರಶ್ನಿಸಿ",
+    listeningButton: "ಆಲಿಸಲಾಗುತ್ತಿದೆ… ಮಾತನಾಡಿ",
+    micUnavailable: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಪಠ್ಯವನ್ನು ಬಳಸಿ.",
+    micPermissionDenied: "ಮೈಕ್ರೋಫೋನ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಪಠ್ಯವನ್ನು ಬಳಸಿ.",
+    speechError: "ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆಯಲ್ಲಿ ದೋಷ ಸಂಭವಿಸಿದೆ. ದಯವಿಟ್ಟು ಪಠ್ಯವನ್ನು ಬಳಸಿ.",
+    ttsButton: "ಉತ್ತರವನ್ನು ಆಲಿಸಿ",
+    ttsStopButton: "ಧ್ವನಿ ನಿಲ್ಲಿಸಿ",
+    ttsUnavailable: "ಈ ಭಾಷೆಗೆ ಧ್ವನಿ ಔಟ್‌ಪುಟ್ ಲಭ್ಯವಿಲ್ಲ.",
+    suggestedPrompts: "ಸೂಚಿಸಲಾದ ಪ್ರಶ್ನೆಗಳು",
+    askAnother: "ಮತ್ತೊಂದು ಪ್ರಶ್ನೆ ಕೇಳಿ",
+    limitationsTitle: "ವೈಜ್ಞಾನಿಕ ಮಿತಿಗಳು ಮತ್ತು ಊಹೆಗಳು",
+    escalationTitle: "ತಜ್ಞರ ಸಲಹೆ ಅಗತ್ಯವಿದೆ (ಕೃಷಿ ವಿಜ್ಞಾನ ಕೇಂದ್ರ)",
+    sourcesTitle: "ಮೂಲಗಳು ಮತ್ತು ಉಲ್ಲೇಖಗಳು",
   },
   hi: {
     connect: "कनेक्ट",
@@ -206,6 +254,22 @@ export const translations: Record<Locale, Translation> = {
     notFoundDescription: "यह TerraPulse कार्यक्षेत्र अभी मौजूद नहीं है।",
     goToConnect: "कनेक्ट पर जाएं",
     version: "TerraPulse 2.0 · ब्राउज़र कार्यक्षेत्र",
+    interactionTitle: "किसान आवाज एवं पाठ्य परामर्श",
+    interactionSubtitle: "फसल पहचान, जल संतुलन और उपज क्षमताओं के बारे में हिंदी, कन्नड़ या अंग्रेजी में पूछें।",
+    interactionPlaceholder: "अपनी फसल या पानी की आवश्यकता के बारे में पूछें (जैसे: 'मेरी फसल हल्दी है')...",
+    askButton: "पूछें",
+    listeningButton: "सुन रहे हैं… बोलिए",
+    micUnavailable: "इस ब्राउज़र में आवाज पहचान समर्थित नहीं है। कृपया लिखकर प्रश्न पूछें।",
+    micPermissionDenied: "माइक्रोफ़ोन की अनुमति अस्वीकृत की गई। कृपया लिखकर प्रश्न पूछें।",
+    speechError: "आवाज पहचान में त्रुटि हुई। कृपया पुनः प्रयास करें या लिखकर पूछें।",
+    ttsButton: "उत्तर सुनें",
+    ttsStopButton: "आवाज रोकें",
+    ttsUnavailable: "इस भाषा के लिए आवाज आउटपुट उपलब्ध नहीं है।",
+    suggestedPrompts: "सुझाए गए प्रश्न",
+    askAnother: "दूसरा प्रश्न पूछें",
+    limitationsTitle: "वैज्ञानिक सीमाएं एवं बायोफिजिकल दायरा",
+    escalationTitle: "विशेषज्ञ परामर्श आवश्यक (कृषि विज्ञान केंद्र)",
+    sourcesTitle: "प्रमाणिक स्रोत एवं संदर्भ",
   },
 };
 
