@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.contracts import C7ModelCapability
 from app.schemas import ApiResponse
+from app.services.crop_lens.interaction import BoundedInteractionService, InteractionResult
 from app.services.crop_lens.registry import CROP_REGISTRY, get_crop_by_id, list_crops
 from app.services.crop_lens.resolver import (
     CropLensResolver,
@@ -17,6 +18,7 @@ from app.services.crop_lens.resolver import (
 
 router = APIRouter(prefix="/api/v1/crops", tags=["crop-lens"])
 resolver = CropLensResolver(CROP_REGISTRY)
+interaction_service = BoundedInteractionService(resolver)
 
 
 class ExternalReferenceOut(BaseModel):
@@ -175,5 +177,58 @@ async def get_crop_capability(request: Request, crop_id: UUID) -> ApiResponse:
     capability = crop.to_c7_capability()
     return ApiResponse(
         data=capability.model_dump(by_alias=True),
+        correlationId=request.state.correlation_id,
+    )
+
+
+class CropInteractionRequest(BaseModel):
+    query: str = Field(min_length=1, description="Farmer text or speech transcript query")
+    language: Literal["en", "kn", "hi"] = Field(default="en", description="Interaction language")
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CropInteractionResponse(BaseModel):
+    intent: str
+    language: str
+    resolution_status: str = Field(alias="resolutionStatus")
+    resolved_crop: CropCatalogItem | None = Field(default=None, alias="resolvedCrop")
+    candidates: list[CandidateMatchOut] = Field(default_factory=list)
+    response_text: str = Field(alias="responseText")
+    speech_text: str = Field(alias="speechText")
+    limitations: list[str] = Field(default_factory=list)
+    escalation_required: bool = Field(default=False, alias="escalationRequired")
+    sources: list[str] = Field(default_factory=list)
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/interact", response_model=ApiResponse)
+async def interact_crop(request: Request, payload: CropInteractionRequest) -> ApiResponse:
+    """Process a farmer query in local language (English, Kannada, Hindi) with evidence grounding."""
+    result: InteractionResult = interaction_service.interact(payload.query, payload.language)
+    catalog_item = _to_catalog_item(result.resolved_crop) if result.resolved_crop is not None else None
+    candidate_outs = [
+        CandidateMatchOut(
+            cropId=c.crop_id,
+            canonicalName=c.canonical_name,
+            scientificName=c.scientific_name,
+            matchedAlias=c.matched_alias,
+            matchType=c.match_type,
+        )
+        for c in result.candidates
+    ]
+    data = CropInteractionResponse(
+        intent=result.intent,
+        language=result.language,
+        resolutionStatus=result.resolution_status.value,
+        resolvedCrop=catalog_item,
+        candidates=candidate_outs,
+        responseText=result.response_text,
+        speechText=result.speech_text,
+        limitations=result.limitations,
+        escalationRequired=result.escalation_required,
+        sources=result.sources,
+    )
+    return ApiResponse(
+        data=data.model_dump(by_alias=True),
         correlationId=request.state.correlation_id,
     )

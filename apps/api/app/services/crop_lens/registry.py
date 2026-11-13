@@ -61,7 +61,19 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Turmeric",
         scientific_name="Curcuma longa",
         family="Zingiberaceae",
-        aliases=["turmeric", "haldi", "pasupu", "manjal", "halad", "curcuma longa", "curcuma"],
+        aliases=[
+            "turmeric",
+            "haldi",
+            "pasupu",
+            "manjal",
+            "halad",
+            "curcuma longa",
+            "curcuma",
+            "ಅರಿಶಿನ",
+            "ಅರಶಿಣ",
+            "हल्दी",
+            "हरदी",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -96,7 +108,19 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Maize",
         scientific_name="Zea mays",
         family="Poaceae",
-        aliases=["maize", "corn", "makka", "makki", "cholam", "zea mays"],
+        aliases=[
+            "maize",
+            "corn",
+            "makka",
+            "makki",
+            "cholam",
+            "zea mays",
+            "ಮೆಕ್ಕೆಜೋಳ",
+            "ಮುಸುಕಿನ ಜೋಳ",
+            "मक्का",
+            "मकई",
+            "भुट्टा",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -149,7 +173,16 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Wheat",
         scientific_name="Triticum aestivum",
         family="Poaceae",
-        aliases=["wheat", "gehun", "godhumai", "kanak", "triticum aestivum"],
+        aliases=[
+            "wheat",
+            "gehun",
+            "godhumai",
+            "kanak",
+            "triticum aestivum",
+            "ಗೋಧಿ",
+            "गेहूं",
+            "गेंहू",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -197,7 +230,15 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Pearl Millet",
         scientific_name="Pennisetum glaucum",
         family="Poaceae",
-        aliases=["pearl millet", "bajra", "sajje", "kambu", "pennisetum glaucum"],
+        aliases=[
+            "pearl millet",
+            "bajra",
+            "sajje",
+            "kambu",
+            "pennisetum glaucum",
+            "ಸಜ್ಜೆ",
+            "बाजरा",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -228,7 +269,17 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Finger Millet",
         scientific_name="Eleusine coracana",
         family="Poaceae",
-        aliases=["finger millet", "ragi", "mandua", "nachani", "eleusine coracana"],
+        aliases=[
+            "finger millet",
+            "ragi",
+            "mandua",
+            "nachani",
+            "eleusine coracana",
+            "ರಾಗಿ",
+            "मंडुआ",
+            "रागी",
+            "नाचनी",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -259,7 +310,17 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Foxtail Millet",
         scientific_name="Setaria italica",
         family="Poaceae",
-        aliases=["foxtail millet", "kangni", "tenai", "korra", "setaria italica"],
+        aliases=[
+            "foxtail millet",
+            "kangni",
+            "tenai",
+            "korra",
+            "setaria italica",
+            "ನವಣೆ",
+            "ಕಂಗನಿ",
+            "कंगनी",
+            "काकुन",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -289,7 +350,18 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Chickpea (Bengal Gram)",
         scientific_name="Cicer arietinum",
         family="Fabaceae",
-        aliases=["chickpea", "bengal gram", "chana", "kala chana", "cicer arietinum"],
+        aliases=[
+            "chickpea",
+            "bengal gram",
+            "chana",
+            "kala chana",
+            "cicer arietinum",
+            "ಕಡಲೆ",
+            "ಕಡಲೆ ಕಾಳು",
+            "चना",
+            "काला चना",
+            "छोला",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -320,7 +392,16 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Black Gram (Urad)",
         scientific_name="Vigna mungo",
         family="Fabaceae",
-        aliases=["black gram", "urad", "mash kalai", "vigna mungo"],
+        aliases=[
+            "black gram",
+            "urad",
+            "mash kalai",
+            "vigna mungo",
+            "ಉದ್ದು",
+            "ಉದ್ದಿನ ಬೇಳೆ",
+            "उड़द",
+            "उरद",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
@@ -350,7 +431,18 @@ CROP_REGISTRY: list[CropRecord] = [
         canonical_name="Upland Cotton",
         scientific_name="Gossypium hirsutum",
         family="Malvaceae",
-        aliases=["cotton", "kapas", "cotton plant", "gossypium hirsutum", "gossypium"],
+        aliases=[
+            "cotton",
+            "kapas",
+            "cotton plant",
+            "gossypium hirsutum",
+            "gossypium",
+            "ಹತ್ತಿ",
+            "ಕಪಾಸ್",
+            "ಕಪಾಸು",
+            "कपास",
+            "रुई",
+        ],
         external_references=[
             ExternalReference(
                 source_name="AGROVOC",
