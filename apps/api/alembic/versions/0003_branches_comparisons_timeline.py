@@ -3,7 +3,7 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0003_branches_comparisons_timeline"
+revision = "0003_branches_timeline"
 down_revision = "0002_scientific_integration"
 branch_labels = None
 depends_on = None

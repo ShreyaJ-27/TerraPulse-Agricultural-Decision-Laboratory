@@ -78,6 +78,15 @@ class BranchService:
                 payload={"decisionType": decision_type, "decisionDiff": diff},
             )
         )
+        from app.services.resources import ResourceService
+
+        await self.session.flush()
+        await ResourceService(self.session).initialize_branch_ledgers(
+            farm_id,
+            branch.id,
+            parent.id if parent else None,
+            effective_date,
+        )
         await self.session.commit()
         await self.session.refresh(branch)
         return branch

@@ -19,6 +19,7 @@ from app.models import (
     TimelineEvent,
 )
 from app.services.crop_lens.registry import get_crop_by_id
+from app.services.resources import ResourceService
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,7 +56,7 @@ class SimulationService:
             raise ValueError("SNAPSHOT_OWNERSHIP_MISMATCH")
         if payload.irrigation_mode not in ("rainfed", "irrigated"):
             raise ValueError("INVALID_IRRIGATION_MODE")
-        if payload.irrigation_mode == "irrigated":
+        if payload.irrigation_mode == "irrigated" and payload.resource_id is None:
             raise ValueError("C8_LEDGER_REQUIRED")
         crop = get_crop_by_id(plot.crop_id) if plot.crop_id else None
         if crop is None:
@@ -104,6 +105,11 @@ class SimulationService:
             branch = await self.session.get(DecisionBranch, branch_id)
             if branch is None or branch.farm_id != payload.farm_id or branch.plot_id != payload.plot_id:
                 raise ValueError("INVALID_BRANCH")
+        await self.session.flush()
+        if payload.irrigation_mode == "irrigated":
+            resource_service = ResourceService(self.session)
+            await resource_service.get_resource(payload.farm_id, payload.resource_id)
+            await resource_service.get_ledger(payload.farm_id, payload.resource_id, branch_id)
         run = SimulationRun(
             id=uuid4(),
             farm_id=payload.farm_id,
@@ -121,7 +127,11 @@ class SimulationService:
             warnings=[],
             weather_realization_id=self._weather_id(snapshot.payload),
             weather_member_id=self._weather_member(snapshot.payload),
-            input_provenance={"turmericMapping": payload.turmeric_mapping},
+            input_provenance={
+                "turmericMapping": payload.turmeric_mapping,
+                "irrigationMode": payload.irrigation_mode,
+                "resourceId": str(payload.resource_id) if payload.resource_id else None,
+            },
         )
         self.session.add(run)
         await self.session.commit()
@@ -149,7 +159,33 @@ class SimulationService:
             snapshot = await session.get(EnvironmentalSnapshot, run.environmental_snapshot_id)
             plot = await session.get(Plot, run.plot_id)
             try:
-                result = await asyncio.to_thread(self._execute_science, run, snapshot, plot)
+                ledger = schedule = None
+                if (run.input_provenance or {}).get("irrigationMode") == "irrigated":
+                    resource_id = UUID(run.input_provenance["resourceId"])
+                    c1_period = snapshot.payload.get("c1Input", snapshot.payload)["simulationPeriod"]
+                    ledger, schedule = await ResourceService(session).build_scientific_inputs(
+                        run.farm_id,
+                        resource_id,
+                        run.branch_id,
+                        run.plot_id,
+                        area_m2=plot.area_m2,
+                        start_date=date.fromisoformat(c1_period["startDate"]),
+                        end_date=date.fromisoformat(c1_period["endDate"]),
+                    )
+                    run.input_provenance = {
+                        **(run.input_provenance or {}),
+                        "c8Ledger": {
+                            "ledgerHash": schedule["ledgerHash"],
+                            "scheduleHash": _hash(schedule),
+                            "resourceId": schedule["resourceId"],
+                            "openingVolume": ledger["openingVolume"],
+                            "closingVolume": ledger["closingVolume"],
+                            "losses": ledger["losses"],
+                        },
+                    }
+                result = await asyncio.to_thread(
+                    self._execute_science, run, snapshot, plot, ledger, schedule
+                )
                 if result.get("status") != "completed":
                     error = result["error"]
                     run.status, run.error_code, run.error_message = (
@@ -172,7 +208,10 @@ class SimulationService:
                         )
                     run.status = "completed"
                     run.science_envelope = result["scienceEnvelope"]
-                    run.input_provenance = result["inputProvenance"]
+                    run.input_provenance = {
+                        **(run.input_provenance or {}),
+                        **result["inputProvenance"],
+                    }
                     run.warnings = result.get("warnings", [])
                 run.completed_at = datetime.now(UTC)
                 await session.commit()
@@ -186,7 +225,7 @@ class SimulationService:
                 await session.commit()
 
     @staticmethod
-    def _execute_science(run, snapshot, plot) -> dict:
+    def _execute_science(run, snapshot, plot, ledger=None, schedule=None) -> dict:
         if snapshot is None or plot is None:
             return {
                 "status": "failed",
@@ -229,7 +268,9 @@ class SimulationService:
             weather_realization_id=run.weather_realization_id or _hash(c1.model_dump(mode="json")),
             ensemble_member_id=run.weather_member_id,
             weather_kind="model-estimate",
-            rainfed=True,
+            rainfed=ledger is None,
+            ledger=ledger,
+            schedule=schedule,
             requested_outputs=capability.supported_outputs,
             environmental_warnings=[],
         )

@@ -4,6 +4,7 @@ import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } fro
 import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulation } from "./services/apiClient";
 import { getInitialLocale, translations } from "./i18n";
 import { FutureFold, Observatory, Timeline } from "./components/scenario";
+import { ResourcePanel } from "./components/resources";
 import { FarmerInteraction } from "./components/interaction";
 
 const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
@@ -28,7 +29,18 @@ function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
   const [plot, setPlot] = useState({ area: "", plantingDate: "", query: "", cropId: "", crop: undefined as Crop | undefined });
   const [resolution, setResolution] = useState<CropResolution>();
   const updateFarm = (key: string, value: string | boolean) => setFarm({ ...farm, [key]: value });
-  const resolve = async () => { setError(""); try { setResolution(await apiClient.resolveCrop(plot.query)); } catch (e) { setError(message(e)); } };
+  const resolve = async () => {
+    setError("");
+    setPlot({ ...plot, cropId: "", crop: undefined });
+    try {
+      const result = await apiClient.resolveCrop(plot.query);
+      setResolution(result);
+      if (result.crop) setPlot({ ...plot, cropId: result.crop.cropId, crop: result.crop });
+    } catch (e) {
+      setResolution(undefined);
+      setError(message(e));
+    }
+  };
   const next = () => {
     setError("");
     if (step === 1 && !farm.name.trim()) return setError("Farm name is required.");
@@ -45,7 +57,7 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
   const [farm, setFarm] = useState<Farm>(); const [error, setError] = useState("");
   useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm) return <PageContainer><LoadingState label="Loading farm…" /></PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><ResourcePanel farm={farm} /></PageContainer>;
 }
 
 function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {

@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.routers.analysis import router as analysis_router
@@ -13,6 +14,7 @@ from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
+from app.routers.resources import router as resources_router
 from app.routers.simulations import router as simulations_router
 from app.schemas import ApiError, ApiErrorDetail
 
@@ -31,6 +33,18 @@ async def correlation_id(request: Request, call_next):
     return response
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
     correlation_id = request.state.correlation_id
@@ -47,6 +61,19 @@ async def validation_error(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content=body.model_dump(by_alias=True))
 
 
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    logger.exception("Unhandled API request failure", exc_info=exc)
+    body = ApiError(
+        error=ApiErrorDetail(
+            code="API_REQUEST_FAILED",
+            message="The API could not complete this request. Check the database connection.",
+        ),
+        correlation_id=request.state.correlation_id,
+    )
+    return JSONResponse(status_code=503, content=body.model_dump(by_alias=True))
+
+
 app.include_router(health_router)
 app.include_router(crops_router)
 app.include_router(farms_router)
@@ -55,4 +82,5 @@ app.include_router(simulations_router)
 app.include_router(branches_router)
 app.include_router(comparisons_router)
 app.include_router(observatory_router)
+app.include_router(resources_router)
 app.include_router(analysis_router)
