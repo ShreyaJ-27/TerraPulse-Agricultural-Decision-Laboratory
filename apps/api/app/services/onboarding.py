@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 from app.contracts import Availability, Coordinates, DataStatus, Measurement
-from app.models import Farm, Plot
+from app.models import Farm, FarmResource, Plot, ResourcePlotAuthorization
 from app.schemas import FarmCreateRequest, FarmResponse, PlotCreateRequest, PlotResponse
 from app.services.crop_lens.registry import CROP_REGISTRY, get_crop_by_id
 from app.services.crop_lens.resolver import CandidateMatch, CropLensResolver, ResolutionStatus
@@ -72,7 +72,7 @@ def _plot_to_response(db_plot: Plot) -> PlotResponse:
         plantingDate=db_plot.planting_date,
         geometry=None,
         management=db_plot.management or {},
-        sharedResourceIds=[],
+        sharedResourceIds=[item.resource_id for item in (db_plot.resource_assignments or [])],
     )
 
 
@@ -142,7 +142,9 @@ class OnboardingService:
 
     async def get_farm(self, farm_id: UUID) -> FarmResponse | None:
         if self.session is not None:
-            stmt = select(Farm).where(Farm.id == farm_id).options(selectinload(Farm.plots))
+            stmt = select(Farm).where(Farm.id == farm_id).options(
+                selectinload(Farm.plots).selectinload(Plot.resource_assignments)
+            )
             result = await self.session.execute(stmt)
             db_farm = result.scalar_one_or_none()
             if db_farm is None:
@@ -212,6 +214,14 @@ class OnboardingService:
         )
 
         if self.session is not None:
+            resources = await self.session.execute(
+                select(FarmResource).where(
+                    FarmResource.farm_id == farm_id,
+                    FarmResource.id.in_(request.shared_resource_ids),
+                )
+            )
+            if len(resources.scalars().all()) != len(set(request.shared_resource_ids)):
+                raise ValueError("RESOURCE_FARM_MISMATCH")
             db_plot = Plot(
                 id=plot_id,
                 farm_id=farm_id,
@@ -221,6 +231,14 @@ class OnboardingService:
                 management=request.management or {},
             )
             self.session.add(db_plot)
+            self.session.add_all(
+                [
+                    ResourcePlotAuthorization(
+                        id=uuid4(), resource_id=resource_id, plot_id=plot_id
+                    )
+                    for resource_id in request.shared_resource_ids
+                ]
+            )
             await self.session.commit()
             return plot_resp
 
@@ -230,7 +248,9 @@ class OnboardingService:
 
     async def get_plot(self, farm_id: UUID, plot_id: UUID) -> PlotResponse | None:
         if self.session is not None:
-            stmt = select(Plot).where(Plot.id == plot_id, Plot.farm_id == farm_id)
+            stmt = select(Plot).where(Plot.id == plot_id, Plot.farm_id == farm_id).options(
+                selectinload(Plot.resource_assignments)
+            )
             result = await self.session.execute(stmt)
             db_plot = result.scalar_one_or_none()
             if db_plot is None:
@@ -248,7 +268,9 @@ class OnboardingService:
             raise KeyError(f"Farm with ID {farm_id} not found.")
 
         if self.session is not None:
-            stmt = select(Plot).where(Plot.farm_id == farm_id)
+            stmt = select(Plot).where(Plot.farm_id == farm_id).options(
+                selectinload(Plot.resource_assignments)
+            )
             result = await self.session.execute(stmt)
             return [_plot_to_response(p) for p in result.scalars().all()]
 

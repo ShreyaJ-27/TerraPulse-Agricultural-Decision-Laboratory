@@ -47,6 +47,9 @@ class Plot(Timestamped, Base):
     planting_date: Mapped[date | None] = mapped_column(Date)
     management: Mapped[dict] = mapped_column(JSONB, default=dict)
     farm: Mapped[Farm] = relationship(back_populates="plots")
+    resource_assignments: Mapped[list[ResourcePlotAuthorization]] = relationship(
+        back_populates="plot", cascade="all, delete-orphan"
+    )
 
 
 class CropIdentity(Timestamped, Base):
@@ -195,16 +198,32 @@ class ModelParameterProvenance(Base):
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
-class FarmResource(Base):
+class FarmResource(Timestamped, Base):
     __tablename__ = "farm_resources"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
     resource_type: Mapped[str] = mapped_column(String(100))
     unit: Mapped[str] = mapped_column(String(30))
-    opening_volume: Mapped[float] = mapped_column(Numeric(16, 3))
+    opening_volume: Mapped[float] = mapped_column(Numeric(16, 6))
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    assignments: Mapped[list[ResourcePlotAuthorization]] = relationship(
+        back_populates="resource", cascade="all, delete-orphan"
+    )
 
 
-class ResourceLedger(Base):
+class ResourcePlotAuthorization(Base):
+    __tablename__ = "resource_plot_authorizations"
+    __table_args__ = (UniqueConstraint("resource_id", "plot_id"),)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    resource_id: Mapped[UUID] = mapped_column(ForeignKey("farm_resources.id"), index=True)
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resource: Mapped[FarmResource] = relationship(back_populates="assignments")
+    plot: Mapped[Plot] = relationship(back_populates="resource_assignments")
+
+
+class ResourceLedger(Timestamped, Base):
     __tablename__ = "resource_ledgers"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     resource_id: Mapped[UUID] = mapped_column(
@@ -213,6 +232,33 @@ class ResourceLedger(Base):
     branch_id: Mapped[UUID] = mapped_column(ForeignKey("decision_branches.id"), index=True)
     payload: Mapped[dict] = mapped_column(JSONB)
     closing_volume: Mapped[float] = mapped_column(Numeric(16, 3))
+    version: Mapped[int] = mapped_column(default=1)
+    ledger_hash: Mapped[str] = mapped_column(String(128))
+    parent_ledger_id: Mapped[UUID | None] = mapped_column(ForeignKey("resource_ledgers.id"))
+    validation_status: Mapped[str] = mapped_column(String(30), default="valid")
+
+
+class ResourceAllocation(Base):
+    __tablename__ = "resource_allocations"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "branch_id", "allocation_id"),
+        UniqueConstraint("resource_id", "branch_id", "idempotency_key"),
+    )
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    resource_id: Mapped[UUID] = mapped_column(ForeignKey("farm_resources.id"), index=True)
+    branch_id: Mapped[UUID] = mapped_column(ForeignKey("decision_branches.id"), index=True)
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id"), index=True)
+    allocation_id: Mapped[str] = mapped_column(String(200))
+    idempotency_key: Mapped[str] = mapped_column(String(200))
+    allocation_date: Mapped[date] = mapped_column(Date, index=True)
+    requested_litres: Mapped[float] = mapped_column(Numeric(16, 6))
+    withdrawn_litres: Mapped[float] = mapped_column(Numeric(16, 6))
+    effective_litres: Mapped[float] = mapped_column(Numeric(16, 6))
+    loss_litres: Mapped[float] = mapped_column(Numeric(16, 6))
+    measurement_provenance: Mapped[dict] = mapped_column(JSONB, default=dict)
+    inherited: Mapped[bool] = mapped_column(default=False)
+    source_allocation_id: Mapped[UUID | None] = mapped_column(ForeignKey("resource_allocations.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 Index("ix_farms_location", Farm.location, postgresql_using="gist")

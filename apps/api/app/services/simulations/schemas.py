@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SimulationSubmitRequest(BaseModel):
@@ -11,7 +11,14 @@ class SimulationSubmitRequest(BaseModel):
     branch_id: UUID | None = Field(default=None, alias="branchId")
     turmeric_mapping: str | None = Field(default=None, alias="turmericMapping")
     irrigation_mode: str = Field(alias="irrigationMode")
+    resource_id: UUID | None = Field(default=None, alias="resourceId")
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def require_resource_for_irrigation(self) -> "SimulationSubmitRequest":
+        if self.irrigation_mode == "irrigated" and self.resource_id is None:
+            raise ValueError("C8_LEDGER_REQUIRED")
+        return self
 
 
 class SimulationRunResponse(BaseModel):

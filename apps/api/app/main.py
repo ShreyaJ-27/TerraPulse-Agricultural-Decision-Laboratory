@@ -12,6 +12,7 @@ from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
+from app.routers.resources import router as resources_router
 from app.routers.simulations import router as simulations_router
 from app.schemas import ApiError, ApiErrorDetail
 
@@ -54,3 +55,4 @@ app.include_router(simulations_router)
 app.include_router(branches_router)
 app.include_router(comparisons_router)
 app.include_router(observatory_router)
+app.include_router(resources_router)

@@ -31,6 +31,9 @@ export const apiClient = {
   getFarm: (id: string) => api<Farm>(`/api/v1/farms/${id}`),
   createFarm: (value: unknown) => api<Farm>("/api/v1/farms", { method: "POST", body: JSON.stringify(value) }),
   createPlot: (farmId: string, value: unknown) => api<Plot>(`/api/v1/farms/${farmId}/plots`, { method: "POST", body: JSON.stringify(value) }),
+  listResources: (farmId: string) => api<{ resources: Resource[] }>(`/api/v1/farms/${farmId}/resources`),
+  createResource: (farmId: string, value: unknown) => api<Resource>(`/api/v1/farms/${farmId}/resources`, { method: "POST", body: JSON.stringify(value) }),
+  assignResourcePlot: (farmId: string, resourceId: string, plotId: string) => api<unknown>(`/api/v1/farms/${farmId}/resources/${resourceId}/plots/${plotId}`, { method: "POST" }),
   resolveCrop: (query: string) => api<CropResolution>(`/api/v1/crops/resolve?q=${encodeURIComponent(query)}`),
   prepareEnvironment: (value: unknown) => api<Environment>(`/api/v1/environment/prepare`, { method: "POST", body: JSON.stringify(value) }),
   listSimulations: (farmId: string, plotId: string) => api<{ simulations: Simulation[]; total: number }>(`/api/v1/farms/${farmId}/plots/${plotId}/simulations`),
@@ -45,7 +48,8 @@ export const apiClient = {
 };
 
 export type Farm = { farmId: string; name: string; timezone: string; location: { latitude: number; longitude: number; crs: string }; plots: Plot[]; createdAt?: string };
-export type Plot = { plotId: string; farmId: string; areaM2: { value: number; unit: string }; cropId: string; cropCanonicalName: string; cropScientificName?: string; plantingDate?: string };
+export type Plot = { plotId: string; farmId: string; areaM2: { value: number; unit: string }; cropId: string; cropCanonicalName: string; cropScientificName?: string; plantingDate?: string; sharedResourceIds?: string[] };
+export type Resource = { resourceId: string; farmId: string; name: string; resourceType: string; unit: string; openingVolume: number; metadata?: Record<string, unknown>; createdAt?: string };
 export type Crop = { cropId: string; canonicalName: string; scientificName?: string; matchedAlias?: string; matchType?: string };
 export type CropResolution = { status: string; crop?: Crop; candidates?: Crop[]; message?: string };
 export type Environment = { environmentalSnapshotId: string; c1Input?: { dailyWeather?: Weather[]; soil?: Soil; simulationPeriod?: { startDate: string; endDate: string } }; capability?: Capability; isValid: boolean; freshness?: string; warnings?: string[]; errors?: string[]; missingFields?: string[]; unsupportedOutputs?: string[]; provenance?: { sourceId: string; sourceVersion?: string; retrievedAt?: string; reference?: string }[]; retrievedAt?: string };
