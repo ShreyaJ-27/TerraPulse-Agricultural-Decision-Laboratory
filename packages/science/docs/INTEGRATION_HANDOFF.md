@@ -1,6 +1,12 @@
 # Integration handoff — Developer A to Developers C and D
 
-Status: **Developer A v0.2 standalone science package**. Its legacy flat view targets Developer D's earlier prototype. The repository's current C1–C8 1.0 schemas in `packages/contracts` and `apps/api/app/contracts.py` use measurement envelopes and different shapes. Adapting those schemas to the engine and emitting repository-native C3 states remain integration work. See the [package README](../README.md) for evidence restoration.
+Status: **Developer A v0.2 science package**. The new `repository_contracts.py` boundary uses the repository's C1/C3/C8 1.0 JSON shapes. The legacy flat view remains available. Application wiring and persistence remain Developer D work. See the [package README](../README.md) for evidence restoration.
+
+## Repository contract 1.0 boundary
+
+- **C1:** Pass the authoritative Pydantic model's `model_dump(mode="json", by_alias=True)` to `fao_input_from_c1_v1`. The adapter requires available depth in cm, field capacity and wilting point in m³/m³, daily rain and ET0 in mm and temperatures in °C. It verifies the selected member covers the entire simulation period, retains source records and hashes the full snapshot. Supply plot and branch UUIDs, plot area, planting date, a registered crop profile, fixed root depth, depletion fraction, initial depletion, weather realization ID and source kind. Declare rainfed operation explicitly, or supply C8 and its schedule. No independent runoff estimate is supplied by C1.
+- **C3:** Pass a completed science envelope to `c3_states_from_run` with the farm UUID, persistent simulation run UUID and source records. FAO storage is end-of-day theta multiplied by fixed root depth. FAO stress is severity (1 − Ks). Crop demand is potential daily ET. AquaCrop storage uses Wr where exported. The projector marks unexported fluxes missing and leaves ambiguous `rootZone` and daily yield unsupported. Keep the full science envelope for explicit depletion, capability versions, seasonal yield and audit evidence. The authoritative Pydantic C3 model validates the projected rows in tests.
+- **C8:** The repository ledger is an aggregate. Provide Developer D's dated schedule alongside its exact JSON: `{ledgerHash, resourceId, plotId, days: [{date, effectiveLitres}]}`. `ledgerHash` is the science package's `stable_hash` of the same C8 JSON. Provide one entry per delivery date within the run window, with effective litres summed across deliveries for that plot and resource. The adapter validates farm/branch/plot/resource identity, litre units, availability, unique allocations and dates, opening minus withdrawals equals closing, losses equal withdrawals minus effective litres, and dated totals equal the plot allocation. It converts effective litres divided by plot area to mm. Missing schedule data never becomes an invented delivery. Developer D owns the schedule's dates, snapshot and fork history. The shared C8 shape fixture's closing volume is 8,900 L for 10,000 L opening and 1,000 L withdrawn. The science boundary rejects that balance and the positive test uses 9,000 L without altering the shared fixture.
 
 ## C1 → model input (C's responsibility + A's validator)
 
@@ -60,9 +66,9 @@ The registry also describes the opt-in FAO-56 dry-bean numerical reference. FAO-
 ## Developer D integration sequence
 
 1. Review `docs/science-contract-v0.2.d.ts` alongside the repository's shared schemas. Agree the mapping for units, availability, provenance and persistent IDs before exposing any output through the API.
-2. Wire C1 soil/weather snapshot and D's C8 virtual ledger into `from_c1_with_root_depth` after C7 crop capability resolution.
+2. Wire C1 soil/weather and D's C8 ledger plus dated schedule into `fao_input_from_c1_v1` after C7 crop capability resolution.
 3. Add a run service that calls `run_fao`, persists `runId` and dated states, and surfaces typed `ScienceError.code` to callers.
-4. Use returned `v01C3` for backwards-compatible display; surface the scientific envelope and warnings in detailed results.
+4. Use `c3_states_from_run` for repository C3 and retain the science envelope and warnings in detailed results.
 5. Implement branch-specific reruns and compare with explicit fork date. Do not use C5 comparison to hide two different input realizations.
 6. Connect B's Living Field to plot/branch/date identity, with layered visualization labelled **illustrative** until independently backed by model layers.
 7. Add integration tests against real Developer C inputs, state persistence, HTTP APIs and a browser journey. None are represented by this local science package.

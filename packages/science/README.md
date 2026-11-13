@@ -32,6 +32,17 @@ files. The examples generator produces first-party synthetic FAO inputs.
 
 ## Scientific and licensing boundaries
 
+The repository boundary is in `terrapulse_science.repository_contracts`.
+Use `fao_input_from_c1_v1` for authoritative C1 JSON and
+`c3_states_from_run` to project executed FAO-56 or AquaCrop states into C3.
+See the handoff for the exact dated schedule required alongside C8.
+To run the seven cross-contract tests with the repository API environment:
+
+```powershell
+$env:TERRAPULSE_TEST_REPOSITORY_CONTRACTS = '1'
+python -m unittest discover -s tests -v
+```
+
 FAO-56 uses a fixed homogeneous root zone and provisional turmeric stage maps.
 The optional dry-bean reference reproduces FAO-56 Example 28. The pathway does
 not predict yield or biomass. The AquaCrop example uses the bundled Tunis
