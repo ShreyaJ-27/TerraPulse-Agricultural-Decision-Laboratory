@@ -1,6 +1,7 @@
 from alembic import context
 from app.core.config import get_settings
 from app.models import Base
+import app.services.farmer_alerts.models  # noqa: F401; metadata registration
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
