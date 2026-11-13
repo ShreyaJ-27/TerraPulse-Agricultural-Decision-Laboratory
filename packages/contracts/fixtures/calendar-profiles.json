@@ -1,0 +1,323 @@
+[
+  {
+    "regionId": "IN-PB",
+    "cropId": "00000000-0000-0000-0000-000000000010",
+    "season": "kharif",
+    "cropName": "Maize",
+    "sourceId": "Punjab Agricultural University (PAU)",
+    "sourceVersion": "Kharif 2026 Package of Practices",
+    "plantingWindowNote": "Main season sowing: Late May to end of June. For flood-prone fields, direct sowing by early June prevents waterlogging damage.",
+    "plantingWindows": [
+      {
+        "code": "kharif-maize-pau",
+        "label": "Kharif Maize Sowing Window",
+        "startDate": "2026-05-25",
+        "endDate": "2026-06-30",
+        "sourceId": "PAU Package of Practices p. 30",
+        "sourceVersion": "2026.1"
+      }
+    ],
+    "milestones": [
+      {
+        "code": "germination",
+        "label": "Germination & Emergence",
+        "daysAfterPlanting": 5,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Inspect seed germination uniformity. Ensure crust is broken if rainfall occurred immediately after sowing."
+      },
+      {
+        "code": "knee-high",
+        "label": "Knee-High Stage (V6-V8)",
+        "daysAfterPlanting": 28,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Apply first top-dressing of nitrogen fertilizer (Urea). Clear weeds and ensure no standing water."
+      },
+      {
+        "code": "tasseling",
+        "label": "Tasseling (VT)",
+        "daysAfterPlanting": 52,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Critical water requirement stage. Water stress at tasseling can cause substantial yield reduction; schedule irrigation if rainfall is absent."
+      },
+      {
+        "code": "silking",
+        "label": "Silking & Pollination (R1)",
+        "daysAfterPlanting": 60,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Silks emerge from ears. Maintain adequate soil moisture. Avoid foliar chemical sprays during peak morning pollination."
+      },
+      {
+        "code": "grain-filling",
+        "label": "Dough & Grain Filling (R4)",
+        "daysAfterPlanting": 78,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Kernels accumulate dry matter. Monitor for fall armyworm and stem borer infestation."
+      },
+      {
+        "code": "physiological-maturity",
+        "label": "Physiological Maturity (R6 Black Layer)",
+        "daysAfterPlanting": 98,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Black layer forms at kernel base. Cease irrigation. Prepare combine harvester or labor for cob picking."
+      },
+      {
+        "code": "harvest",
+        "label": "Harvest & Cob Drying",
+        "daysAfterPlanting": 110,
+        "sourceId": "PAU Maize Agronomy Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Harvest when grain moisture drops below 20%. Sun-dry to 12-14% moisture before storage."
+      }
+    ]
+  },
+  {
+    "regionId": "IN-PB",
+    "cropId": "00000000-0000-0000-0000-000000000020",
+    "season": "rabi",
+    "cropName": "Wheat",
+    "sourceId": "Punjab Agricultural University (PAU)",
+    "sourceVersion": "Rabi 2026 Package of Practices",
+    "plantingWindowNote": "Optimum sowing window: October 25 to November 15. Delayed sowing after November 25 decreases yield by 35 kg/ha per day.",
+    "plantingWindows": [
+      {
+        "code": "rabi-wheat-pau",
+        "label": "Rabi Wheat Optimum Sowing Window",
+        "startDate": "2026-10-25",
+        "endDate": "2026-11-20",
+        "sourceId": "PAU Rabi Guide p. 1-12",
+        "sourceVersion": "2026.1"
+      }
+    ],
+    "milestones": [
+      {
+        "code": "crown-root-initiation",
+        "label": "Crown Root Initiation (CRI)",
+        "daysAfterPlanting": 21,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Most critical irrigation stage. Irrigate 20-25 days after sowing. Apply first split of nitrogen."
+      },
+      {
+        "code": "tillering",
+        "label": "Active Tillering",
+        "daysAfterPlanting": 40,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Perform weed eradication (Phalaris minor check). Second irrigation if soil moisture is below 50% field capacity."
+      },
+      {
+        "code": "jointing",
+        "label": "Jointing & Stem Elongation",
+        "daysAfterPlanting": 65,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Nodes become visible above ground. Ensure uniform soil moisture. Monitor for yellow rust symptoms."
+      },
+      {
+        "code": "flowering-anthesis",
+        "label": "Flowering & Anthesis",
+        "daysAfterPlanting": 90,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Critical water sensitive stage. Provide light irrigation on calm non-windy days to avoid lodging."
+      },
+      {
+        "code": "milking-dough",
+        "label": "Milking to Dough Stage",
+        "daysAfterPlanting": 115,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Terminal heat vigilance: maintain microclimate humidity. Final light irrigation if temperatures rise prematurely."
+      },
+      {
+        "code": "harvest",
+        "label": "Maturity and Harvest",
+        "daysAfterPlanting": 140,
+        "sourceId": "PAU Wheat Practices",
+        "evidenceVersion": "2026.1",
+        "guidance": "Harvest when straw turns golden yellow and grain is hard (moisture < 12%)."
+      }
+    ]
+  },
+  {
+    "regionId": "IN-PB",
+    "cropId": "00000000-0000-0000-0000-000000000003",
+    "season": "kharif",
+    "cropName": "Turmeric",
+    "sourceId": "ICAR-IISR & PAU Horticulture Directorate",
+    "sourceVersion": "Turmeric Package of Practices 2026",
+    "plantingWindowNote": "Planting with pre-monsoon showers (May 1 to June 15). Raised bed or ridge-and-furrow planting recommended for heavy soils.",
+    "plantingWindows": [
+      {
+        "code": "turmeric-planting-pau",
+        "label": "Turmeric Rhizome Planting Window",
+        "startDate": "2026-05-01",
+        "endDate": "2026-06-15",
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1"
+      }
+    ],
+    "milestones": [
+      {
+        "code": "sprouting-emergence",
+        "label": "Rhizome Sprouting & Emergence (Stage A)",
+        "daysAfterPlanting": 30,
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1",
+        "guidance": "First mulching with green leaves (10-12 t/ha). Ensure good drainage to prevent rhizome rot."
+      },
+      {
+        "code": "vegetative-tillering",
+        "label": "Active Vegetative Growth (Stage B)",
+        "daysAfterPlanting": 75,
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1",
+        "guidance": "Second mulching and top dressing of N and K fertilizers. Earthing up around crop clumps."
+      },
+      {
+        "code": "rhizome-initiation",
+        "label": "Rhizome Development & Bulking (Stage C)",
+        "daysAfterPlanting": 130,
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1",
+        "guidance": "Expanding root and rhizome zone. Maintain consistent soil moisture (avoid alternate drying and saturation)."
+      },
+      {
+        "code": "senescence",
+        "label": "Foliage Senescence & Maturity",
+        "daysAfterPlanting": 210,
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1",
+        "guidance": "Leaves turn yellow and dry progressively from base. Stop all irrigation 15-20 days prior to harvest."
+      },
+      {
+        "code": "harvest",
+        "label": "Rhizome Digging & Curing",
+        "daysAfterPlanting": 240,
+        "sourceId": "ICAR-IISR Practices",
+        "sourceVersion": "2026.1",
+        "guidance": "Dig clumps carefully without injuring mother and finger rhizomes. Boil in water within 2-3 days for curing."
+      }
+    ]
+  },
+  {
+    "regionId": "IN-KA",
+    "cropId": "00000000-0000-0000-0000-000000000032",
+    "season": "kharif",
+    "cropName": "Finger Millet",
+    "sourceId": "University of Agricultural Sciences, Bengaluru (UASB)",
+    "sourceVersion": "Package of Practices for Southern Karnataka",
+    "plantingWindowNote": "Kharif sowing: July 1 to August 15. Transplanted ragi nursery sowing: late June.",
+    "plantingWindows": [
+      {
+        "code": "ragi-kharif-uasb",
+        "label": "Finger Millet Sowing Window",
+        "startDate": "2026-07-01",
+        "endDate": "2026-08-15",
+        "sourceId": "UAS Bengaluru Dryland Farming p. 44",
+        "sourceVersion": "2026.1"
+      }
+    ],
+    "milestones": [
+      {
+        "code": "nursery-transplant",
+        "label": "Transplanting / Thinning",
+        "daysAfterPlanting": 21,
+        "sourceId": "UASB Ragi Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Thin seedlings to 10 cm inter-plant spacing or transplant 3-week-old nursery seedlings in rows 30 cm apart."
+      },
+      {
+        "code": "tillering",
+        "label": "Active Tillering & Weeding",
+        "daysAfterPlanting": 35,
+        "sourceId": "UASB Ragi Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Pass tyne cultivator or manual inter-cultivation. Top dress nitrogen before soil closure."
+      },
+      {
+        "code": "panicle-emergence",
+        "label": "Panicle Initiation & Heading",
+        "daysAfterPlanting": 65,
+        "sourceId": "UASB Ragi Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Heading and flowering. Moisture conservation in drylands; protective irrigation if dry spell exceeds 14 days."
+      },
+      {
+        "code": "grain-maturation",
+        "label": "Grain Dough to Maturation",
+        "daysAfterPlanting": 95,
+        "sourceId": "UASB Ragi Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Earheads turn brown. Birds scaring and lodging prevention."
+      },
+      {
+        "code": "harvest",
+        "label": "Earhead Harvest & Threshing",
+        "daysAfterPlanting": 115,
+        "sourceId": "UASB Ragi Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Cut mature brown earheads, dry on threshing floor to 10% moisture, thresh and clean grain."
+      }
+    ]
+  },
+  {
+    "regionId": "IN-PB",
+    "cropId": "00000000-0000-0000-0000-000000000060",
+    "season": "zaid",
+    "cropName": "Okra",
+    "sourceId": "PAU Department of Vegetable Science",
+    "sourceVersion": "Vegetable Production Guide 2026",
+    "plantingWindowNote": "Spring/Summer (Zaid) sowing: February 15 to March 20. Rainy season (Kharif) sowing: June-July.",
+    "plantingWindows": [
+      {
+        "code": "okra-zaid-pau",
+        "label": "Zaid Summer Okra Window",
+        "startDate": "2026-02-15",
+        "endDate": "2026-03-25",
+        "sourceId": "PAU Vegetable Practices p. 18",
+        "sourceVersion": "2026.1"
+      }
+    ],
+    "milestones": [
+      {
+        "code": "germination",
+        "label": "Seedling Emergence",
+        "daysAfterPlanting": 7,
+        "sourceId": "PAU Vegetable Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Warm soil required for germination. Maintain light frequent irrigations."
+      },
+      {
+        "code": "first-flowering",
+        "label": "First Flower Initiation",
+        "daysAfterPlanting": 40,
+        "sourceId": "PAU Vegetable Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Yellow flowers appear. Inspect for yellow vein mosaic virus (YVMV) vectors (whiteflies)."
+      },
+      {
+        "code": "picking-start",
+        "label": "First Fruit Picking",
+        "daysAfterPlanting": 50,
+        "sourceId": "PAU Vegetable Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Pick tender green pods every 2-3 days. Continued picking stimulates fresh flower buds."
+      },
+      {
+        "code": "extended-harvest",
+        "label": "Peak Pod Harvesting & Irrigation",
+        "daysAfterPlanting": 75,
+        "sourceId": "PAU Vegetable Guide",
+        "evidenceVersion": "2026.1",
+        "guidance": "Irrigate at 4-5 day intervals during hot summer weather to keep pods tender."
+      }
+    ]
+  }
+]
