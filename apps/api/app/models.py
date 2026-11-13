@@ -123,12 +123,15 @@ class DecisionBranch(Timestamped, Base):
     __tablename__ = "decision_branches"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id"), index=True)
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id"), index=True)
     parent_branch_id: Mapped[UUID | None] = mapped_column(ForeignKey("decision_branches.id"))
     base_snapshot_hash: Mapped[str] = mapped_column(String(128))
     effective_date: Mapped[date] = mapped_column(Date)
     weather_member_id: Mapped[str | None] = mapped_column(String(100))
     model_version: Mapped[str] = mapped_column(String(100))
     input_hashes: Mapped[list] = mapped_column(JSONB, default=list)
+    decision_type: Mapped[str] = mapped_column(String(100), default="baseline")
+    decision_diff: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
 class BranchDecision(Base):
@@ -145,11 +148,29 @@ class SimulationComparison(Base):
     __tablename__ = "simulation_comparisons"
     __table_args__ = (UniqueConstraint("branch_a_id", "branch_b_id", "comparison_date"),)
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id"), index=True)
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id"), index=True)
     branch_a_id: Mapped[UUID] = mapped_column(ForeignKey("decision_branches.id"), index=True)
     branch_b_id: Mapped[UUID] = mapped_column(ForeignKey("decision_branches.id"), index=True)
+    run_a_id: Mapped[UUID] = mapped_column(ForeignKey("simulation_runs.id"), index=True)
+    run_b_id: Mapped[UUID] = mapped_column(ForeignKey("simulation_runs.id"), index=True)
     comparison_date: Mapped[date] = mapped_column(Date)
     matched_inputs: Mapped[bool]
+    status: Mapped[str] = mapped_column(String(30), default="completed")
+    non_comparable_reasons: Mapped[list] = mapped_column(JSONB, default=list)
     payload: Mapped[dict] = mapped_column(JSONB)
+
+
+class TimelineEvent(Timestamped, Base):
+    __tablename__ = "timeline_events"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id"), index=True)
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id"), index=True)
+    branch_id: Mapped[UUID | None] = mapped_column(ForeignKey("decision_branches.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(100), index=True)
+    event_date: Mapped[date] = mapped_column(Date, index=True)
+    description: Mapped[str] = mapped_column(String(500))
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
 class ModelCapability(Base):
