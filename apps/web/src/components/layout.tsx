@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Locale, Translation, localeLabels } from "../i18n";
 import { LanguageSelector } from "./ui";
 
-export type Route = "connect" | "assisted" | "observatory";
+export type Route = string;
 
 type NavItem = { route?: Route; label: string; icon: string; upcoming?: boolean };
 

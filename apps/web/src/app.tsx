@@ -1,101 +1,89 @@
-import { Component, ErrorInfo, ReactNode, useEffect, useMemo, useState } from "react";
+import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
-import { EmptyState, ErrorState, PageContainer, ReusableCard } from "./components/ui";
+import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
+import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulation } from "./services/apiClient";
 import { getInitialLocale, translations } from "./i18n";
+import { FutureFold, Observatory, Timeline } from "./components/scenario";
 
-function getRoute(): Route | null {
-  const path = window.location.pathname.replace(/\/+$/, "") || "/";
-  return path === "/" || path === "/connect" ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : null;
+const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
+function useNavigation() {
+  const [path, setPath] = useState(routePath);
+  useEffect(() => { const onPop = () => setPath(routePath()); window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
+  const navigate = (next: string) => { window.history.pushState({}, "", next); setPath(next); };
+  return { path, navigate };
+}
+const message = (error: unknown) => error instanceof ApiError ? error.message : "Something went wrong. Please retry.";
+
+function FarmList({ navigate }: { navigate: (path: string) => void }) {
+  const [farms, setFarms] = useState<Farm[]>([]); const [error, setError] = useState("");
+  useEffect(() => { apiClient.listFarms().then((value) => setFarms(value.farms)).catch((e) => setError(message(e))); }, []);
+  if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button></div>{farms.length === 0 ? <EmptyState title="No farms registered yet" description="Register a farm with a confirmed location to begin." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
 }
 
-function useRoute() {
-  const [route, setRoute] = useState<Route | null>(getRoute);
-  useEffect(() => {
-    const handlePopState = () => setRoute(getRoute());
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-  const navigate = (nextRoute: Route) => {
-    window.history.pushState({}, "", `/${nextRoute}`);
-    setRoute(nextRoute);
+function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
+  const [step, setStep] = useState(1); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [farmId, setFarmId] = useState("");
+  const [farm, setFarm] = useState({ name: "", timezone: "Asia/Kolkata", latitude: "", longitude: "", confirmed: false });
+  const [plot, setPlot] = useState({ area: "", plantingDate: "", query: "", cropId: "", crop: undefined as Crop | undefined });
+  const [resolution, setResolution] = useState<CropResolution>();
+  const updateFarm = (key: string, value: string | boolean) => setFarm({ ...farm, [key]: value });
+  const resolve = async () => { setError(""); try { setResolution(await apiClient.resolveCrop(plot.query)); } catch (e) { setError(message(e)); } };
+  const next = () => {
+    setError("");
+    if (step === 1 && !farm.name.trim()) return setError("Farm name is required.");
+    if (step === 2 && (!farm.confirmed || !farm.latitude || !farm.longitude || Number(farm.latitude) < -90 || Number(farm.latitude) > 90 || Number(farm.longitude) < -180 || Number(farm.longitude) > 180)) return setError("Enter valid coordinates and explicitly confirm the farm location.");
+    if (step === 3 && (!plot.area || Number(plot.area) <= 0)) return setError("Plot area must be positive.");
+    if (step === 4 && !plot.cropId) return setError("Resolve and explicitly select a crop.");
+    setStep(Math.min(5, step + 1));
   };
-  return { route, navigate };
+  const save = async () => { setBusy(true); setError(""); try { const saved = farmId ? { farmId } as Farm : await apiClient.createFarm({ name: farm.name.trim(), timezone: farm.timezone, location: { latitude: Number(farm.latitude), longitude: Number(farm.longitude), crs: "EPSG:4326" }, locationConfirmed: true }); setFarmId(saved.farmId); const created = await apiClient.createPlot(saved.farmId, { areaM2: { value: Number(plot.area), unit: "m2" }, cropId: plot.cropId, plantingDate: plot.plantingDate || null }); navigate(`/farms/${saved.farmId}/plots/${created.plotId}`); } catch (e) { setError(message(e)); } finally { setBusy(false); } };
+  return <PageContainer><div className="page-intro"><p className="eyebrow">New farm · Step {step} of 5</p><h2>Register your farm</h2><p>Review every field before saving your persisted farm and plot.</p></div><div className="stepper">{["Farm details", "Location", "Plot details", "Crop selection", "Review"].map((label, i) => <span className={i + 1 === step ? "current" : i + 1 < step ? "done" : ""} key={label}>{String(i + 1).padStart(2, "0")} {label}</span>)}</div><section className="form-panel">{step === 1 && <><label>Farm name<input value={farm.name} onChange={(e) => updateFarm("name", e.target.value)} maxLength={200} /></label><label>Timezone<select value={farm.timezone} onChange={(e) => updateFarm("timezone", e.target.value)}><option>Asia/Kolkata</option><option>UTC</option><option>Asia/Dubai</option></select></label></>}{step === 2 && <><label>Latitude<input type="number" value={farm.latitude} onChange={(e) => updateFarm("latitude", e.target.value)} min="-90" max="90" step="any" /></label><label>Longitude<input type="number" value={farm.longitude} onChange={(e) => updateFarm("longitude", e.target.value)} min="-180" max="180" step="any" /></label><label className="checkbox"><input type="checkbox" checked={farm.confirmed} onChange={(e) => updateFarm("confirmed", e.target.checked)} /> I confirm these coordinates represent the farm location.</label>  <button className="secondary-button" type="button" onClick={() => window.navigator.geolocation?.getCurrentPosition((p) => { updateFarm("latitude", String(p.coords.latitude)); updateFarm("longitude", String(p.coords.longitude)); }, () => setError("Location permission was denied or unavailable."))}>Use device location</button></>}{step === 3 && <><label>Plot area (m²)<input type="number" value={plot.area} onChange={(e) => setPlot({ ...plot, area: e.target.value })} min="0" step="any" /></label><label>Planting date (optional)<input type="date" value={plot.plantingDate} onChange={(e) => setPlot({ ...plot, plantingDate: e.target.value })} /></label></>}{step === 4 && <><label>Crop name, local name or scientific name<input value={plot.query} onChange={(e) => setPlot({ ...plot, query: e.target.value })} /><button className="secondary-button" type="button" onClick={resolve}>Resolve crop</button></label>{resolution?.status?.toLowerCase().includes("ambiguous") && <div className="candidate-list"><p>Select one candidate; none is chosen automatically.</p>{resolution.candidates?.map((candidate) => <button className={plot.cropId === candidate.cropId ? "candidate selected" : "candidate"} onClick={() => setPlot({ ...plot, cropId: candidate.cropId, crop: candidate })} key={candidate.cropId}>{candidate.canonicalName} · {candidate.scientificName}</button>)}</div>  }{resolution?.crop && <button className="candidate selected" onClick={() => setPlot({ ...plot, cropId: resolution.crop!.cropId, crop: resolution.crop })}>{resolution.crop.canonicalName} · {resolution.crop.scientificName} — confirm</button>}</>}{step === 5 && <div className="review-grid"><p><strong>Farm</strong>{farm.name}<br />{farm.timezone}<br />{farm.latitude}, {farm.longitude}</p><p><strong>Plot</strong>{plot.area} m²<br />{plot.plantingDate || "Planting date unavailable"}<br />{plot.crop?.canonicalName}</p></div>}{error && <ErrorState label={error} />}<div className="form-actions">{step > 1 && <button className="secondary-button" onClick={() => setStep(step - 1)}>Back</button>}{step < 5 ? <button className="primary-button" onClick={next}>Continue <span>→</span></button> : <button className="primary-button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save farm and plot"}</button>}</div></section></PageContainer>;
 }
 
-function WebGLCheck() {
-  const [available, setAvailable] = useState<boolean | null>(null);
-  useEffect(() => {
-    let supported = false;
-    try {
-      const canvas = document.createElement("canvas");
-      supported = Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
-    } catch {
-      supported = false;
-    }
-    setAvailable(supported);
-  }, []);
-  return available;
+function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: string) => void }) {
+  const [farm, setFarm] = useState<Farm>(); const [error, setError] = useState("");
+  useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
+  if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm) return <PageContainer><LoadingState label="Loading farm…" /></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div></PageContainer>;
 }
 
-function ConnectPage({ copy, onNavigate }: { copy: typeof translations.en; onNavigate: (route: Route) => void }) {
-  return (
-    <PageContainer>
-      <section className="hero-section">
-        <div className="hero-copy"><p className="eyebrow">01 / Farmer workspace</p><h2>{copy.connectTitle}</h2><p>{copy.connectDescription}</p><button className="primary-button" onClick={() => onNavigate("observatory")}>{copy.configureAction}<span aria-hidden="true">→</span></button></div>
-        <div className="hero-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core"><span>TP</span></div><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /></div>
-      </section>
-      <EmptyState title={copy.configureTitle} description={copy.configureDescription} />
-      <section className="section-block"><div className="section-heading"><div><p className="eyebrow">The platform</p><h2>{copy.capabilitiesTitle}</h2></div><p>{copy.capabilitiesDescription}</p></div><div className="card-grid">
-        <ReusableCard><span className="card-number">01</span><span className="card-icon">▦</span><h3>{copy.farmWorkspace}</h3><p>{copy.farmWorkspaceDescription}</p><span className="card-link">{copy.upcoming} <span>↗</span></span></ReusableCard>
-        <ReusableCard><span className="card-number">02</span><span className="card-icon">◇</span><h3>{copy.cropPlanning}</h3><p>{copy.cropPlanningDescription}</p><span className="card-link">{copy.upcoming} <span>↗</span></span></ReusableCard>
-        <ReusableCard className="card-dark"><span className="card-number">03</span><span className="card-icon">◌</span><h3>{copy.observatory}</h3><p>{copy.observatoryDescription}</p><button className="text-button" onClick={() => onNavigate("observatory")}>{copy.configureAction} <span>→</span></button></ReusableCard>
-      </div></section>
-    </PageContainer>
-  );
+function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
+  const [farm, setFarm] = useState<Farm>(); const [environment, setEnvironment] = useState<Environment>(); const [error, setError] = useState(""); const [running, setRunning] = useState(false); const [mapping, setMapping] = useState("");
+  useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
+  const plot = farm?.plots.find((p) => p.plotId === plotId);
+  const prepare = async () => { if (!farm || !plot) return; setError(""); try { setEnvironment(await apiClient.prepareEnvironment({ farmId, plotId, simulationPeriod: { startDate: plot.plantingDate || new Date().toISOString().slice(0, 10), endDate: new Date().toISOString().slice(0, 10) }, requestedOutputs: [], includeEnsemble: false, forceRefresh: false })); } catch (e) { setError(message(e)); } };
+  const run = async () => { if (!environment?.environmentalSnapshotId || !environment.isValid || (plot!.cropCanonicalName === "Turmeric" && !mapping)) return; setRunning(true); setError(""); try { const result = await apiClient.submitSimulation({ farmId, plotId, environmentalSnapshotId: environment.environmentalSnapshotId, irrigationMode: "rainfed", turmericMapping: mapping || undefined }); navigate(`/farms/${farmId}/plots/${plotId}/results/${result.simulationRunId}`); } catch (e) { setError(message(e)); } finally { setRunning(false); } };
+  if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm || !plot) return <PageContainer><LoadingState label="Loading plot…" /></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">Environmental evidence</p><h2>{plot.cropCanonicalName}</h2><p>{farm.name} · {plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><button className="primary-button" onClick={prepare}>Prepare evidence <span>→</span></button></div>{environment && <><div className="evidence-grid"><ReusableCard><h3>Soil profile</h3><Metric label="Depth" value={environment.c1Input?.soil?.depthCm} /><Metric label="Texture" value={environment.c1Input?.soil?.texture} /><Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} /><Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} /></ReusableCard><ReusableCard><h3>Weather conditions</h3><p>{environment.c1Input?.dailyWeather?.length || 0} returned records</p>{environment.c1Input?.dailyWeather?.slice(0, 5).map((w) => <Metric key={w.date} label={w.date} value={w.rainfallMm} />)}</ReusableCard><ReusableCard><h3>Crop capability</h3><p>{environment.capability?.selectedEngine || "Unavailable"} {environment.capability?.engineVersion || ""}</p><p>{environment.capability?.knownLimitations?.join(" ")}</p></ReusableCard><ReusableCard><h3>Validation and provenance</h3><p>{environment.isValid ? "Validated for the requested inputs." : "Not simulation-ready."}</p><p>{environment.warnings?.join(" ")}</p><p>Freshness: {environment.freshness || "not reported"}</p></ReusableCard></div>{environment.isValid && environment.capability?.selectedEngine === "FAO-56" && <><label className="mapping-select">Turmeric stage mapping<select value={mapping} onChange={(e) => setMapping(e.target.value)}><option value="">Select A, B or C</option><option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option></select></label><button className="primary-button" disabled={running || (plot.cropCanonicalName === "Turmeric" && !mapping)} onClick={run}>{running ? "Submitting…" : "Run Simulation"} <span>→</span></button></>}<button className="text-button evidence-link" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results`)}>View simulation results →</button><div className="workspace-links"><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Open Living Field</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/timeline`)}>Decision timeline</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/future-fold`)}>Future Fold</button></div></>}</PageContainer>;
 }
+function Metric({ label, value }: { label: string; value: unknown }) { const m = value as { value?: number; unit?: string; availability?: { status: string; reason?: string } } | undefined; return <p className="metric"><span>{label}</span><strong>{typeof value === "string" ? value : m?.availability?.status === "available" ? `${m.value} ${m.unit}` : m?.availability?.reason || m?.availability?.status || "Unavailable"}</strong></p>; }
 
-function AssistedPage({ copy }: { copy: typeof translations.en }) {
-  return <PageContainer><section className="page-intro"><p className="eyebrow">02 / FPO & field workers</p><h2>{copy.assistedTitle}</h2><p>{copy.assistedDescription}</p></section><div className="assisted-layout"><section className="support-panel"><div className="panel-kicker">FIELD OPERATIONS</div><div className="support-illustration" aria-hidden="true"><span>◎</span><i /><i /><i /></div><h3>{copy.fieldWorkspace}</h3><p>{copy.fieldWorkspaceDescription}</p></section><div className="support-cards"><ReusableCard><span className="card-icon">✦</span><h3>{copy.supportOverview}</h3><p>{copy.supportOverviewDescription}</p><span className="card-link">{copy.upcoming} <span>↗</span></span></ReusableCard><ReusableCard><span className="card-icon">⌁</span><h3>{copy.futureCapability}</h3><p>{copy.assistedDescription}</p><span className="card-link">{copy.upcoming} <span>↗</span></span></ReusableCard></div></div></PageContainer>;
+function Results({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
+  const [runs, setRuns] = useState<Simulation[]>([]); const [error, setError] = useState("");
+  useEffect(() => { apiClient.listSimulations(farmId, plotId).then((v) => setRuns(v.simulations)).catch((e) => setError(message(e))); }, [farmId, plotId]);
+  if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">Scientific results</p><h2>Simulation history</h2><p>Only persisted runs and available scientific metrics are shown.</p></div>{runs.length === 0 ? <EmptyState title="No simulation results are available for this plot yet." description="Prepare environmental evidence first, then submit a supported simulation." action={<button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/environment`)}>Environmental Evidence</button>} /> : <div className="card-grid">{runs.map((run) => <button className="info-card farm-card" key={run.simulationRunId} onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results/${run.simulationRunId}`)}><h3>{run.status}</h3><p>{run.engine} {run.engineVersion} · {run.requestedAt || ""}</p><span className="card-link">Inspect run ↗</span></button>)}</div>}</PageContainer>;
 }
+function ResultDetail({ runId }: { runId: string }) { const [run, setRun] = useState<Simulation>(); const [error, setError] = useState(""); useEffect(() => { apiClient.getSimulation(runId).then(setRun).catch((e) => setError(message(e))); }, [runId]); if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!run) return <PageContainer><LoadingState label="Loading simulation…" /></PageContainer>; return <PageContainer><div className="page-intro"><p className="eyebrow">Run {run.simulationRunId}</p><h2>{run.status}</h2><p>{run.engine} {run.engineVersion} · snapshot {run.environmentalSnapshotId}</p></div><section className="results-table">{run.warnings?.map((warning) => <p key={warning} className="warning">{warning}</p>)}{run.errorMessage && <ErrorState label={`${run.errorCode}: ${run.errorMessage}`} />}{run.states?.length ? run.states.map((state, index) => <article key={index}><strong>{String(state.date)}</strong><pre>{JSON.stringify(state, null, 2)}</pre></article>) : <p>No available dated scientific states.</p>}</section></PageContainer>; }
 
-function ObservatoryFallback({ copy, onNavigate }: { copy: typeof translations.en; onNavigate: (route: Route) => void }) {
-  return <div className="observatory-fallback"><div className="fallback-symbol" aria-hidden="true">◌</div><h3>{copy.immersiveUnavailable}</h3><p>{copy.immersiveUnavailableDescription}</p><button className="secondary-button" onClick={() => onNavigate("connect")}>{copy.returnToConnect} <span>→</span></button></div>;
-}
-
-function ObservatoryPage({ copy, onNavigate }: { copy: typeof translations.en; onNavigate: (route: Route) => void }) {
-  const webgl = WebGLCheck();
-  return <PageContainer><section className="page-intro observatory-intro"><p className="eyebrow">03 / Scientific exploration</p><h2>{copy.observatoryTitle}</h2><p>{copy.observatoryDescription}</p></section><section className="observatory-layout"><div className="viewport-panel" aria-label={copy.viewportLabel}><div className="viewport-toolbar"><span className="live-indicator" /> VIEWPORT / 01 <span>◫</span></div>{webgl === false ? <ObservatoryFallback copy={copy} onNavigate={onNavigate} /> : <div className="viewport-placeholder"><div className="field-grid" aria-hidden="true" /><div className="viewport-center"><span className="viewport-icon">◌</span><h3>{copy.livingField}</h3><p>{copy.livingFieldDescription}</p></div></div>}</div><aside className="observatory-aside"><div className="aside-label">THE NEXT LAYER</div><h3>{copy.futureFoldTitle}</h3><p>{copy.futureFoldDescription}</p><div className="signal-list"><div><span className="signal-dot green" />Field context <strong>—</strong></div><div><span className="signal-dot amber" />Environmental signals <strong>—</strong></div><div><span className="signal-dot blue" />Decision pathways <strong>—</strong></div></div></aside></section></PageContainer>;
-}
-
-function NotFound({ copy, onNavigate }: { copy: typeof translations.en; onNavigate: (route: Route) => void }) {
-  return <PageContainer><div className="not-found"><ErrorState label={copy.notFound} /><h2>{copy.notFound}</h2><p>{copy.notFoundDescription}</p><button className="primary-button" onClick={() => onNavigate("connect")}>{copy.goToConnect} <span>→</span></button></div></PageContainer>;
-}
-
-class AppErrorBoundary extends Component<{ copy: typeof translations.en; children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("TerraPulse workspace rendering failed", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <PageContainer><div className="not-found"><ErrorState label={this.props.copy.error} /><h2>{this.props.copy.error}</h2><p>{this.props.copy.notFoundDescription}</p></div></PageContainer>;
-    }
-    return this.props.children;
-  }
-}
+function AppErrorBoundary({ children, copy }: { children: ReactNode; copy: typeof translations.en }) { return <Boundary copy={copy}>{children}</Boundary>; }
+class Boundary extends Component<{ children: ReactNode; copy: typeof translations.en }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } componentDidCatch(error: Error, info: ErrorInfo) { console.error("TerraPulse rendering failed", error, info); } render() { return this.state.failed ? <PageContainer><ErrorState label={this.props.copy.error} /></PageContainer> : this.props.children; } }
 
 export function App() {
-  const { route, navigate } = useRoute();
-  const [locale, setLocale] = useState(getInitialLocale);
-  const copy = useMemo(() => translations[locale], [locale]);
-  const changeLocale = (nextLocale: typeof locale) => { setLocale(nextLocale); window.localStorage.setItem("terrapulse-locale", nextLocale); };
-  const title = route === "assisted" ? copy.assisted : route === "observatory" ? copy.observatory : route === "connect" ? copy.connect : copy.connect;
-  const subtitle = route === "assisted" ? copy.assistedDescription : route === "observatory" ? copy.observatoryDescription : copy.connectDescription;
-  return <AppErrorBoundary copy={copy}><AppShell route={route ?? "connect"} copy={copy} locale={locale} onLocaleChange={changeLocale} onNavigate={navigate} title={title} subtitle={subtitle}>{route === "connect" && <ConnectPage copy={copy} onNavigate={navigate} />}{route === "assisted" && <AssistedPage copy={copy} />}{route === "observatory" && <ObservatoryPage copy={copy} onNavigate={navigate} />}{route === null && <NotFound copy={copy} onNavigate={navigate} />}</AppShell></AppErrorBoundary>;
+  const { path, navigate } = useNavigation(); const [locale, setLocale] = useState(getInitialLocale); const copy = translations[locale];
+  const route: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
+  let content: ReactNode;
+  const parts = path.split("/").filter(Boolean);
+  if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} />;
+  else if (path === "/farms/new" || (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new")) content = <FarmWizard navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory farmId={parts[1]} plotId={parts[3]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "timeline") content = <Timeline farmId={parts[1]} plotId={parts[3]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "future-fold") content = <FutureFold farmId={parts[1]} plotId={parts[3]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results") content = <Results farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
+  else content = <FarmList navigate={navigate} />;
+  return <AppErrorBoundary copy={copy}><AppShell route={route} copy={copy} locale={locale} onLocaleChange={(l) => { setLocale(l); window.localStorage.setItem("terrapulse-locale", l); }} onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)} title={route === "connect" ? "Connect" : route} subtitle="Persisted farm context and scientific evidence">{content}</AppShell></AppErrorBoundary>;
 }
