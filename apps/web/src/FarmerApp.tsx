@@ -7,6 +7,7 @@ import {
   localFarmAdapter, messageCopy, newCrop, validDate, visiblePlots,
 } from "./farmerPlan";
 import type { Advisory, Channel, CropName, CropPlan, Draft, FarmPlan, Preferences } from "./farmerPlan";
+import { FarmCalendar } from "./components/FarmCalendar";
 import "./farmer.css";
 
 type Navigate = (path: string) => void;
@@ -282,6 +283,7 @@ function Living({ plots, navigate, today }: { plots: CropPlan[]; navigate: Navig
 const navigation = [
   { path: "/", name: "Overview", icon: "⌂" },
   { path: "/farm", name: "My farm", icon: "▤" },
+  { path: "/calendar", name: "Crop calendar", icon: "C" },
   { path: "/advisories", name: "Advisories", icon: "◇" },
   { path: "/inbox", name: "Inbox", icon: "✉" },
   { path: "/future-fold", name: "Future Fold", icon: "↗" },
@@ -310,6 +312,7 @@ export function FarmerApp({ path, navigate }: { path: string; navigate: Navigate
     navigate("/");
   }} />;
   else if (page === "farm") content = <Farm plan={plan} plots={plots} segment={id} update={update} navigate={navigate} today={today} />;
+  else if (page === "calendar") content = <FarmCalendar plots={plots} today={today} />;
   else if (page === "advisories") content = <AdvisoryCenter key={path} cards={cards} id={id} marks={plan.marks} mark={mark} revised={plan.forecastRevision} revise={() => update((current) => ({ ...current, forecastRevision: !current.forecastRevision }))} navigate={navigate} />;
   else if (page === "inbox") content = <Inbox plan={plan} cards={open} navigate={navigate} change={(preferences, language) => update((current) => ({ ...current, draft: { ...current.draft, preferences, language }, profile: current.profile && { ...current.profile, preferences, language } }))} />;
   else if (page === "future-fold") content = <Fold plots={plots} id={id} topic={topic} plan={plan} update={update} navigate={navigate} today={today} />;

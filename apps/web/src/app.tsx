@@ -1,4 +1,5 @@
 import { FarmerApp, isFarmerPath } from "./FarmerApp";
+import { TelegramConnect } from "./components/TelegramConnect";
 import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
@@ -30,6 +31,8 @@ function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
   const [farm, setFarm] = useState({ name: "", timezone: "Asia/Kolkata", latitude: "", longitude: "", confirmed: false });
   const [plot, setPlot] = useState({ area: "", plantingDate: "", query: "", cropId: "", crop: undefined as Crop | undefined });
   const [resolution, setResolution] = useState<CropResolution>();
+  const [telegramPrompt, setTelegramPrompt] = useState<{ url: string; target: string } | null>(null);
+  const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
   const updateFarm = (key: string, value: string | boolean) => setFarm({ ...farm, [key]: value });
   const resolve = async () => {
     setError("");
@@ -51,7 +54,65 @@ function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
     if (step === 4 && !plot.cropId) return setError("Resolve and explicitly select a crop.");
     setStep(Math.min(5, step + 1));
   };
-  const save = async () => { setBusy(true); setError(""); try { const saved = farmId ? { farmId } as Farm : await apiClient.createFarm({ name: farm.name.trim(), timezone: farm.timezone, location: { latitude: Number(farm.latitude), longitude: Number(farm.longitude), crs: "EPSG:4326" }, locationConfirmed: true }); setFarmId(saved.farmId); const created = await apiClient.createPlot(saved.farmId, { areaM2: { value: Number(plot.area), unit: "m2" }, cropId: plot.cropId, plantingDate: plot.plantingDate || null }); navigate(`/farms/${saved.farmId}/plots/${created.plotId}`); } catch (e) { setError(message(e)); } finally { setBusy(false); } };
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      type RegisteredFarm = Farm & { telegramConnectUrl?: string };
+      const saved: RegisteredFarm = farmId
+        ? ({ farmId } as RegisteredFarm)
+        : (await apiClient.createFarm({
+            name: farm.name.trim(),
+            timezone: farm.timezone,
+            location: {
+              latitude: Number(farm.latitude),
+              longitude: Number(farm.longitude),
+              crs: "EPSG:4326",
+            },
+            locationConfirmed: true,
+          })) as RegisteredFarm;
+
+      setFarmId(saved.farmId);
+      if (saved.telegramConnectUrl) {
+        setTelegramUrl(saved.telegramConnectUrl);
+      }
+
+      const created = await apiClient.createPlot(saved.farmId, {
+        areaM2: { value: Number(plot.area), unit: "m2" },
+        cropId: plot.cropId,
+        plantingDate: plot.plantingDate || null,
+      });
+
+      const target = `/farms/${saved.farmId}/plots/${created.plotId}`;
+      const connectUrl = saved.telegramConnectUrl || telegramUrl;
+
+      if (connectUrl) {
+        setTelegramPrompt({ url: connectUrl, target });
+      } else {
+        navigate(target);
+      }
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (telegramPrompt) return <PageContainer>
+    <div className="page-intro">
+      <h2>Farm and plot registered</h2>
+      <p>
+        Telegram reminders are optional.
+        Connect once to receive eligible farm updates.
+      </p>
+    </div>
+    <TelegramConnect url={telegramPrompt.url} />
+    <button
+      className="primary-button"
+      onClick={() => navigate(telegramPrompt.target)}
+    >
+      Continue to farm
+    </button>
+  </PageContainer>;
   return <PageContainer><div className="page-intro"><p className="eyebrow">New farm · Step {step} of 5</p><h2>Register your farm</h2><p>Review every field before saving your persisted farm and plot.</p></div><div className="stepper">{["Farm details", "Location", "Plot details", "Crop selection", "Review"].map((label, i) => <span className={i + 1 === step ? "current" : i + 1 < step ? "done" : ""} key={label}>{String(i + 1).padStart(2, "0")} {label}</span>)}</div><section className="form-panel">{step === 1 && <><label>Farm name<input value={farm.name} onChange={(e) => updateFarm("name", e.target.value)} maxLength={200} /></label><label>Timezone<select value={farm.timezone} onChange={(e) => updateFarm("timezone", e.target.value)}><option>Asia/Kolkata</option><option>UTC</option><option>Asia/Dubai</option></select></label></>}{step === 2 && <><label>Latitude<input type="number" value={farm.latitude} onChange={(e) => updateFarm("latitude", e.target.value)} min="-90" max="90" step="any" /></label><label>Longitude<input type="number" value={farm.longitude} onChange={(e) => updateFarm("longitude", e.target.value)} min="-180" max="180" step="any" /></label><label className="checkbox"><input type="checkbox" checked={farm.confirmed} onChange={(e) => updateFarm("confirmed", e.target.checked)} /> I confirm these coordinates represent the farm location.</label>  <button className="secondary-button" type="button" onClick={() => window.navigator.geolocation?.getCurrentPosition((p) => { updateFarm("latitude", String(p.coords.latitude)); updateFarm("longitude", String(p.coords.longitude)); }, () => setError("Location permission was denied or unavailable."))}>Use device location</button></>}{step === 3 && <><label>Plot area (m²)<input type="number" value={plot.area} onChange={(e) => setPlot({ ...plot, area: e.target.value })} min="0" step="any" /></label><label>Planting date (optional)<input type="date" value={plot.plantingDate} onChange={(e) => setPlot({ ...plot, plantingDate: e.target.value })} /></label></>}{step === 4 && <><label>Crop name, local name or scientific name<input value={plot.query} onChange={(e) => setPlot({ ...plot, query: e.target.value })} /><button className="secondary-button" type="button" onClick={resolve}>Resolve crop</button></label>{resolution?.status?.toLowerCase().includes("ambiguous") && <div className="candidate-list"><p>Select one candidate; none is chosen automatically.</p>{resolution.candidates?.map((candidate) => <button className={plot.cropId === candidate.cropId ? "candidate selected" : "candidate"} onClick={() => setPlot({ ...plot, cropId: candidate.cropId, crop: candidate })} key={candidate.cropId}>{candidate.canonicalName} · {candidate.scientificName}</button>)}</div>  }{resolution?.crop && <button className="candidate selected" onClick={() => setPlot({ ...plot, cropId: resolution.crop!.cropId, crop: resolution.crop })}>{resolution.crop.canonicalName} · {resolution.crop.scientificName} — confirm</button>}</>}{step === 5 && <div className="review-grid"><p><strong>Farm</strong>{farm.name}<br />{farm.timezone}<br />{farm.latitude}, {farm.longitude}</p><p><strong>Plot</strong>{plot.area} m²<br />{plot.plantingDate || "Planting date unavailable"}<br />{plot.crop?.canonicalName}</p></div>}{error && <ErrorState label={error} />}<div className="form-actions">{step > 1 && <button className="secondary-button" onClick={() => setStep(step - 1)}>Back</button>}{step < 5 ? <button className="primary-button" onClick={next}>Continue <span>→</span></button> : <button className="primary-button" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save farm and plot"}</button>}</div></section></PageContainer>;
 }
 
