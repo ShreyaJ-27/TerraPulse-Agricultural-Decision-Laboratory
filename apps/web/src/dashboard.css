@@ -1259,4 +1259,252 @@
   border-color: #86efac;
 }
 
+/* ==========================================================================
+   ATMOSPHERE THEMES FOR DASHBOARD (Sakura, Autumn, Mist, Green)
+   ========================================================================== */
+
+.topbar-atmo-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 3px 6px;
+}
+
+.topbar-atmo-btn {
+  background: transparent;
+  border: none;
+  color: #8fa896;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topbar-atmo-btn:hover {
+  color: #ffffff;
+}
+
+.topbar-atmo-btn.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* --- Sakura Sunset Atmosphere Theme --- */
+.dash-container.atmosphere-sakura {
+  background: #190f17;
+  color: #fae8eb;
+}
+
+.dash-container.atmosphere-sakura .dash-topbar {
+  background: rgba(36, 18, 30, 0.95);
+  border-bottom: 1px solid rgba(255, 117, 143, 0.25);
+}
+
+.dash-container.atmosphere-sakura .brand-gem {
+  color: #ff758f;
+  text-shadow: 0 0 10px rgba(255, 117, 143, 0.5);
+}
+
+.dash-container.atmosphere-sakura .topbar-new-farm-btn,
+.dash-container.atmosphere-sakura .dock-cta-btn,
+.dash-container.atmosphere-sakura .save-decision-btn {
+  background: #84294a;
+  border-color: #ff758f;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-sakura .topbar-new-farm-btn:hover,
+.dash-container.atmosphere-sakura .dock-cta-btn:hover,
+.dash-container.atmosphere-sakura .save-decision-btn:hover {
+  background: #a3325c;
+  box-shadow: 0 0 12px rgba(255, 117, 143, 0.4);
+}
+
+.dash-container.atmosphere-sakura .guided-step-btn.active,
+.dash-container.atmosphere-sakura .dash-nav-pill.active {
+  background: #752040;
+  border-color: #ff758f;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-sakura .dash-sidebar {
+  background: rgba(28, 14, 24, 0.95);
+  border-right: 1px solid rgba(255, 117, 143, 0.15);
+}
+
+.dash-container.atmosphere-sakura .metric-card,
+.dash-container.atmosphere-sakura .stat-hero-card,
+.dash-container.atmosphere-sakura .dash-panel-card,
+.dash-container.atmosphere-sakura .overview-crop-card,
+.dash-container.atmosphere-sakura .advisory-card,
+.dash-container.atmosphere-sakura .calendar-plot-card {
+  background: #251421;
+  border-color: rgba(255, 117, 143, 0.2);
+}
+
+.dash-container.atmosphere-sakura .hero-value,
+.dash-container.atmosphere-sakura .eyebrow-accent,
+.dash-container.atmosphere-sakura .cat-tag {
+  color: #ff758f !important;
+}
+
+.dash-container.atmosphere-sakura .fill-optimal {
+  background: #ff758f !important;
+}
+
+/* --- Maple Autumn Atmosphere Theme --- */
+.dash-container.atmosphere-autumn {
+  background: #19120b;
+  color: #faede3;
+}
+
+.dash-container.atmosphere-autumn .dash-topbar {
+  background: rgba(36, 24, 16, 0.95);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.dash-container.atmosphere-autumn .brand-gem {
+  color: #f59e0b;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.dash-container.atmosphere-autumn .topbar-new-farm-btn,
+.dash-container.atmosphere-autumn .dock-cta-btn,
+.dash-container.atmosphere-autumn .save-decision-btn {
+  background: #85370d;
+  border-color: #f59e0b;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-autumn .topbar-new-farm-btn:hover,
+.dash-container.atmosphere-autumn .dock-cta-btn:hover,
+.dash-container.atmosphere-autumn .save-decision-btn:hover {
+  background: #a54611;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.dash-container.atmosphere-autumn .guided-step-btn.active,
+.dash-container.atmosphere-autumn .dash-nav-pill.active {
+  background: #7a320c;
+  border-color: #f59e0b;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-autumn .dash-sidebar {
+  background: rgba(30, 20, 13, 0.95);
+  border-right: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.dash-container.atmosphere-autumn .metric-card,
+.dash-container.atmosphere-autumn .stat-hero-card,
+.dash-container.atmosphere-autumn .dash-panel-card,
+.dash-container.atmosphere-autumn .overview-crop-card,
+.dash-container.atmosphere-autumn .advisory-card,
+.dash-container.atmosphere-autumn .calendar-plot-card {
+  background: #251910;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.dash-container.atmosphere-autumn .hero-value,
+.dash-container.atmosphere-autumn .eyebrow-accent,
+.dash-container.atmosphere-autumn .cat-tag {
+  color: #f59e0b !important;
+}
+
+.dash-container.atmosphere-autumn .fill-optimal {
+  background: #f59e0b !important;
+}
+
+/* --- Sequoia Mist Atmosphere Theme --- */
+.dash-container.atmosphere-mist {
+  background: #0f1618;
+  color: #e5f2f5;
+}
+
+.dash-container.atmosphere-mist .dash-topbar {
+  background: rgba(18, 30, 34, 0.95);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.dash-container.atmosphere-mist .brand-gem {
+  color: #38bdf8;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.dash-container.atmosphere-mist .topbar-new-farm-btn,
+.dash-container.atmosphere-mist .dock-cta-btn,
+.dash-container.atmosphere-mist .save-decision-btn {
+  background: #0e6b8a;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-mist .topbar-new-farm-btn:hover,
+.dash-container.atmosphere-mist .dock-cta-btn:hover,
+.dash-container.atmosphere-mist .save-decision-btn:hover {
+  background: #1181a7;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+
+.dash-container.atmosphere-mist .guided-step-btn.active,
+.dash-container.atmosphere-mist .dash-nav-pill.active {
+  background: #0c5c77;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.dash-container.atmosphere-mist .dash-sidebar {
+  background: rgba(14, 25, 28, 0.95);
+  border-right: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.dash-container.atmosphere-mist .metric-card,
+.dash-container.atmosphere-mist .stat-hero-card,
+.dash-container.atmosphere-mist .dash-panel-card,
+.dash-container.atmosphere-mist .overview-crop-card,
+.dash-container.atmosphere-mist .advisory-card,
+.dash-container.atmosphere-mist .calendar-plot-card {
+  background: #162428;
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
+.dash-container.atmosphere-mist .hero-value,
+.dash-container.atmosphere-mist .eyebrow-accent,
+.dash-container.atmosphere-mist .cat-tag {
+  color: #38bdf8 !important;
+}
+
+.dash-container.atmosphere-mist .fill-optimal {
+  background: #38bdf8 !important;
+}
+
+/* Wizard Theming for Atmospheres */
+.wizard-dark-wrap.atmosphere-sakura {
+  background-color: #190f17;
+}
+.wizard-dark-wrap.atmosphere-sakura .wizard-dark-card {
+  background: #251421;
+  border-color: rgba(255, 117, 143, 0.35);
+}
+.wizard-dark-wrap.atmosphere-autumn {
+  background-color: #19120b;
+}
+.wizard-dark-wrap.atmosphere-autumn .wizard-dark-card {
+  background: #251910;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.wizard-dark-wrap.atmosphere-mist {
+  background-color: #0f1618;
+}
+.wizard-dark-wrap.atmosphere-mist .wizard-dark-card {
+  background: #162428;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+
 

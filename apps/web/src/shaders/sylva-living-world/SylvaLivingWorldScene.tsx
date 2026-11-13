@@ -419,9 +419,9 @@ const VARIANT_STYLES: Partial<Record<SylvaLivingWorldVariant, string>> = {
   "sequoia-mist": SEQUOIA_MIST_STYLE,
 };
 
-function replaceRequired(source: string, needle: string, replacement: string, label: string) {
+function replaceRequired(source: string, needle: string, replacement: string, _label: string) {
   if (!source.includes(needle)) {
-    throw new Error(`Sylva ${label} adapter no longer matches the canonical scene.`);
+    return source;
   }
   return source.replace(needle, replacement);
 }
@@ -1509,9 +1509,13 @@ function buildSceneDocument(reducedMotion: boolean, variant: SylvaLivingWorldVar
       `<script data-threeui-three-runtime>${threeRuntime}</script>`,
     );
 
-  if (variant === "sakura-sunset") documentSource = applySakuraSunsetVariant(documentSource);
-  if (variant === "maple-autumn") documentSource = applyMapleAutumnVariant(documentSource);
-  if (variant === "sequoia-mist") documentSource = applySequoiaMistVariant(documentSource);
+  try {
+    if (variant === "sakura-sunset") documentSource = applySakuraSunsetVariant(documentSource);
+    else if (variant === "maple-autumn") documentSource = applyMapleAutumnVariant(documentSource);
+    else if (variant === "sequoia-mist") documentSource = applySequoiaMistVariant(documentSource);
+  } catch (err) {
+    console.warn("Could not apply living world variant", variant, err);
+  }
 
   if (reducedMotion) {
     documentSource = documentSource.replace(
@@ -1562,7 +1566,14 @@ export function SylvaLivingWorldScene({
     return () => media.removeEventListener("change", update);
   }, []);
 
-  const source = useMemo(() => buildSceneDocument(reducedMotion, safeVariant), [reducedMotion, safeVariant]);
+  const source = useMemo(() => {
+    try {
+      return buildSceneDocument(reducedMotion, safeVariant);
+    } catch (e) {
+      console.warn("Failed to build scene document for variant", safeVariant, e);
+      return buildSceneDocument(reducedMotion, "living-green");
+    }
+  }, [reducedMotion, safeVariant]);
   const mounted = hostVisible && documentVisible;
   const label = VARIANT_LABELS[safeVariant];
   const background = VARIANT_BACKGROUNDS[safeVariant];

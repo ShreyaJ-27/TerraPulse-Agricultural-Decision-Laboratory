@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import { apiClient, Farm } from "../services/apiClient";
 import { LivingFieldScene } from "./living-field/LivingFieldScene";
 import { FutureFold, Timeline } from "./scenario";
-import { Locale, localeLabels, translations } from "../i18n";
+import { Locale, localeLabels, translations, tUI } from "../i18n";
+import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 import "../dashboard.css";
 
 const DEMO_FARM_ID = "00000000-0000-0000-0000-000000000001";
@@ -16,6 +17,8 @@ type Props = {
   farmId?: string;
   locale?: Locale;
   onLocaleChange?: (locale: Locale) => void;
+  atmosphere?: SylvaLivingWorldVariant;
+  onAtmosphereChange?: (atmo: SylvaLivingWorldVariant) => void;
 };
 
 export function AgriculturalDashboard({
@@ -24,6 +27,8 @@ export function AgriculturalDashboard({
   farmId = DEMO_FARM_ID,
   locale = "en",
   onLocaleChange,
+  atmosphere = "living-green",
+  onAtmosphereChange,
 }: Props) {
   const [currentTab, setCurrentTab] = useState(initialTab);
   const [selectedFarmId, setSelectedFarmId] = useState(farmId);
@@ -269,19 +274,28 @@ export function AgriculturalDashboard({
     return farm?.plots.find((p) => p.plotId === selectedPlotId) || farm?.plots?.[0];
   }, [farm, selectedPlotId]);
 
+  const atmoClass =
+    atmosphere === "sakura-sunset"
+      ? "atmosphere-sakura"
+      : atmosphere === "maple-autumn"
+      ? "atmosphere-autumn"
+      : atmosphere === "sequoia-mist"
+      ? "atmosphere-mist"
+      : "atmosphere-green";
+
   return (
-    <div className="dash-container">
-      {/* Top Bar with Brand, Farm Selector, Guided Demo Mode & Language */}
+    <div className={`dash-container ${atmoClass}`} data-atmosphere={atmosphere}>
+      {/* Top Bar with Brand, Farm Selector, Guided Demo Mode, Atmosphere & Language */}
       <header className="dash-topbar">
         <div className="topbar-left">
           <div className="topbar-brand" onClick={() => navigate("/")}>
             <span className="brand-gem">◈</span>
-            <span className="brand-title">TerraPulse Decision Laboratory</span>
+            <span className="brand-title">{tUI(locale, "brand")}</span>
           </div>
 
           {/* Farm Switcher Dropdown */}
           <div className="farm-selector-wrap">
-            <span className="selector-label">Farm:</span>
+            <span className="selector-label">{tUI(locale, "selectFarm")}</span>
             <select
               className="topbar-farm-select"
               value={selectedFarmId}
@@ -306,65 +320,101 @@ export function AgriculturalDashboard({
               onClick={() => navigate("/register")}
               title="Register a new farm"
             >
-              + Register Farm
+              {tUI(locale, "registerNewFarm")}
             </button>
           </div>
         </div>
 
         {/* Guided Demo Controls: 8 core areas */}
         <div className="guided-demo-bar">
-          <span className="guided-label">Tour:</span>
+          <span className="guided-label">{tUI(locale, "tour")}</span>
           <button
             className={`guided-step-btn ${currentTab === "overview" ? "active" : ""}`}
             onClick={() => setCurrentTab("overview")}
           >
-            1. Workspace
+            1. {tUI(locale, "tabOverview")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "advisory" ? "active" : ""}`}
             onClick={() => setCurrentTab("advisory")}
           >
-            2. Advisory
+            2. {tUI(locale, "tabAdvisory")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "observatory" ? "active" : ""}`}
             onClick={() => setCurrentTab("observatory")}
           >
-            3. Observatory
+            3. {tUI(locale, "tabObservatory")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "crop-lens" ? "active" : ""}`}
             onClick={() => setCurrentTab("crop-lens")}
           >
-            4. Crop Planning
+            4. {tUI(locale, "tabCropPlanning")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "calendar" ? "active" : ""}`}
             onClick={() => setCurrentTab("calendar")}
           >
-            5. Agri Calendar
+            5. {tUI(locale, "tabCalendar")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "future-fold" ? "active" : ""}`}
             onClick={() => setCurrentTab("future-fold")}
           >
-            6. Future Fold
+            6. {tUI(locale, "tabFutureFold")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "living-field" ? "active" : ""}`}
             onClick={() => setCurrentTab("living-field")}
           >
-            7. Living Field
+            7. {tUI(locale, "tabLivingField")}
           </button>
           <button
             className={`guided-step-btn ${currentTab === "timeline" ? "active" : ""}`}
             onClick={() => setCurrentTab("timeline")}
           >
-            8. Saved Decisions
+            8. {tUI(locale, "tabSavedDecisions")}
           </button>
         </div>
 
         <div className="topbar-actions">
+          {/* Atmosphere Theme Selector in Dashboard Topbar */}
+          <div className="topbar-atmo-group" title="Dashboard Atmosphere Theme">
+            <button
+              type="button"
+              className={`topbar-atmo-btn ${atmosphere === "living-green" ? "active" : ""}`}
+              onClick={() => onAtmosphereChange && onAtmosphereChange("living-green")}
+              title="Living Green"
+            >
+              🌿 {tUI(locale, "green")}
+            </button>
+            <button
+              type="button"
+              className={`topbar-atmo-btn ${atmosphere === "sakura-sunset" ? "active" : ""}`}
+              onClick={() => onAtmosphereChange && onAtmosphereChange("sakura-sunset")}
+              title="Sakura Sunset"
+            >
+              🌸 {tUI(locale, "sakura")}
+            </button>
+            <button
+              type="button"
+              className={`topbar-atmo-btn ${atmosphere === "maple-autumn" ? "active" : ""}`}
+              onClick={() => onAtmosphereChange && onAtmosphereChange("maple-autumn")}
+              title="Maple Autumn"
+            >
+              🍁 {tUI(locale, "autumn")}
+            </button>
+            <button
+              type="button"
+              className={`topbar-atmo-btn ${atmosphere === "sequoia-mist" ? "active" : ""}`}
+              onClick={() => onAtmosphereChange && onAtmosphereChange("sequoia-mist")}
+              title="Sequoia Mist"
+            >
+              🌲 {tUI(locale, "mist")}
+            </button>
+          </div>
+
           {/* Language Selector */}
           {onLocaleChange && (
             <select
@@ -402,14 +452,14 @@ export function AgriculturalDashboard({
               onClick={() => setCurrentTab("overview")}
             >
               <span className="nav-icon">⌂</span>
-              <span className="nav-text">Farm Workspace</span>
+              <span className="nav-text">{tUI(locale, "tabOverview")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "advisory" ? "active" : ""}`}
               onClick={() => setCurrentTab("advisory")}
             >
               <span className="nav-icon">🌾</span>
-              <span className="nav-text">Advisory</span>
+              <span className="nav-text">{tUI(locale, "tabAdvisory")}</span>
               <span className="nav-badge">PAU</span>
             </button>
             <button
@@ -417,21 +467,21 @@ export function AgriculturalDashboard({
               onClick={() => setCurrentTab("observatory")}
             >
               <span className="nav-icon">🛰</span>
-              <span className="nav-text">Observatory</span>
+              <span className="nav-text">{tUI(locale, "tabObservatory")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "crop-lens" ? "active" : ""}`}
               onClick={() => setCurrentTab("crop-lens")}
             >
               <span className="nav-icon">🔍</span>
-              <span className="nav-text">Crop Planning</span>
+              <span className="nav-text">{tUI(locale, "tabCropPlanning")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "calendar" ? "active" : ""}`}
               onClick={() => setCurrentTab("calendar")}
             >
               <span className="nav-icon">📅</span>
-              <span className="nav-text">Agricultural Calendar</span>
+              <span className="nav-text">{tUI(locale, "tabCalendar")}</span>
               <span className="nav-badge">2.0</span>
             </button>
             <button
@@ -439,21 +489,21 @@ export function AgriculturalDashboard({
               onClick={() => setCurrentTab("future-fold")}
             >
               <span className="nav-icon">↗</span>
-              <span className="nav-text">Future Fold</span>
+              <span className="nav-text">{tUI(locale, "tabFutureFold")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "living-field" ? "active" : ""}`}
               onClick={() => setCurrentTab("living-field")}
             >
               <span className="nav-icon">🌱</span>
-              <span className="nav-text">Living Field (3D)</span>
+              <span className="nav-text">{tUI(locale, "tabLivingField")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "timeline" ? "active" : ""}`}
               onClick={() => setCurrentTab("timeline")}
             >
               <span className="nav-icon">⏱</span>
-              <span className="nav-text">Saved Decisions</span>
+              <span className="nav-text">{tUI(locale, "tabSavedDecisions")}</span>
             </button>
             <button
               className={`nav-item ${currentTab === "notifications" ? "active" : ""}`}

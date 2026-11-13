@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { SylvaLivingWorldScene, type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 import "@designcodeio/threeui/style.css";
 import "../landing.css";
-import { Locale, localeLabels, translations } from "../i18n";
+import { Locale, localeLabels, translations, tUI } from "../i18n";
 
 type LandingPageProps = {
   navigate?: (path: string) => void;
   locale?: Locale;
   onLocaleChange?: (locale: Locale) => void;
+  atmosphere?: SylvaLivingWorldVariant;
+  onAtmosphereChange?: (atmo: SylvaLivingWorldVariant) => void;
 };
 
 const NAV_TABS = [
@@ -19,10 +21,31 @@ const NAV_TABS = [
   "Dashboard",
 ] as const;
 
-export function LandingPage({ navigate, locale = "en", onLocaleChange }: LandingPageProps = {}) {
-  const [variant, setVariant] = useState<SylvaLivingWorldVariant>("living-green");
+const TAB_KEY_MAP: Record<string, string> = {
+  "Farm Workspace": "farmWorkspace",
+  "Future Fold": "futureFold",
+  "Living Field": "livingField",
+  "Crop Planning": "cropPlanning",
+  "Calendar": "calendar",
+  "Dashboard": "dashboard",
+};
+
+export function LandingPage({
+  navigate,
+  locale = "en",
+  onLocaleChange,
+  atmosphere = "living-green",
+  onAtmosphereChange,
+}: LandingPageProps = {}) {
+  const [internalVariant, setInternalVariant] = useState<SylvaLivingWorldVariant>(atmosphere);
   const [activeNavTab, setActiveNavTab] = useState<string>("Living Field");
   const _copy = translations[locale] || translations.en;
+
+  const currentVariant = atmosphere || internalVariant;
+  const updateVariant = (v: SylvaLivingWorldVariant) => {
+    setInternalVariant(v);
+    if (onAtmosphereChange) onAtmosphereChange(v);
+  };
 
   // Smooth scroll helper for landing page internal sections
   const scrollToSection = (id: string) => {
@@ -80,7 +103,7 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
           ======================================================== */}
       <div className="sylva-persistent-background" aria-hidden="true">
         <SylvaLivingWorldScene
-          variant={variant}
+          variant={currentVariant}
           style={{ width: "100%", height: "100%", border: "none" }}
         />
       </div>
@@ -113,7 +136,7 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
                   }}
                 >
                   {activeNavTab === tab && <span className="dock-pill-indicator" />}
-                  <span className="dock-tab-label">{tab}</span>
+                  <span className="dock-tab-label">{tUI(locale, TAB_KEY_MAP[tab] || tab)}</span>
                 </button>
               ))}
             </div>
@@ -140,38 +163,38 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
 
             {/* Living World Atmosphere Selector */}
             <div className="dock-atmosphere-group" title="Switch ThreeUI living world atmosphere">
-              <span className="dock-atmo-label">Atmosphere:</span>
+              <span className="dock-atmo-label">{tUI(locale, "atmosphere")}</span>
               <button
                 type="button"
-                className={`dock-atmo-btn ${variant === "living-green" ? "active" : ""}`}
-                onClick={() => setVariant("living-green")}
+                className={`dock-atmo-btn ${currentVariant === "living-green" ? "active" : ""}`}
+                onClick={() => updateVariant("living-green")}
                 title="Living Green"
               >
-                🌿 Green
+                🌿 {tUI(locale, "green")}
               </button>
               <button
                 type="button"
-                className={`dock-atmo-btn ${variant === "sakura-sunset" ? "active" : ""}`}
-                onClick={() => setVariant("sakura-sunset")}
+                className={`dock-atmo-btn ${currentVariant === "sakura-sunset" ? "active" : ""}`}
+                onClick={() => updateVariant("sakura-sunset")}
                 title="Sakura Sunset"
               >
-                🌸 Sakura
+                🌸 {tUI(locale, "sakura")}
               </button>
               <button
                 type="button"
-                className={`dock-atmo-btn ${variant === "maple-autumn" ? "active" : ""}`}
-                onClick={() => setVariant("maple-autumn")}
+                className={`dock-atmo-btn ${currentVariant === "maple-autumn" ? "active" : ""}`}
+                onClick={() => updateVariant("maple-autumn")}
                 title="Maple Autumn"
               >
-                🍁 Autumn
+                🍁 {tUI(locale, "autumn")}
               </button>
               <button
                 type="button"
-                className={`dock-atmo-btn ${variant === "sequoia-mist" ? "active" : ""}`}
-                onClick={() => setVariant("sequoia-mist")}
+                className={`dock-atmo-btn ${currentVariant === "sequoia-mist" ? "active" : ""}`}
+                onClick={() => updateVariant("sequoia-mist")}
                 title="Sequoia Mist"
               >
-                🌲 Mist
+                🌲 {tUI(locale, "mist")}
               </button>
             </div>
 
@@ -181,10 +204,10 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
             <button
               type="button"
               className="dock-cta-btn"
-              onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
+              onClick={() => (navigate ? navigate("/register") : scrollToSection("hero"))}
               title="Register your farm in TerraPulse"
             >
-              Get Started →
+              {tUI(locale, "getStarted")}
             </button>
           </nav>
         </div>
@@ -202,30 +225,28 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
           <div className="hero-screen-container">
             <div className="hero-headline-col">
               <div className="hero-brand-badge">
-                <span className="badge-gem">◈</span> Intelligent Agricultural Decision Laboratory
+                <span className="badge-gem">◈</span> {tUI(locale, "heroEyebrow")}
               </div>
               <h1 className="hero-headline">
-                <span>Explore the farm.</span>
-                <span>Shape the future.</span>
+                <span>{tUI(locale, "heroTitle")}</span>
               </h1>
               <p className="hero-lede-lead">
-                An intelligent agricultural decision laboratory connecting real-time climate ensembles,
-                biophysical crop simulation, and living field exploration.
+                {tUI(locale, "heroSubtitle")}
               </p>
               <div className="hero-cta-group">
                 <button
                   type="button"
                   className="hero-btn-primary"
-                  onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
+                  onClick={() => (navigate ? navigate("/register") : scrollToSection("hero"))}
                 >
-                  Get Started <span>→</span>
+                  {tUI(locale, "getStarted")}
                 </button>
                 <button
                   type="button"
                   className="hero-btn-secondary"
-                  onClick={() => navigate ? navigate("/dashboard") : scrollToSection("solution")}
+                  onClick={() => (navigate ? navigate("/dashboard") : scrollToSection("solution"))}
                 >
-                  Open Decision Lab <span>◈</span>
+                  {tUI(locale, "openDecisionLab")}
                 </button>
                 <button
                   type="button"
@@ -907,31 +928,28 @@ export function LandingPage({ navigate, locale = "en", onLocaleChange }: Landing
             ======================================================== */}
         <section id="vision" className="landing-section final-vision-section">
           <div className="section-container text-center">
-            <div className="vision-badge">Intelligent Agricultural Decision Laboratory</div>
+            <div className="vision-badge">{tUI(locale, "heroEyebrow")}</div>
             <h2 className="vision-title">
-              Understand the land.<br />
-              Anticipate change.<br />
-              Grow smarter.
+              {tUI(locale, "readyHeading")}
             </h2>
             <p className="vision-desc">
-              TerraPulse brings together biophysical science, real-time climate telemetry, and immersive
-              spatial exploration to create a predictive, resilient future for agriculture.
+              {tUI(locale, "readySub")}
             </p>
 
             <div className="vision-cta-group">
               <button
                 type="button"
                 className="vision-btn-primary"
-                onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
+                onClick={() => (navigate ? navigate("/register") : scrollToSection("hero"))}
               >
-                Register Your Farm <span>→</span>
+                {tUI(locale, "getStarted")}
               </button>
               <button
                 type="button"
                 className="vision-btn-secondary"
-                onClick={() => navigate ? navigate("/dashboard") : scrollToSection("solution")}
+                onClick={() => (navigate ? navigate("/dashboard") : scrollToSection("solution"))}
               >
-                Launch Decision Lab <span>◈</span>
+                {tUI(locale, "openDecisionLab")}
               </button>
               <button
                 type="button"

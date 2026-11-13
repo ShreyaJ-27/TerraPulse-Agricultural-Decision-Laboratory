@@ -11,6 +11,7 @@ import { ResourcePanel } from "./components/resources";
 import { FarmerInteraction } from "./components/interaction";
 import { LandingPage } from "./components/LandingPage";
 import { AgriculturalDashboard } from "./components/AgriculturalDashboard";
+import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 
 const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
 function useNavigation() {
@@ -28,7 +29,23 @@ function FarmList({ navigate, copy }: { navigate: (path: string) => void; copy: 
   return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms registered yet" description="Register a farm with a confirmed location to begin." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
 }
 
-function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => void; existingFarmId?: string }) {
+function FarmWizard({
+  navigate,
+  existingFarmId,
+  atmosphere = "living-green",
+}: {
+  navigate: (path: string) => void;
+  existingFarmId?: string;
+  atmosphere?: SylvaLivingWorldVariant;
+}) {
+  const atmoClass =
+    atmosphere === "sakura-sunset"
+      ? "atmosphere-sakura"
+      : atmosphere === "maple-autumn"
+      ? "atmosphere-autumn"
+      : atmosphere === "sequoia-mist"
+      ? "atmosphere-mist"
+      : "atmosphere-green";
   const firstStep = existingFarmId ? 3 : 1;
   const [step, setStep] = useState(firstStep);
   const [busy, setBusy] = useState(false);
@@ -161,7 +178,7 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
 
   if (telegramPrompt) {
     return (
-      <div className="wizard-dark-wrap">
+      <div className={`wizard-dark-wrap ${atmoClass}`} data-atmosphere={atmosphere}>
         <div className="wizard-dark-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
             <span style={{ background: "rgba(134, 239, 172, 0.15)", color: "#86efac", padding: "4px 10px", borderRadius: "12px", fontSize: "0.78rem", fontWeight: 700 }}>
@@ -188,7 +205,7 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
   }
 
   return (
-    <div className="wizard-dark-wrap">
+    <div className={`wizard-dark-wrap ${atmoClass}`} data-atmosphere={atmosphere}>
       <div className="wizard-dark-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
           <button
@@ -602,6 +619,27 @@ export function App() {
   const copy = translations[locale];
   const legacyRoute: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
 
+  const [atmosphere, setAtmosphere] = useState<SylvaLivingWorldVariant>(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("terrapulse-atmosphere") : null;
+    return saved === "sakura-sunset" || saved === "maple-autumn" || saved === "sequoia-mist"
+      ? (saved as SylvaLivingWorldVariant)
+      : "living-green";
+  });
+
+  const handleAtmosphereChange = (nextAtmo: SylvaLivingWorldVariant) => {
+    setAtmosphere(nextAtmo);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("terrapulse-atmosphere", nextAtmo);
+      document.documentElement.setAttribute("data-atmosphere", nextAtmo);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-atmosphere", atmosphere);
+    }
+  }, [atmosphere]);
+
   // 1. Cinematic 3D Landing Page
   if (path === "/" || path === "/landing") {
     return (
@@ -612,6 +650,8 @@ export function App() {
           setLocale(l);
           window.localStorage.setItem("terrapulse-locale", l);
         }}
+        atmosphere={atmosphere}
+        onAtmosphereChange={handleAtmosphereChange}
       />
     );
   }
@@ -645,13 +685,15 @@ export function App() {
           setLocale(l);
           window.localStorage.setItem("terrapulse-locale", l);
         }}
+        atmosphere={atmosphere}
+        onAtmosphereChange={handleAtmosphereChange}
       />
     );
   }
 
   // 3. Farm Registration & Onboarding (Dark Luxury Emerald Wizard)
   if (path === "/register" || path === "/farms/new") {
-    return <FarmWizard key={path} navigate={navigate} />;
+    return <FarmWizard key={path} navigate={navigate} atmosphere={atmosphere} />;
   }
 
   if (path === "/offline" || path.startsWith("/offline/")) {
