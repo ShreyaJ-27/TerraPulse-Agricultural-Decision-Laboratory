@@ -35,8 +35,10 @@ files. The examples generator produces first-party synthetic FAO inputs.
 The repository boundary is in `terrapulse_science.repository_contracts`.
 Use `fao_input_from_c1_v1` for authoritative C1 JSON and
 `c3_states_from_run` to project executed FAO-56 or AquaCrop states into C3.
+For a catalogue-driven farm run, wire the server's Crop Lens resolver and
+canonical lookup into `CropBindingService` and call its `run_fao` entry point.
 See the handoff for the exact dated schedule required alongside C8.
-To run the seven cross-contract tests with the repository API environment:
+To run the cross-contract and crop-binding tests with the repository API environment:
 
 ```powershell
 $env:TERRAPULSE_TEST_REPOSITORY_CONTRACTS = '1'

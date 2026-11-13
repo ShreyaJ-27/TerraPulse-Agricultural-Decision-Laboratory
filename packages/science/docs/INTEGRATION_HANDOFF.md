@@ -4,6 +4,33 @@ Status: **Developer A v0.2 science package**. The new `repository_contracts.py` 
 
 ## Repository contract 1.0 boundary
 
+### Crop identity and science eligibility (Issue #5)
+
+At application startup, construct `CropBindingService(resolve=CropLensResolver().resolve,
+get_crop_by_id=get_crop_by_id)` using the repository's server-side resolver
+and catalogue lookup. For farm FAO runs, call `service.run_fao(c1, query=...,
+confirmed_crop_id=..., turmeric_mapping="A", **context)`, or `service.prepare_fao` when preparation
+and execution are separate. Pass the same query and selected candidate UUID
+after confirmation. The service resolves again, requires a matching candidate,
+reads the current C7 declaration from the canonical record, then chooses A's
+registered profile before invoking the C1 adapter. Do not forward request-body
+C7, crop parameters or a caller-supplied registry into this path. The lower-level
+FAO and fixture entry points remain for trusted scientific use.
+
+| Developer C declaration | Developer A binding and required alignment |
+| --- | --- |
+| Turmeric `…0003`, `Curcuma longa`, FAO-56 `1.0`, `demo-1`, placeholder coefficient and empty parameter sources | Requires explicit selection of A's sourced provisional A/B/C profiles. Align the catalogue versions, sources, supported outputs and limitations with A before exposing them as application science. |
+| Wheat `…0020`, `Triticum aestivum`, FAO-56 `1.0`, `fao56-wheat-standard` | Reports an engine mismatch. A verifies `Tunis-Wheat-example-3.1.0` only. Keep the example separate from farm eligibility, or register and verify a distinct FAO wheat pathway before enabling it. |
+| Maize `…0010`, `Zea mays`, AquaCrop `3.1.0`, `aquacrop-maize-v1` | No verified A profile or adapter. Suppress numerical eligibility and yield/growth offers until a maize pathway is verified. |
+| Pearl millet `…0031`, finger millet `…0032`, chickpea `…0041`, declared FAO-56 profiles | No verified A binding. Catalogue declarations alone cannot enable simulation. |
+| Foxtail millet `…0033`, black gram `…0042`, upland cotton `…0050`, and off-catalogue identities | Identity/ecology only. No scientific run or simulated outputs. |
+
+Developer D should map `CROP_CONFIRMATION_REQUIRED` to a selection step using
+C's resolver candidates, prompt for a stage mapping on `CROP_MAPPING_REQUIRED`, and present mismatched or unsupported capabilities
+without offering a run. Persist the returned `cropBinding` alongside the full
+science envelope and C3 states. The binding does not change the shared C7
+schema or Developer C's catalogue.
+
 - **C1:** Pass the authoritative Pydantic model's `model_dump(mode="json", by_alias=True)` to `fao_input_from_c1_v1`. The adapter requires available depth in cm, field capacity and wilting point in m³/m³, daily rain and ET0 in mm and temperatures in °C. It verifies the selected member covers the entire simulation period, retains source records and hashes the full snapshot. Supply plot and branch UUIDs, plot area, planting date, a registered crop profile, fixed root depth, depletion fraction, initial depletion, weather realization ID and source kind. Declare rainfed operation explicitly, or supply C8 and its schedule. No independent runoff estimate is supplied by C1.
 - **C3:** Pass a completed science envelope to `c3_states_from_run` with the farm UUID, persistent simulation run UUID and source records. FAO storage is end-of-day theta multiplied by fixed root depth. FAO stress is severity (1 − Ks). Crop demand is potential daily ET. AquaCrop storage uses Wr where exported. The projector marks unexported fluxes missing and leaves ambiguous `rootZone` and daily yield unsupported. Keep the full science envelope for explicit depletion, capability versions, seasonal yield and audit evidence. The authoritative Pydantic C3 model validates the projected rows in tests.
 - **C8:** The repository ledger is an aggregate. Provide Developer D's dated schedule alongside its exact JSON: `{ledgerHash, resourceId, plotId, days: [{date, effectiveLitres}]}`. `ledgerHash` is the science package's `stable_hash` of the same C8 JSON. Provide one entry per delivery date within the run window, with effective litres summed across deliveries for that plot and resource. The adapter validates farm/branch/plot/resource identity, litre units, availability, unique allocations and dates, opening minus withdrawals equals closing, losses equal withdrawals minus effective litres, and dated totals equal the plot allocation. It converts effective litres divided by plot area to mm. Missing schedule data never becomes an invented delivery. Developer D owns the schedule's dates, snapshot and fork history. The shared C8 shape fixture's closing volume is 8,900 L for 10,000 L opening and 1,000 L withdrawn. The science boundary rejects that balance and the positive test uses 9,000 L without altering the shared fixture.
