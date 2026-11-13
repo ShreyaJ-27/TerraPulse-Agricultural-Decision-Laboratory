@@ -18,6 +18,7 @@ def _response(run, states=()):
         simulationRunId=run.id,
         farmId=run.farm_id,
         plotId=run.plot_id,
+        branchId=run.branch_id,
         status=run.status,
         engine=run.engine_name,
         engineVersion=run.engine_version,

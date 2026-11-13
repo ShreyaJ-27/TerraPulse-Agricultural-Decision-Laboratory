@@ -10,11 +10,13 @@ from uuid import UUID, uuid4
 
 from app.contracts import C1EnvironmentalInput
 from app.models import (
+    BranchDecision,
     DecisionBranch,
     EnvironmentalSnapshot,
     Plot,
     ScientificState,
     SimulationRun,
+    TimelineEvent,
 )
 from app.services.crop_lens.registry import get_crop_by_id
 from sqlalchemy import select
@@ -66,23 +68,41 @@ class SimulationService:
         branch_id = payload.branch_id
         if branch_id is None:
             branch_id = uuid4()
+            period_start = (
+                snapshot.payload.get("c1Input", {})
+                .get("simulationPeriod", {})
+                .get("startDate")
+            )
             self.session.add(
                 DecisionBranch(
                     id=branch_id,
                     farm_id=payload.farm_id,
+                    plot_id=payload.plot_id,
                     base_snapshot_hash=snapshot.input_hash,
-                    effective_date=date.fromisoformat(
-                        snapshot.payload.get("c1Input", {})
-                        .get("simulationPeriod", {})
-                        .get("startDate")
-                    ),
+                    effective_date=date.fromisoformat(period_start) if period_start else date.today(),
+                    weather_member_id=self._weather_member(snapshot.payload),
                     model_version=capability.engine_version,
                     input_hashes=[snapshot.input_hash],
+                    decision_type="baseline",
+                    decision_diff={},
+                )
+            )
+            self.session.add(BranchDecision(id=uuid4(), branch_id=branch_id, decision_type="baseline", payload={}))
+            self.session.add(
+                TimelineEvent(
+                    id=uuid4(),
+                    farm_id=payload.farm_id,
+                    plot_id=payload.plot_id,
+                    branch_id=branch_id,
+                    event_type="baseline_created",
+                    event_date=date.fromisoformat(period_start) if period_start else date.today(),
+                    description="Created baseline branch from the environmental snapshot.",
+                    payload={"snapshotId": str(snapshot.id)},
                 )
             )
         else:
             branch = await self.session.get(DecisionBranch, branch_id)
-            if branch is None or branch.farm_id != payload.farm_id:
+            if branch is None or branch.farm_id != payload.farm_id or branch.plot_id != payload.plot_id:
                 raise ValueError("INVALID_BRANCH")
         run = SimulationRun(
             id=uuid4(),

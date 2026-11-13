@@ -36,6 +36,12 @@ export const apiClient = {
   listSimulations: (farmId: string, plotId: string) => api<{ simulations: Simulation[]; total: number }>(`/api/v1/farms/${farmId}/plots/${plotId}/simulations`),
   getSimulation: (id: string) => api<Simulation>(`/api/v1/simulations/${id}`),
   submitSimulation: (value: unknown) => api<{ simulationRunId: string; status: string }>("/api/v1/simulations", { method: "POST", body: JSON.stringify(value) }),
+  listBranches: (farmId: string, plotId: string) => api<{ branches: Branch[] }>(`/api/v1/farms/${farmId}/plots/${plotId}/branches`),
+  createBranch: (farmId: string, plotId: string, value: unknown) => api<Branch>(`/api/v1/farms/${farmId}/plots/${plotId}/branches`, { method: "POST", body: JSON.stringify(value) }),
+  getTimeline: (farmId: string, plotId: string) => api<{ events: TimelineEvent[] }>(`/api/v1/farms/${farmId}/plots/${plotId}/timeline`),
+  getScientificState: (farmId: string, plotId: string, branchId: string, date: string) => api<ScientificState>(`/api/v1/farms/${farmId}/plots/${plotId}/scientific-states?branch_id=${branchId}&state_date=${date}`),
+  listComparisons: (farmId: string, plotId: string) => api<{ comparisons: Comparison[] }>(`/api/v1/farms/${farmId}/plots/${plotId}/comparisons`),
+  createComparison: (farmId: string, plotId: string, value: unknown) => api<Comparison>(`/api/v1/farms/${farmId}/plots/${plotId}/comparisons`, { method: "POST", body: JSON.stringify(value) }),
 };
 
 export type Farm = { farmId: string; name: string; timezone: string; location: { latitude: number; longitude: number; crs: string }; plots: Plot[]; createdAt?: string };
@@ -47,4 +53,8 @@ export type Weather = { date: string; temperatureMinC: Measurement; temperatureM
 export type Soil = { depthCm: Measurement; texture?: string; fieldCapacity: Measurement; wiltingPoint: Measurement; bulkDensity?: Measurement };
 export type Measurement = { value?: number; unit: string; availability: { status: string; reason?: string } };
 export type Capability = { selectedEngine: string; engineVersion: string; supportedOutputs: string[]; knownLimitations: string[]; parameterVersions?: string[] };
-export type Simulation = { simulationRunId: string; farmId: string; plotId: string; status: string; engine?: string; engineVersion?: string; parameterVersion?: string; environmentalSnapshotId?: string; weatherMemberId?: string; requestedAt?: string; completedAt?: string; warnings?: string[]; errorCode?: string; errorMessage?: string; states?: Record<string, unknown>[]; scienceEnvelope?: Record<string, unknown> };
+export type Simulation = { simulationRunId: string; farmId: string; plotId: string; branchId: string; status: string; engine?: string; engineVersion?: string; parameterVersion?: string; environmentalSnapshotId?: string; weatherMemberId?: string; requestedAt?: string; completedAt?: string; warnings?: string[]; errorCode?: string; errorMessage?: string; states?: Record<string, unknown>[]; scienceEnvelope?: Record<string, unknown> };
+export type Branch = { branchId: string; farmId: string; plotId: string; parentBranchId?: string; baseSnapshotHash: string; effectiveDate: string; decisionType: string; decisionDiff: Record<string, unknown>; modelVersion: string; weatherMemberId?: string; inputHashes: string[]; createdAt?: string };
+export type TimelineEvent = { eventId: string; eventType: string; eventDate: string; branchId?: string; description: string; payload: Record<string, unknown>; createdAt?: string };
+export type ScientificState = { farmId: string; plotId: string; branchId: string; simulationRunId: string; date: string; availability: string; state: Record<string, unknown>; provenance: { engine?: string; engineVersion?: string; parameterVersion?: string; environmentalSnapshotId?: string; inputHash: string; weatherRealizationId?: string; weatherMemberId?: string; warnings: string[]; visualInterpolation: { allowed: boolean; scientificValuesMutated: boolean; label: string } } };
+export type Comparison = { comparisonId: string; farmId: string; plotId: string; baselineBranchId: string; alternativeBranchId: string; baselineRunId: string; alternativeRunId: string; comparisonDate: string; status: string; matchedInputs: boolean; reasons: string[]; payload: { result?: { daily?: { date: string; metrics: { name: string; unit: string; branchA: number; branchB: number; differenceBMinusA: number }[] }[]; metrics?: unknown[] }; provenance?: Record<string, unknown> } };

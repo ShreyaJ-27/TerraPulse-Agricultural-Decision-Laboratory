@@ -18,6 +18,7 @@ class SimulationRunResponse(BaseModel):
     simulation_run_id: UUID = Field(alias="simulationRunId")
     farm_id: UUID = Field(alias="farmId")
     plot_id: UUID = Field(alias="plotId")
+    branch_id: UUID = Field(alias="branchId")
     status: str
     engine_name: str | None = Field(default=None, alias="engine")
     engine_version: str | None = Field(default=None, alias="engineVersion")
