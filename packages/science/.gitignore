@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+/research_evidence/
+/tests/fixtures/aquacrop_3_1_0/
+/examples/fao_*.json

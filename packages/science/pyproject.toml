@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terrapulse-science-dev-a"
+version = "0.2.0"
+description = "TerraPulse Developer A evidence-grounded simulation adapters"
+requires-python = ">=3.12"
+dependencies = []
+license = {text = "Apache-2.0 (TerraPulse source). Third-party dependencies retain their own licenses."}
+
+[project.optional-dependencies]
+aquacrop = ["aquacrop==3.1.0"]
+
+[project.scripts]
+terrapulse-science = "terrapulse_science.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
