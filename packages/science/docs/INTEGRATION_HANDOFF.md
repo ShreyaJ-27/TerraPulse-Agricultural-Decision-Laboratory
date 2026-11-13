@@ -111,6 +111,85 @@ The adapter verifies entry conservation `withdrawn = effective + loss`, the sum 
 
 The initial soil-water state and fixed zone depth are **separate** from D's shared reservoir. The same reservoir volume must not be counted as available to both sibling branches simultaneously *within a branch*. A branching scenario gets its own virtual ledger with inherited historical transactions through the authorized fork, as D's existing design provides.
 
+## Advisory signals and stress display
+
+**Developer D.** Pass the persisted `scienceEnvelope`, the decision date, and
+the simulation's persisted identity and input provenance to the package:
+
+```python
+from terrapulse_science import evaluate_advisory_signals, compare_advisory_signals
+
+advisory = evaluate_advisory_signals(
+    simulation["scienceEnvelope"],
+    date="2026-06-07",
+    simulation_run_id=simulation["simulationRunId"],
+    input_provenance=simulation.get("inputProvenance"),
+)
+comparison = compare_advisory_signals(
+    baseline["scienceEnvelope"], alternative["scienceEnvelope"],
+    date="2026-06-07", fork_date="2026-06-07",
+    baseline_simulation_run_id=baseline["simulationRunId"],
+    alternative_simulation_run_id=alternative["simulationRunId"],
+    baseline_input_provenance=baseline.get("inputProvenance"),
+    alternative_input_provenance=alternative.get("inputProvenance"),
+)
+```
+
+Both return JSON-compatible dictionaries. Each signal supplies the decision
+category, metric, unit, date, trigger, supporting values, model and parameter
+provenance, and confidence limitations. Use the per-metric status in `metrics`.
+`available` can include zero. `inactive` marks a date outside the crop season.
+`unavailable` means evidence is missing for this run or date. `unsupported`
+means the engine has no comparable output. An inactive FAO-56 day retains
+modeled soil depletion and emits no crop signal. AquaCrop can supply potential
+ET from the registered historical example. Its storage metric supplies no
+FAO-56 depletion or Ks.
+
+The FAO-56 `monitor-depletion` condition compares end-of-day headroom to today's
+potential crop ET. This one-day screening heuristic assumes today's demand rate
+and leaves future rainfall and irrigation unevaluated. `irrigation-review`
+fires when same-day Ks is below 1 after wetting, or when end-of-day depletion
+exceeds modeled readily available water (RAW). The two tests use different
+points in the day's water balance. `crop-water-demand` reports modeled
+potential ET in mm/day. Comparison alerts require matched runs, an explicit
+fork date, and two available active crop values on the selected date. The
+comparison reports when the choices fall on opposite sides of RAW or the Ks
+stress boundary. These are review inputs. Delivery amounts and field
+verification remain separate decisions. [FAO-56 Chapter 8](https://www.fao.org/4/x0490e/x0490e0e.htm)
+
+**Developers B and D.** The observatory response wraps persisted C3 in
+`data.state`. Read `state.waterStress.value` only when
+`state.waterStress.availability.status === "available"`. C3
+`waterStress` is `1 - Ks` in ratio units, so 0 means no modeled stress and 1
+means maximum modeled stress. If retaining the existing illustrative
+`raw Ks < 0.5` color cutoff, its C3 equivalent is `waterStress.value > 0.5`.
+The raw science envelope uses `states[i].metrics.waterStressKs.value` and
+`metrics.waterStressKs.status`, with 1 meaning no modeled stress. C3
+`soilWater` is storage, and C3 `cropWaterDemand` is the potential ET depth
+for that date in mm. For depletion and explicit inactive status use the
+science envelope. C3 1.0 represents inactivity as `missing` with a crop-inactive
+reason, missing evidence as `missing`, and unsupported metrics as `unsupported`.
+The frontend change belongs in the Living Field component.
+
+### Demo evidence and shared water
+
+The replay uses provisional turmeric mapping A, a fixed 0.30 m homogeneous
+root zone, C1 fixture FC/WP of 0.28/0.12 m³/m³, fixed p of 0.4, and 10 mm
+initial depletion. The single dry C1 fixture day (4.2 mm ET₀, zero rain) is
+repeated for seven days as a scenario assumption. These are sensitivity results
+with no established farm forecast validity.
+
+On June 7 the baseline has 21.71 mm end-of-day depletion and Ks 0.9694.
+The alternative receives the C8 fixture's 900 effective litres that day over
+100 m² (9 mm), ends at 12.76 mm, and has Ks 1. Both use RAW of 19.20 mm.
+The alternative opens with 10,000 L, withdraws 1,000 L including 100 L loss,
+and closes with 9,000 L. The baseline independently closes with its full
+10,000 L. C8 stock reconciliation uses opening = closing + withdrawals,
+and each withdrawal comprises effective delivery plus loss. The adapter
+rejects duplicate plot aggregates and duplicate dated rows, binds each schedule
+to the exact branch ledger hash, and converts only reconciled net litres to
+depth. The litres reconciliation tolerance is 0.000001 L.
+
 ## C3 output compatibility
 
 Both engines return `contractVersion: science-0.2`, `scientificOutputVersion: dev-a-science-output-0.2.0`, `adapterVersion: dev-a-adapters-0.2.0`, and `registryVersion: dev-a-0.2.0`. The envelope includes `runId`, `modelVersion`, `capability`, `inputSnapshotId`, `weatherRealizationId`, `evidenceKind`, `warnings`, and dated `states`.

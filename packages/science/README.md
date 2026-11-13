@@ -64,6 +64,14 @@ python -m terrapulse_science.cli compare baseline.json delayed.json --fork-date 
 python scripts/verify_live_aquacrop.py --out live-golden.json
 ```
 
+## Offline advisory demo
+
+From the repository root, run `python packages/science/examples/advisory_demo.py`.
+It emits JSON containing C3 states, advisory inputs, branch-specific C8 balances
+and the threshold comparison. It needs only Python and the checked-in C1/C3/C8
+fixtures. See the [handoff](docs/INTEGRATION_HANDOFF.md#advisory-signals-and-stress-display)
+for interpretation and integration.
+
 ## Scientific and licensing boundaries
 
 The repository boundary is in `terrapulse_science.repository_contracts`.

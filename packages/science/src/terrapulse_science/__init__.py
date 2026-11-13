@@ -5,8 +5,10 @@ from .compare import compare_runs, compare_aquacrop_runs
 from .capability import CapabilityRegistry, dry_bean_reference_profile, turmeric_profile, registry
 from .c1_c8 import from_c1_with_root_depth, irrigation_from_c8
 from .aquacrop_adapter import parse_aquacrop_fixture, parse_aquacrop_outputs, run_published_wheat
+from .advisory import evaluate_advisory_signals, compare_advisory_signals
 __all__ = ["ScienceError","FaoRequest","Soil","CropKc","WeatherDay","request_from_dict",
            "fao_day","kc_at_day","run_fao","compare_runs","compare_aquacrop_runs","turmeric_profile","registry",
            "CapabilityRegistry","dry_bean_reference_profile",
            "from_c1_with_root_depth","irrigation_from_c8",
-           "parse_aquacrop_fixture","parse_aquacrop_outputs","run_published_wheat"]
+           "parse_aquacrop_fixture","parse_aquacrop_outputs","run_published_wheat",
+           "evaluate_advisory_signals","compare_advisory_signals"]
