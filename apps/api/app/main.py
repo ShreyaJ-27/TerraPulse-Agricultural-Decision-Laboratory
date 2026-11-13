@@ -19,6 +19,7 @@ from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
 from app.routers.resources import router as resources_router
 from app.routers.simulations import router as simulations_router
+from app.routers.telegram_integration import router as telegram_integration_router
 from app.schemas import ApiError, ApiErrorDetail
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -79,6 +80,7 @@ app.include_router(farms_router)
 app.include_router(advisory_router)
 app.include_router(environment_router)
 app.include_router(simulations_router)
+app.include_router(telegram_integration_router)
 app.include_router(branches_router)
 app.include_router(comparisons_router)
 app.include_router(observatory_router)
