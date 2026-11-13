@@ -191,6 +191,25 @@ CROP_REGISTRY: list[CropRecord] = [
             Provenance(sourceId="gbif-2705886", sourceVersion="2026", retrievedAt=NOW),
         ],
     ),
+    CropRecord(
+        crop_id=UUID("00000000-0000-0000-0000-000000000060"),
+        canonical_name="Okra",
+        scientific_name="Abelmoschus esculentus",
+        family="Malvaceae",
+        aliases=["okra", "bhindi", "bhendi", "lady's finger", "abelmoschus esculentus"],
+        external_references=[],
+        selected_engine="identity/ecology-only",
+        engine_version="1.0",
+        supported_outputs=[],
+        model_parameters={},
+        parameter_sources=[],
+        parameter_versions=[],
+        known_limitations=[
+            "Crop identity is supported, but no quantitative AquaCrop or FAO-56 calibration is available.",
+            "Scientific simulation must not be inferred from this identity-only record.",
+        ],
+        provenance_references=[],
+    ),
     # Crops for ambiguity demonstration (Millets)
     CropRecord(
         crop_id=UUID("00000000-0000-0000-0000-000000000031"),

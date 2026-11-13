@@ -26,6 +26,15 @@ def test_resolve_crop_exact():
     assert data["capability"]["contractVersion"] == "1.0"
 
 
+def test_resolve_okra_identity_crop():
+    response = client.get("/api/v1/crops/resolve", params={"q": "okra"})
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "exact_match"
+    assert data["crop"]["canonicalName"] == "Okra"
+    assert data["capability"]["selectedEngine"] == "identity/ecology-only"
+
+
 def test_resolve_crop_ambiguous():
     response = client.get("/api/v1/crops/resolve", params={"q": "millet"})
     assert response.status_code == 200

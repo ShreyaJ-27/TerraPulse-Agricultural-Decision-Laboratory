@@ -28,7 +28,18 @@ function FarmWizard({ navigate }: { navigate: (path: string) => void }) {
   const [plot, setPlot] = useState({ area: "", plantingDate: "", query: "", cropId: "", crop: undefined as Crop | undefined });
   const [resolution, setResolution] = useState<CropResolution>();
   const updateFarm = (key: string, value: string | boolean) => setFarm({ ...farm, [key]: value });
-  const resolve = async () => { setError(""); try { setResolution(await apiClient.resolveCrop(plot.query)); } catch (e) { setError(message(e)); } };
+  const resolve = async () => {
+    setError("");
+    setPlot({ ...plot, cropId: "", crop: undefined });
+    try {
+      const result = await apiClient.resolveCrop(plot.query);
+      setResolution(result);
+      if (result.crop) setPlot({ ...plot, cropId: result.crop.cropId, crop: result.crop });
+    } catch (e) {
+      setResolution(undefined);
+      setError(message(e));
+    }
+  };
   const next = () => {
     setError("");
     if (step === 1 && !farm.name.trim()) return setError("Farm name is required.");
