@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0004_shared_water_ledger"
-down_revision = "0003_branches_comparisons_timeline"
+down_revision = "0003_branches_timeline"
 branch_labels = None
 depends_on = None
 

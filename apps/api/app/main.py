@@ -21,6 +21,17 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message
 logger = logging.getLogger("terrapulse.api")
 
 app = FastAPI(title="TerraPulse API", version="2.0.0")
+
+
+@app.middleware("http")
+async def correlation_id(request: Request, call_next):
+    value = request.headers.get("X-Correlation-ID", str(uuid4()))
+    request.state.correlation_id = value
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = value
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -31,15 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def correlation_id(request: Request, call_next):
-    value = request.headers.get("X-Correlation-ID", str(uuid4()))
-    request.state.correlation_id = value
-    response = await call_next(request)
-    response.headers["X-Correlation-ID"] = value
-    return response
 
 
 @app.exception_handler(RequestValidationError)
@@ -56,6 +58,19 @@ async def validation_error(request: Request, exc: RequestValidationError):
         correlation_id=correlation_id,
     )
     return JSONResponse(status_code=422, content=body.model_dump(by_alias=True))
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    logger.exception("Unhandled API request failure", exc_info=exc)
+    body = ApiError(
+        error=ApiErrorDetail(
+            code="API_REQUEST_FAILED",
+            message="The API could not complete this request. Check the database connection.",
+        ),
+        correlation_id=request.state.correlation_id,
+    )
+    return JSONResponse(status_code=503, content=body.model_dump(by_alias=True))
 
 
 app.include_router(health_router)
