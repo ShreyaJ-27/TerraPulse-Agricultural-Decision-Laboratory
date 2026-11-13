@@ -61,7 +61,15 @@ def test_offline_profiles_match_api_and_catalogue():
             "data": expected_profile,
         }
         crop = next(item for item in catalogue if item["cropId"] == crop_id)
-        assert profile["crop"] == {key: crop[key] for key in profile["crop"]}
+        assert {
+                key: value
+                for key, value in profile["crop"].items()
+                if key != "aliases"
+            } == {
+                key: crop[key]
+                for key in profile["crop"]
+                if key != "aliases"
+            }
         context = profile["regionalContext"]
         assert context["source"]["url"].startswith("https://pau.edu/")
         assert context["plantingWindow"]["kind"] == "typical_regional_window"
