@@ -203,21 +203,22 @@ CROP_REGISTRY: list[CropRecord] = [
                 description="Triticum aestivum FAO ECOCROP code",
             ),
         ],
-        selected_engine="FAO-56",
-        engine_version="1.0",
-        supported_outputs=["actualEvapotranspiration", "waterStress", "irrigation"],
-        model_parameters={"kcIni": 0.3, "kcMid": 1.15, "kcEnd": 0.25},
+        selected_engine="AquaCrop",
+        engine_version="3.1.0",
+        supported_outputs=[],
+        model_parameters={},
         parameter_sources=[
             Provenance(
-                sourceId="fao-56-irrigation-drainage-paper",
-                sourceVersion="1998",
+                sourceId="dev-a:tunis-wheat-aquacrop-3.1.0",
+                sourceVersion="3.1.0",
                 retrievedAt=NOW,
+                reference="https://pypi.org/project/aquacrop/3.1.0/",
             )
         ],
-        parameter_versions=["fao56-wheat-standard"],
+        parameter_versions=["Tunis-Wheat-example-3.1.0"],
         known_limitations=[
-            "No calibrated dry-matter yield or protein estimation.",
-            "Water balance only.",
+            "AquaCrop coverage is limited to the bundled Tunis wheat example.",
+            "Farm-scale wheat simulation is unavailable.",
         ],
         provenance_references=[
             Provenance(sourceId="agrovoc-c_7951", sourceVersion="2026", retrievedAt=NOW),

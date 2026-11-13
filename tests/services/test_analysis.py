@@ -695,6 +695,29 @@ def test_validator_cross_metric_collision_rejected():
     assert any("does not match the value at its cited source field" in err for err in errors)
 
 
+@pytest.mark.parametrize(
+    ("language", "environment", "simulation"),
+    [
+        ("en", "Environmental inputs are unavailable.", "Simulation results are unavailable."),
+        ("hi", "पर्यावरणीय इनपुट उपलब्ध नहीं हैं।", "सिमुलेशन के परिणाम उपलब्ध नहीं हैं।"),
+        ("kn", "ಪರಿಸರದ ಒಳಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ.", "ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ."),
+    ],
+)
+def test_deterministic_summary_reports_absent_evidence(language, environment, simulation):
+    farm = C2FarmDefinition.model_validate(SAMPLE_C2)
+    bundle = EvidenceBundle(
+        farm=farm,
+        plot=farm.plots[0],
+        cropCanonicalName="Turmeric",
+        cropCapability=get_crop_by_id(TURMERIC_ID).to_c7_capability(),
+    )
+    summary, _, _ = DeterministicExplainer.generate(bundle, [], [], [], language)
+    assert environment in summary
+    assert simulation in summary
+    assert "FAO-56" not in summary
+    assert "verified" not in summary
+
+
 def test_deterministic_explainer_missing_irrigation_en_kn_hi():
     """Verify that missing irrigation in C3 state is NEVER displayed as 0.0."""
     farm_model = C2FarmDefinition.model_validate(SAMPLE_C2)

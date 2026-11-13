@@ -382,7 +382,7 @@ async def test_invalid_physical_values_soil():
 
     assert res.is_valid is False
     assert res.status == DataStatus.INVALID
-    assert any("field capacity (0.1 m3/m3) cannot be less than wilting point (0.25 m3/m3)" in err for err in res.errors)
+    assert any("field capacity (0.1 m3/m3) must exceed wilting point (0.25 m3/m3)" in err for err in res.errors)
 
 
 # --- 6. Invalid Physical Values (Negative Rainfall) ---
