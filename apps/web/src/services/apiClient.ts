@@ -83,6 +83,8 @@ export const apiClient = {
     api<{ regionId: string; profiles: any[]; total: number }>(`/api/v1/agri-calendar/regional/${regionId}`),
   getAgriCalendarForFarm: (farmId: string) =>
     api<{ farmId: string; asOfDate: string; plots: any[]; total: number; seasons: any[] }>(`/api/v1/agri-calendar/farms/${farmId}`),
+  getAdvisory: (regionId: string, cropId: string) =>
+    api<any>(`/api/v1/advisory/regions/${regionId}/crops/${cropId}`),
   generateCustomCalendar: (payload: any) =>
     api<any>("/api/v1/agri-calendar/generate", { method: "POST", body: JSON.stringify(payload) }),
 };

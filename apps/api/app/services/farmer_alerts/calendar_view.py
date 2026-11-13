@@ -10,7 +10,7 @@ from .calendar import CropCalendarProfile, PlantingDate
 
 
 def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
-                        crop_name: str, plot_name: str, region_id: str | None, planting: PlantingDate,
+                        crop_name: str, plot_name: str = "Plot 1", region_id: str | None, planting: PlantingDate,
                         on_date: date, profile: CropCalendarProfile | None) -> dict:
     matched = profile if profile and profile.region_id == region_id and profile.crop_id == crop_id else None
     end = on_date + timedelta(days=31)

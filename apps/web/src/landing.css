@@ -262,6 +262,53 @@ a {
   font-weight: 500;
 }
 
+.dock-lang-group {
+  display: flex;
+  align-items: center;
+}
+
+.dock-lang-select {
+  background: rgba(24, 48, 35, 0.6);
+  border: 1px solid rgba(88, 126, 75, 0.35);
+  color: #86efac;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.18s;
+}
+
+.dock-lang-select:hover, .dock-lang-select:focus {
+  border-color: #86efac;
+}
+
+.dock-lang-select option {
+  background: #14241b;
+  color: #e5ede7;
+}
+
+.dock-cta-btn {
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff;
+  border: 1px solid rgba(134, 239, 172, 0.5);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+}
+
+.dock-cta-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.55);
+  background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+}
+
 /* ==========================================================================
    HERO SECTION: Fixed text collision, clean two-column grid
    with Restored Floating Window-Style Feature Displays

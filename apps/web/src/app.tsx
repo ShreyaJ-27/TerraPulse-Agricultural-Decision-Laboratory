@@ -6,7 +6,6 @@ import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
 import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulation } from "./services/apiClient";
 import { getInitialLocale, translations } from "./i18n";
-import { ExampleField } from "./components/living-field/fieldState";
 import { FutureFold, Observatory, Timeline } from "./components/scenario";
 import { ResourcePanel } from "./components/resources";
 import { FarmerInteraction } from "./components/interaction";
@@ -31,25 +30,76 @@ function FarmList({ navigate, copy }: { navigate: (path: string) => void; copy: 
 
 function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => void; existingFarmId?: string }) {
   const firstStep = existingFarmId ? 3 : 1;
-  const [step, setStep] = useState(firstStep); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [farmId, setFarmId] = useState(existingFarmId || "");
-  const [farm, setFarm] = useState({ name: "", timezone: "Asia/Kolkata", latitude: "", longitude: "", confirmed: false });
-  const [plot, setPlot] = useState({ name: "", area: "", regionId: "", certainty: "confirmed", plantingDate: "", query: "", cropId: "", crop: undefined as Crop | undefined });
+  const [step, setStep] = useState(firstStep);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [farmId, setFarmId] = useState(existingFarmId || "");
+  const [farm, setFarm] = useState({
+    name: "",
+    timezone: "Asia/Kolkata",
+    latitude: "",
+    longitude: "",
+    confirmed: false,
+  });
+  const [plot, setPlot] = useState({
+    name: "",
+    area: "10000",
+    regionId: "",
+    certainty: "confirmed",
+    plantingDate: "",
+    query: "",
+    cropId: "",
+    crop: undefined as Crop | undefined,
+  });
   const [resolution, setResolution] = useState<CropResolution>();
   const [telegramPrompt, setTelegramPrompt] = useState<{ url: string; target: string } | null>(null);
   const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
+
+  const PRESET_LOCATIONS = [
+    { name: "Ludhiana (PB) — PAU Agro Region", lat: 30.9010, lon: 75.8573, regionId: "IN-PB" },
+    { name: "Mysuru (KA) — UAS Mysore Plateau", lat: 12.2958, lon: 76.6394, regionId: "" },
+    { name: "Dharwad (KA) — UAS Dharwad", lat: 15.4589, lon: 75.0078, regionId: "" },
+    { name: "Nashik (MH) — Deccan Black Soil", lat: 19.9975, lon: 73.7898, regionId: "" },
+  ];
+
+  const CROP_SUGGESTIONS = [
+    { name: "Maize", label: "Maize (Corn)" },
+    { name: "Turmeric", label: "Turmeric (Haldi)" },
+    { name: "Wheat", label: "Wheat (Gehun)" },
+    { name: "Rice", label: "Rice (Paddy)" },
+    { name: "Cotton", label: "Cotton (Kapas)" },
+  ];
+
   const updateFarm = (key: string, value: string | boolean) => setFarm((current) => ({ ...current, [key]: value }));
-  const resolve = async () => {
+
+  const resolve = async (cropQuery?: string) => {
+    const q = cropQuery || plot.query;
+    if (!q.trim()) return;
     setError("");
-    setPlot({ ...plot, cropId: "", crop: undefined });
+    setPlot((prev) => ({ ...prev, query: q, cropId: "", crop: undefined }));
     try {
-      const result = await apiClient.resolveCrop(plot.query);
+      const result = await apiClient.resolveCrop(q);
       setResolution(result);
-      if (result.crop) setPlot({ ...plot, cropId: result.crop.cropId, crop: result.crop });
+      if (result.crop) {
+        setPlot((prev) => ({ ...prev, query: q, cropId: result.crop!.cropId, crop: result.crop }));
+      }
     } catch (e) {
       setResolution(undefined);
       setError(message(e));
     }
   };
+
+  const selectPresetLocation = (name: string, lat: number, lon: number, regionId: string) => {
+    setFarm((prev) => ({
+      ...prev,
+      name: prev.name || `${name.split(" — ")[0]} Farm`,
+      latitude: String(lat),
+      longitude: String(lon),
+      confirmed: true,
+    }));
+    setPlot((prev) => ({ ...prev, regionId }));
+  };
+
   const next = () => {
     setError("");
     if (step === 1 && !farm.name.trim()) return setError("Farm name is required.");
@@ -58,6 +108,7 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
     if (step === 4 && !plot.cropId) return setError("Resolve and explicitly select a crop.");
     setStep(Math.min(5, step + 1));
   };
+
   const save = async () => {
     setBusy(true);
     setError("");
@@ -77,12 +128,13 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
           })) as RegisteredFarm;
 
       setFarmId(saved.farmId);
+      window.localStorage.setItem("terrapulse-active-farm-id", saved.farmId);
       if (saved.telegramConnectUrl) {
         setTelegramUrl(saved.telegramConnectUrl);
       }
 
-      const created = await apiClient.createPlot(saved.farmId, {
-        areaM2: { value: Number(plot.area), unit: "m2" },
+      await apiClient.createPlot(saved.farmId, {
+        areaM2: { value: Number(plot.area) || 10000, unit: "m2" },
         cropId: plot.cropId,
         plantingDate: plot.plantingDate || null,
         management: {
@@ -92,7 +144,7 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
         },
       });
 
-      const target = existingFarmId ? `/crop-planning/${saved.farmId}` : `/farms/${created.farmId}`;
+      const target = `/dashboard?farmId=${saved.farmId}&tab=overview`;
       const connectUrl = saved.telegramConnectUrl || telegramUrl;
 
       if (connectUrl) {
@@ -106,23 +158,389 @@ function FarmWizard({ navigate, existingFarmId }: { navigate: (path: string) => 
       setBusy(false);
     }
   };
-  if (telegramPrompt) return <PageContainer>
-    <div className="page-intro">
-      <h2>Farm and plot registered</h2>
-      <p>
-        Telegram reminders are optional.
-        Connect once to receive eligible farm updates.
-      </p>
+
+  if (telegramPrompt) {
+    return (
+      <div className="wizard-dark-wrap">
+        <div className="wizard-dark-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
+            <span style={{ background: "rgba(134, 239, 172, 0.15)", color: "#86efac", padding: "4px 10px", borderRadius: "12px", fontSize: "0.78rem", fontWeight: 700 }}>
+              REGISTRATION COMPLETE
+            </span>
+          </div>
+          <h2 style={{ color: "#ffffff", margin: "0 0 0.5rem 0" }}>Farm & Plot Successfully Persisted</h2>
+          <p style={{ color: "#b2c9b8", fontSize: "0.92rem", marginBottom: "1.5rem" }}>
+            Your farm is live in TerraPulse. Connect your Telegram account to receive real-time soil moisture and frost alerts, or proceed directly to your decision workspace.
+          </p>
+          <TelegramConnect url={telegramPrompt.url} />
+          <div style={{ marginTop: "1.5rem" }}>
+            <button
+              className="dock-cta-btn"
+              style={{ width: "100%", padding: "12px", textAlign: "center", fontSize: "0.95rem" }}
+              onClick={() => navigate(telegramPrompt.target)}
+            >
+              Open Farm Workspace ↗
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wizard-dark-wrap">
+      <div className="wizard-dark-card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <button
+            type="button"
+            className="dock-item"
+            style={{ padding: "6px 12px", fontSize: "0.82rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#b5c7ba", cursor: "pointer" }}
+            onClick={() => navigate("/")}
+          >
+            ← Back to Landing
+          </button>
+          <span style={{ fontSize: "0.8rem", color: "#7f9986" }}>
+            Step {step} of 5
+          </span>
+        </div>
+
+        <h2 style={{ color: "#ffffff", margin: "0.5rem 0 0.3rem 0", fontSize: "1.6rem" }}>
+          {existingFarmId ? "Add a Crop Plot" : "Register Your Farm"}
+        </h2>
+        <p style={{ color: "#8fa896", fontSize: "0.88rem", margin: 0 }}>
+          {existingFarmId
+            ? "Configure a new plot under your persisted farm."
+            : "Set up your farm profile, geographic coordinates, and initial crop plot."}
+        </p>
+
+        {/* Dark Stepper */}
+        <div className="wizard-stepper-dark">
+          {["Farm Details", "Location", "Plot Details", "Crop Selection", "Review"].map((label, i) => (
+            <span
+              key={label}
+              className={`wizard-step-tag ${i + 1 === step ? "active" : i + 1 < step ? "done" : ""}`}
+            >
+              0{i + 1} {label} {i + 1 < step ? "✓" : ""}
+            </span>
+          ))}
+        </div>
+
+        {/* Wizard Step Content */}
+        {step === 1 && (
+          <div className="wizard-field-group">
+            <label className="wizard-label">
+              Farm Name
+              <input
+                className="wizard-input"
+                placeholder="e.g. Sahyadri Agro Estate, Ludhiana Green Farm"
+                value={farm.name}
+                onChange={(e) => updateFarm("name", e.target.value)}
+                maxLength={200}
+              />
+            </label>
+            <label className="wizard-label">
+              Timezone
+              <select
+                className="wizard-select"
+                value={farm.timezone}
+                onChange={(e) => updateFarm("timezone", e.target.value)}
+              >
+                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                <option value="UTC">UTC</option>
+                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+              </select>
+            </label>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="wizard-field-group">
+            <div>
+              <span style={{ fontSize: "0.85rem", color: "#a2c98a", fontWeight: 600 }}>
+                1-Click Regional Presets:
+              </span>
+              <div className="wizard-presets-grid">
+                {PRESET_LOCATIONS.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    className="wizard-preset-btn"
+                    onClick={() => selectPresetLocation(preset.name, preset.lat, preset.lon, preset.regionId)}
+                  >
+                    <strong>{preset.name}</strong>
+                    <div style={{ fontSize: "0.74rem", color: "#8fa896" }}>
+                      {preset.lat.toFixed(4)}°N, {preset.lon.toFixed(4)}°E
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <label className="wizard-label">
+                Latitude (°N)
+                <input
+                  type="number"
+                  className="wizard-input"
+                  placeholder="e.g. 30.9010"
+                  value={farm.latitude}
+                  onChange={(e) => updateFarm("latitude", e.target.value)}
+                  min="-90"
+                  max="90"
+                  step="any"
+                />
+              </label>
+              <label className="wizard-label">
+                Longitude (°E)
+                <input
+                  type="number"
+                  className="wizard-input"
+                  placeholder="e.g. 75.8573"
+                  value={farm.longitude}
+                  onChange={(e) => updateFarm("longitude", e.target.value)}
+                  min="-180"
+                  max="180"
+                  step="any"
+                />
+              </label>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", color: "#c5d8ca", fontSize: "0.88rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={farm.confirmed}
+                onChange={(e) => updateFarm("confirmed", e.target.checked)}
+              />
+              <span>I confirm these coordinates represent the verified farm location.</span>
+            </label>
+
+            <button
+              className="dock-item"
+              type="button"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", padding: "8px 14px", borderRadius: "6px", color: "#c5d8ca", fontSize: "0.84rem", cursor: "pointer", width: "fit-content" }}
+              onClick={() =>
+                window.navigator.geolocation?.getCurrentPosition(
+                  (p) => {
+                    updateFarm("latitude", String(p.coords.latitude));
+                    updateFarm("longitude", String(p.coords.longitude));
+                    updateFarm("confirmed", true);
+                  },
+                  () => setError("Location permission was denied or unavailable.")
+                )
+              }
+            >
+              📍 Use Device Geolocation
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="wizard-field-group">
+            <label className="wizard-label">
+              Plot Name (Optional)
+              <input
+                className="wizard-input"
+                maxLength={80}
+                placeholder="e.g. North Acre 1"
+                value={plot.name}
+                onChange={(e) => setPlot({ ...plot, name: e.target.value })}
+              />
+            </label>
+            <label className="wizard-label">
+              Advisory Region
+              <select
+                className="wizard-select"
+                value={plot.regionId}
+                onChange={(e) => setPlot({ ...plot, regionId: e.target.value })}
+              >
+                <option value="">Other or General Region</option>
+                <option value="IN-PB">Punjab, India (PAU Package of Practices)</option>
+                <option value="IN-KA">Karnataka, India (UAS Package of Practices)</option>
+                <option value="IN-MH">Maharashtra, India (Deccan Agro-Climatic)</option>
+              </select>
+            </label>
+            <label className="wizard-label">
+              Plot Area (m²)
+              <input
+                type="number"
+                className="wizard-input"
+                value={plot.area}
+                onChange={(e) => setPlot({ ...plot, area: e.target.value })}
+                min="1"
+                step="any"
+              />
+              <span style={{ fontSize: "0.76rem", color: "#8fa896" }}>10,000 m² = 1 Hectare ≈ 2.47 Acres</span>
+            </label>
+            <label className="wizard-label">
+              Planting Date (Optional)
+              <input
+                type="date"
+                className="wizard-input"
+                value={plot.plantingDate}
+                onChange={(e) => setPlot({ ...plot, plantingDate: e.target.value })}
+              />
+            </label>
+            {plot.plantingDate && (
+              <label className="wizard-label">
+                Date Certainty
+                <select
+                  className="wizard-select"
+                  value={plot.certainty}
+                  onChange={(e) => setPlot({ ...plot, certainty: e.target.value })}
+                >
+                  <option value="confirmed">Confirmed (Sowing Recorded)</option>
+                  <option value="estimated">Estimated (Target Sowing Window)</option>
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="wizard-field-group">
+            <div>
+              <span style={{ fontSize: "0.85rem", color: "#a2c98a", fontWeight: 600 }}>
+                Popular Crops (1-Click Resolution):
+              </span>
+              <div className="crop-chips-grid">
+                {CROP_SUGGESTIONS.map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    className={`crop-chip-btn ${plot.query.toLowerCase() === item.name.toLowerCase() ? "active" : ""}`}
+                    onClick={() => resolve(item.name)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="wizard-label">
+              Crop Name, Local Name or Scientific Name
+              <div style={{ display: "flex", gap: "0.6rem" }}>
+                <input
+                  className="wizard-input"
+                  style={{ flex: 1 }}
+                  placeholder="e.g. Maize, Makka, Triticum, Turmeric..."
+                  value={plot.query}
+                  onChange={(e) => {
+                    setPlot({ ...plot, query: e.target.value, cropId: "", crop: undefined });
+                    setResolution(undefined);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      resolve();
+                    }
+                  }}
+                />
+                <button
+                  className="dock-cta-btn"
+                  type="button"
+                  style={{ padding: "0 1.2rem", whiteSpace: "nowrap" }}
+                  onClick={() => resolve()}
+                >
+                  Resolve Crop 🔍
+                </button>
+              </div>
+            </label>
+
+            {resolution?.status?.toLowerCase().includes("ambiguous") && (
+              <div className="candidate-list" style={{ background: "rgba(0,0,0,0.25)", padding: "1rem", borderRadius: "8px", border: "1px solid rgba(229,179,66,0.3)" }}>
+                <p style={{ margin: "0 0 0.5rem 0", color: "#e5b342", fontSize: "0.85rem", fontWeight: 600 }}>
+                  Multiple taxonomic matches found. Please select one:
+                </p>
+                {resolution.candidates?.map((candidate) => (
+                  <button
+                    key={candidate.cropId}
+                    type="button"
+                    className={`candidate ${plot.cropId === candidate.cropId ? "selected" : ""}`}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", margin: "4px 0", background: plot.cropId === candidate.cropId ? "#2d5833" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#ffffff", cursor: "pointer" }}
+                    onClick={() => setPlot({ ...plot, cropId: candidate.cropId, crop: candidate })}
+                  >
+                    <strong>{candidate.canonicalName}</strong> · <em>{candidate.scientificName}</em>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {resolution?.crop && (
+              <div style={{ background: "rgba(45,88,51,0.3)", border: "1px solid rgba(134,239,172,0.4)", borderRadius: "8px", padding: "1rem" }}>
+                <div style={{ color: "#86efac", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
+                  ✓ Resolved Taxonomic Entity
+                </div>
+                <div style={{ color: "#ffffff", fontSize: "1.1rem", fontWeight: 600, marginTop: "0.2rem" }}>
+                  {resolution.crop.canonicalName} <span style={{ color: "#a2c98a", fontStyle: "italic", fontSize: "0.9rem" }}>({resolution.crop.scientificName})</span>
+                </div>
+                <div style={{ color: "#8fa896", fontSize: "0.8rem", marginTop: "0.3rem" }}>
+                  Crop ID: <code>{resolution.crop.cropId}</code>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="wizard-field-group">
+            <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(88,126,75,0.3)", borderRadius: "8px", padding: "1.2rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              {!existingFarmId && (
+                <div>
+                  <h4 style={{ color: "#a2c98a", margin: "0 0 0.5rem 0", fontSize: "0.95rem" }}>Farm Profile</h4>
+                  <p style={{ margin: "0.3rem 0", color: "#ffffff", fontSize: "0.9rem" }}><strong>Name:</strong> {farm.name}</p>
+                  <p style={{ margin: "0.3rem 0", color: "#b2c9b8", fontSize: "0.85rem" }}><strong>Timezone:</strong> {farm.timezone}</p>
+                  <p style={{ margin: "0.3rem 0", color: "#b2c9b8", fontSize: "0.85rem" }}><strong>Coords:</strong> {farm.latitude}°N, {farm.longitude}°E</p>
+                </div>
+              )}
+              <div>
+                <h4 style={{ color: "#a2c98a", margin: "0 0 0.5rem 0", fontSize: "0.95rem" }}>Initial Plot</h4>
+                <p style={{ margin: "0.3rem 0", color: "#ffffff", fontSize: "0.9rem" }}><strong>Crop:</strong> {plot.crop?.canonicalName || plot.query}</p>
+                <p style={{ margin: "0.3rem 0", color: "#b2c9b8", fontSize: "0.85rem" }}><strong>Scientific:</strong> {plot.crop?.scientificName || "Taxonomic entity"}</p>
+                <p style={{ margin: "0.3rem 0", color: "#b2c9b8", fontSize: "0.85rem" }}><strong>Area:</strong> {plot.area} m²</p>
+                <p style={{ margin: "0.3rem 0", color: "#b2c9b8", fontSize: "0.85rem" }}><strong>Sowing:</strong> {plot.plantingDate || "Not specified"}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && <ErrorState label={error} />}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "2rem", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "1.2rem" }}>
+          {step > firstStep ? (
+            <button
+              type="button"
+              className="dock-item"
+              style={{ padding: "8px 18px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#c5d8ca", cursor: "pointer" }}
+              onClick={() => setStep(step - 1)}
+            >
+              ← Back
+            </button>
+          ) : <div />}
+
+          {step < 5 ? (
+            <button
+              type="button"
+              className="dock-cta-btn"
+              style={{ padding: "8px 22px" }}
+              onClick={next}
+            >
+              Continue →
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="dock-cta-btn"
+              disabled={busy}
+              style={{ padding: "10px 26px" }}
+              onClick={save}
+            >
+              {busy ? "Saving & Initializing…" : existingFarmId ? "Save Plot →" : "Register Farm & Open Decision Lab ◈"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
-    <TelegramConnect url={telegramPrompt.url} />
-    <button
-      className="primary-button"
-      onClick={() => navigate(telegramPrompt.target)}
-    >
-      Continue to farm
-    </button>
-  </PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">New farm · Step {step} of 5</p><h2>{existingFarmId ? "Add a crop plot" : "Register your farm"}</h2><p>Review every field before saving your persisted farm and plot.</p></div><div className="stepper">{["Farm details", "Location", "Plot details", "Crop selection", "Review"].map((label, i) => <span className={i + 1 === step ? "current" : i + 1 < step ? "done" : ""} key={label}>{String(i + 1).padStart(2, "0")} {label}</span>)}</div><section className="form-panel">{step === 1 && <><label>Farm name<input value={farm.name} onChange={(e) => updateFarm("name", e.target.value)} maxLength={200} /></label><label>Timezone<select value={farm.timezone} onChange={(e) => updateFarm("timezone", e.target.value)}><option>Asia/Kolkata</option><option>UTC</option><option>Asia/Dubai</option></select></label></>}{step === 2 && <><label>Latitude<input type="number" value={farm.latitude} onChange={(e) => updateFarm("latitude", e.target.value)} min="-90" max="90" step="any" /></label><label>Longitude<input type="number" value={farm.longitude} onChange={(e) => updateFarm("longitude", e.target.value)} min="-180" max="180" step="any" /></label><label className="checkbox"><input type="checkbox" checked={farm.confirmed} onChange={(e) => updateFarm("confirmed", e.target.checked)} /> I confirm these coordinates represent the farm location.</label>  <button className="secondary-button" type="button" onClick={() => window.navigator.geolocation?.getCurrentPosition((p) => { updateFarm("latitude", String(p.coords.latitude)); updateFarm("longitude", String(p.coords.longitude)); }, () => setError("Location permission was denied or unavailable."))}>Use device location</button></>}{step === 3 && <><label>Plot name (optional)<input maxLength={80} value={plot.name} onChange={(e) => setPlot({ ...plot, name: e.target.value })} /></label><label>Advisory region<select value={plot.regionId} onChange={(e) => setPlot({ ...plot, regionId: e.target.value })}><option value="">Other or unspecified region</option><option value="IN-PB">Punjab, India</option></select></label><label>Plot area (m²)<input type="number" value={plot.area} onChange={(e) => setPlot({ ...plot, area: e.target.value })} min="0" step="any" /></label><label>Planting date (optional)<input type="date" value={plot.plantingDate} onChange={(e) => setPlot({ ...plot, plantingDate: e.target.value })} /></label>{plot.plantingDate && <label>Date certainty<select value={plot.certainty} onChange={(e) => setPlot({ ...plot, certainty: e.target.value })}><option value="confirmed">Confirmed</option><option value="estimated">Estimated</option></select></label>}</>}{step === 4 && <><label>Crop name, local name or scientific name<input value={plot.query} onChange={(e) => { setPlot({ ...plot, query: e.target.value, cropId: "", crop: undefined }); setResolution(undefined); }} /><button className="secondary-button" type="button" onClick={resolve}>Resolve crop</button></label>{resolution?.status?.toLowerCase().includes("ambiguous") && <div className="candidate-list"><p>Select one candidate; none is chosen automatically.</p>{resolution.candidates?.map((candidate) => <button className={plot.cropId === candidate.cropId ? "candidate selected" : "candidate"} onClick={() => setPlot({ ...plot, cropId: candidate.cropId, crop: candidate })} key={candidate.cropId}>{candidate.canonicalName} · {candidate.scientificName}</button>)}</div>  }{resolution?.crop && <button className="candidate selected" onClick={() => setPlot({ ...plot, cropId: resolution.crop!.cropId, crop: resolution.crop })}>{resolution.crop.canonicalName} · {resolution.crop.scientificName} — confirm</button>}</>}{step === 5 && <div className="review-grid">{!existingFarmId && <p><strong>Farm</strong>{farm.name}<br />{farm.timezone}<br />{farm.latitude}, {farm.longitude}</p>}<p><strong>Plot</strong>{plot.area} m²<br />{plot.plantingDate || "Planting date unavailable"}<br />{plot.crop?.canonicalName}</p></div>}{error && <ErrorState label={error} />}<div className="form-actions">{step > firstStep && <button className="secondary-button" onClick={() => setStep(step - 1)}>Back</button>}{step < 5 ? <button className="primary-button" onClick={next}>Continue <span>→</span></button> : <button className="primary-button" disabled={busy} onClick={save}>{busy ? "Saving…" : existingFarmId ? "Save plot" : "Save farm and plot"}</button>}</div></section></PageContainer>;
+  );
 }
 
 function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: string) => void }) {
@@ -179,38 +597,94 @@ function AppErrorBoundary({ children, copy }: { children: ReactNode; copy: typeo
 class Boundary extends Component<{ children: ReactNode; copy: typeof translations.en }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } componentDidCatch(error: Error, info: ErrorInfo) { console.error("TerraPulse rendering failed", error, info); } render() { return this.state.failed ? <PageContainer><ErrorState label={this.props.copy.error} /></PageContainer> : this.props.children; } }
 
 export function App() {
-  const { path, navigate } = useNavigation(); const [locale, setLocale] = useState(getInitialLocale); const copy = translations[locale];
+  const { path, navigate } = useNavigation();
+  const [locale, setLocale] = useState(getInitialLocale);
+  const copy = translations[locale];
   const legacyRoute: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
 
   // 1. Cinematic 3D Landing Page
   if (path === "/" || path === "/landing") {
-    return <LandingPage navigate={navigate} />;
+    return (
+      <LandingPage
+        navigate={navigate}
+        locale={locale}
+        onLocaleChange={(l) => {
+          setLocale(l);
+          window.localStorage.setItem("terrapulse-locale", l);
+        }}
+      />
+    );
   }
 
-  // 2. Agricultural Decision Laboratory Dashboard & Demo Farm
-  if (path === "/dashboard" || path.startsWith("/dashboard") || path === "/demo") {
+  // 2. Direct Workspaces & Unified Agricultural Decision Laboratory Dashboard
+  const directTabMap: Record<string, string> = {
+    "/advisory": "advisory",
+    "/advisories": "advisory",
+    "/observatory": "observatory",
+    "/crop-planning": "crop-lens",
+    "/crop-lens": "crop-lens",
+    "/calendar": "calendar",
+    "/future-fold": "future-fold",
+    "/living-field": "living-field",
+    "/saved-decisions": "timeline",
+    "/timeline": "timeline",
+  };
+
+  if (path === "/dashboard" || path.startsWith("/dashboard") || path === "/demo" || directTabMap[path]) {
     const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get("tab") || "overview";
-    const farmIdParam = urlParams.get("farmId") || "00000000-0000-0000-0000-000000000001";
-    return <AgriculturalDashboard navigate={navigate} initialTab={tabParam} farmId={farmIdParam} />;
+    const tabParam = directTabMap[path] || urlParams.get("tab") || "overview";
+    const storedFarmId = window.localStorage.getItem("terrapulse-active-farm-id");
+    const farmIdParam = urlParams.get("farmId") || storedFarmId || "00000000-0000-0000-0000-000000000001";
+    return (
+      <AgriculturalDashboard
+        navigate={navigate}
+        initialTab={tabParam}
+        farmId={farmIdParam}
+        locale={locale}
+        onLocaleChange={(l) => {
+          setLocale(l);
+          window.localStorage.setItem("terrapulse-locale", l);
+        }}
+      />
+    );
+  }
+
+  // 3. Farm Registration & Onboarding (Dark Luxury Emerald Wizard)
+  if (path === "/register" || path === "/farms/new") {
+    return <FarmWizard key={path} navigate={navigate} />;
   }
 
   if (path === "/offline" || path.startsWith("/offline/")) {
-    return <AppErrorBoundary copy={copy}><FarmerApp path={path.slice(8) || "/"}
-      navigate={(next) => navigate(next.startsWith("/farms") ? next : "/offline" + next)} /></AppErrorBoundary>;
+    return (
+      <AppErrorBoundary copy={copy}>
+        <FarmerApp
+          path={path.slice(8) || "/"}
+          navigate={(next) => navigate(next.startsWith("/farms") ? next : "/offline" + next)}
+        />
+      </AppErrorBoundary>
+    );
   }
+
   let content: ReactNode;
   const parts = path.split("/").filter(Boolean);
   const workspaceFeatures = ["crop-planning", "calendar", "future-fold", "living-field", "saved-decisions"];
-  const feature = workspaceFeatures.includes(parts[0]) ? parts[0] as WorkspaceFeature : undefined;
-  const route: Route = feature || (["/assisted", "/interact", "/advisories"].includes(path)
-    ? "advisories" : parts[4] === "observatory" ? "living-field" : parts[4] === "timeline"
-      ? "saved-decisions" : parts[4] === "future-fold" ? "future-fold" : legacyRoute);
+  const feature = workspaceFeatures.includes(parts[0]) ? (parts[0] as WorkspaceFeature) : undefined;
+  const route: Route =
+    feature ||
+    (["/assisted", "/interact", "/advisories"].includes(path)
+      ? "advisories"
+      : parts[4] === "observatory"
+      ? "living-field"
+      : parts[4] === "timeline"
+      ? "saved-decisions"
+      : parts[4] === "future-fold"
+      ? "future-fold"
+      : legacyRoute);
+
   if (feature) content = <WorkspaceFeatures feature={feature} farmId={parts[1]} navigate={navigate} />;
-  else if (path === "/" || path === "/connect" || path === "/farm" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
+  else if (path === "/connect" || path === "/farm" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
   else if (["/assisted", "/interact", "/advisories"].includes(path)) content = <FarmerInteraction copy={copy} locale={locale} />;
-  else if (path === "/observatory") content = <PageContainer><ExampleField /></PageContainer>;
-  else if (path === "/register" || path === "/farms/new" || (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new")) content = <FarmWizard key={path} navigate={navigate} existingFarmId={parts[3] === "new" ? parts[1] : undefined} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new") content = <FarmWizard key={path} navigate={navigate} existingFarmId={parts[1]} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
@@ -220,8 +694,34 @@ export function App() {
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
   else content = <FarmList navigate={navigate} copy={copy} />;
-  return <AppErrorBoundary copy={copy}><AppShell route={route} copy={copy} locale={locale} onLocaleChange={(l) => { setLocale(l); window.localStorage.setItem("terrapulse-locale", l); }} onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)} title={({ connect: copy.workspace, advisories: "Advisories", observatory: copy.observatory,
-    "crop-planning": copy.cropPlanning, calendar: "Calendar", "future-fold": copy.futureFold,
-    "living-field": "Living Field", "saved-decisions": copy.savedDecisions })[route] || copy.workspace}
-    subtitle={route === "advisories" ? copy.assistedDescription : ""}>{content}</AppShell></AppErrorBoundary>;
+
+  return (
+    <AppErrorBoundary copy={copy}>
+      <AppShell
+        route={route}
+        copy={copy}
+        locale={locale}
+        onLocaleChange={(l) => {
+          setLocale(l);
+          window.localStorage.setItem("terrapulse-locale", l);
+        }}
+        onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)}
+        title={
+          ({
+            connect: copy.workspace,
+            advisories: "Advisories",
+            observatory: copy.observatory,
+            "crop-planning": copy.cropPlanning,
+            calendar: "Calendar",
+            "future-fold": copy.futureFold,
+            "living-field": "Living Field",
+            "saved-decisions": copy.savedDecisions,
+          })[route] || copy.workspace
+        }
+        subtitle={route === "advisories" ? copy.assistedDescription : ""}
+      >
+        {content}
+      </AppShell>
+    </AppErrorBoundary>
+  );
 }

@@ -155,6 +155,7 @@ async def generate_custom_calendar(
         plot_id=UUID("00000000-0000-0000-0000-000000000101"),
         crop_id=payload.cropId,
         crop_name=crop_name,
+        plot_name=f"{crop_name} Plot",
         region_id=payload.regionId,
         planting=PlantingDate(payload.plantingDate, payload.certainty if payload.certainty in ("confirmed", "estimated", "recorded") else "recorded"),
         on_date=payload.plantingDate,

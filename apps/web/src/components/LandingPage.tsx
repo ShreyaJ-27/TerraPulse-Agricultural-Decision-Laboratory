@@ -2,9 +2,12 @@ import { useState, useEffect } from "react";
 import { SylvaLivingWorldScene, type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 import "@designcodeio/threeui/style.css";
 import "../landing.css";
+import { Locale, localeLabels, translations } from "../i18n";
 
 type LandingPageProps = {
   navigate?: (path: string) => void;
+  locale?: Locale;
+  onLocaleChange?: (locale: Locale) => void;
 };
 
 const NAV_TABS = [
@@ -16,15 +19,36 @@ const NAV_TABS = [
   "Dashboard",
 ] as const;
 
-export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
+export function LandingPage({ navigate, locale = "en", onLocaleChange }: LandingPageProps = {}) {
   const [variant, setVariant] = useState<SylvaLivingWorldVariant>("living-green");
   const [activeNavTab, setActiveNavTab] = useState<string>("Living Field");
+  const _copy = translations[locale] || translations.en;
 
   // Smooth scroll helper for landing page internal sections
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleNavClick = (tab: typeof NAV_TABS[number]) => {
+    setActiveNavTab(tab);
+    if (tab === "Farm Workspace") {
+      if (navigate) navigate("/dashboard?tab=overview");
+      else scrollToSection("solution");
+    } else if (tab === "Future Fold") {
+      scrollToSection("future-fold");
+    } else if (tab === "Living Field") {
+      scrollToSection("living-field");
+    } else if (tab === "Crop Planning") {
+      if (navigate) navigate("/dashboard?tab=crop-lens");
+      else scrollToSection("solution");
+    } else if (tab === "Calendar") {
+      scrollToSection("calendar");
+    } else if (tab === "Dashboard") {
+      if (navigate) navigate("/dashboard");
+      else scrollToSection("hero");
     }
   };
 
@@ -76,7 +100,7 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
 
             <div className="dock-divider" />
 
-            {/* Exactly the six requested tabs — visual interactive placeholders only */}
+            {/* Exactly the six requested tabs — connected to routes and smooth scroll */}
             <div className="dock-tabs-group">
               {NAV_TABS.map((tab) => (
                 <button
@@ -85,7 +109,7 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
                   className={`dock-tab-pill ${activeNavTab === tab ? "active" : ""}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    setActiveNavTab(tab);
+                    handleNavClick(tab);
                   }}
                 >
                   {activeNavTab === tab && <span className="dock-pill-indicator" />}
@@ -95,6 +119,24 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
             </div>
 
             <div className="dock-divider" />
+
+            {/* Language Selector */}
+            {onLocaleChange && (
+              <div className="dock-lang-group" title="Select interface language">
+                <select
+                  className="dock-lang-select"
+                  value={locale}
+                  onChange={(e) => onLocaleChange(e.target.value as Locale)}
+                  aria-label="Interface language"
+                >
+                  {Object.entries(localeLabels).map(([k, name]) => (
+                    <option key={k} value={k}>
+                      {k.toUpperCase()} · {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Living World Atmosphere Selector */}
             <div className="dock-atmosphere-group" title="Switch ThreeUI living world atmosphere">
@@ -132,6 +174,18 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
                 🌲 Mist
               </button>
             </div>
+
+            <div className="dock-divider" />
+
+            {/* Prominent Get Started / Farm Registration CTA */}
+            <button
+              type="button"
+              className="dock-cta-btn"
+              onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
+              title="Register your farm in TerraPulse"
+            >
+              Get Started →
+            </button>
           </nav>
         </div>
       </header>
@@ -162,16 +216,23 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
                 <button
                   type="button"
                   className="hero-btn-primary"
-                  onClick={() => scrollToSection("solution")}
+                  onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
                 >
-                  Explore Capabilities <span>↓</span>
+                  Get Started <span>→</span>
                 </button>
                 <button
                   type="button"
                   className="hero-btn-secondary"
-                  onClick={() => scrollToSection("living-field")}
+                  onClick={() => navigate ? navigate("/dashboard") : scrollToSection("solution")}
                 >
-                  Interactive Field <span>◈</span>
+                  Open Decision Lab <span>◈</span>
+                </button>
+                <button
+                  type="button"
+                  className="hero-btn-secondary"
+                  onClick={() => scrollToSection("solution")}
+                >
+                  Explore Capabilities <span>↓</span>
                 </button>
               </div>
             </div>
@@ -180,7 +241,7 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
               {/* Floating Window 1: Decision Intelligence / Science-Grounded Field Simulation */}
               <article
                 className="floating-feature-window window--decision"
-                onClick={() => scrollToSection("living-field")}
+                onClick={() => navigate ? navigate("/dashboard?tab=living-field") : scrollToSection("living-field")}
               >
                 <figure className="window-portal-media">
                   <img
@@ -208,7 +269,7 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
               {/* Floating Window 2: Climate Ensemble / Future-Fold Scenarios */}
               <article
                 className="floating-feature-window window--climate"
-                onClick={() => scrollToSection("future-fold")}
+                onClick={() => navigate ? navigate("/dashboard?tab=future-fold") : scrollToSection("future-fold")}
               >
                 <div className="window-header-row">
                   <div className="window-text-block">
@@ -225,7 +286,8 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
                     aria-label="View Future Fold scenario modeling"
                     onClick={(e) => {
                       e.stopPropagation();
-                      scrollToSection("future-fold");
+                      if (navigate) navigate("/dashboard?tab=future-fold");
+                      else scrollToSection("future-fold");
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -860,23 +922,30 @@ export function LandingPage({ navigate: _navigate }: LandingPageProps = {}) {
               <button
                 type="button"
                 className="vision-btn-primary"
+                onClick={() => navigate ? navigate("/register") : scrollToSection("hero")}
+              >
+                Register Your Farm <span>→</span>
+              </button>
+              <button
+                type="button"
+                className="vision-btn-secondary"
+                onClick={() => navigate ? navigate("/dashboard") : scrollToSection("solution")}
+              >
+                Launch Decision Lab <span>◈</span>
+              </button>
+              <button
+                type="button"
+                className="vision-btn-secondary"
+                onClick={() => navigate ? navigate("/dashboard?tab=future-fold") : scrollToSection("future-fold")}
+              >
+                Discover Future Fold <span>↗</span>
+              </button>
+              <button
+                type="button"
+                className="vision-btn-secondary"
                 onClick={() => scrollToSection("hero")}
               >
                 Return to Top <span>↑</span>
-              </button>
-              <button
-                type="button"
-                className="vision-btn-secondary"
-                onClick={() => scrollToSection("solution")}
-              >
-                Review Capabilities <span>◈</span>
-              </button>
-              <button
-                type="button"
-                className="vision-btn-secondary"
-                onClick={() => scrollToSection("future-fold")}
-              >
-                Discover Future Fold <span>↗</span>
               </button>
             </div>
           </div>
