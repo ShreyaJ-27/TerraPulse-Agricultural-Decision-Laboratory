@@ -328,6 +328,12 @@ class EvidenceBundleBuilder:
                     "The selected simulation run does not belong to this farm and plot.",
                     404,
                 )
+            if run.status != "completed" or run.completed_at is None:
+                raise AnalysisEvidenceError(
+                    "SIMULATION_RUN_NOT_COMPLETED",
+                    "The selected simulation run has no completed scientific result.",
+                    409,
+                )
             return run
 
         statement = select(SimulationRun).where(

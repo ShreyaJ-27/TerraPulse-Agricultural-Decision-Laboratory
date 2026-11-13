@@ -244,6 +244,37 @@ async def test_selected_run_with_wrong_branch_is_rejected():
         )
 
 
+@pytest.mark.parametrize(
+    ("status", "completed_at"),
+    [
+        ("running", datetime(2026, 6, 2, tzinfo=UTC)),
+        ("completed", None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_selected_run_must_be_completed(status, completed_at):
+    onboarding, farm, plot = await _seed_farm_and_plot()
+    branch_id, run_id = uuid4(), uuid4()
+    run = _run(farm.farm_id, plot.plot_id, branch_id, run_id)
+    run.status = status
+    run.completed_at = completed_at
+
+    with pytest.raises(AnalysisEvidenceError, match="no completed scientific result"):
+        await _builder(
+            onboarding,
+            FakeSession([_branch(farm.farm_id, plot.plot_id, branch_id), run]),
+        ).build(
+            AnalysisRequest(
+                farmId=farm.farm_id,
+                plotId=plot.plot_id,
+                branchId=branch_id,
+                simulationRunId=run_id,
+                includeWeather=False,
+                includeSoil=False,
+            )
+        )
+
+
 @pytest.mark.asyncio
 async def test_branch_only_selection_uses_latest_completed_run_from_that_branch():
     onboarding, farm, plot = await _seed_farm_and_plot()

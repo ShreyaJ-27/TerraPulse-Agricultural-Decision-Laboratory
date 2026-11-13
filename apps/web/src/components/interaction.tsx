@@ -53,6 +53,23 @@ const ANALYSIS_PROMPTS: Record<Locale, string[]> = {
   ],
 };
 
+const CROP_DISPLAY_NAMES: Record<string, Partial<Record<Locale, string>>> = {
+  Turmeric: { kn: "ಅರಿಶಿನ", hi: "हल्दी" },
+  Maize: { kn: "ಮೆಕ್ಕೆಜೋಳ", hi: "मक्का" },
+  Wheat: { kn: "ಗೋಧಿ", hi: "गेहूँ" },
+  Okra: { kn: "ಬೆಂಡೆಕಾಯಿ", hi: "भिंडी" },
+  "Pearl Millet": { kn: "ಸಜ್ಜೆ", hi: "बाजरा" },
+  "Finger Millet": { kn: "ರಾಗಿ", hi: "रागी" },
+  "Foxtail Millet": { kn: "ನವಣೆ", hi: "कंगनी" },
+  "Chickpea (Bengal Gram)": { kn: "ಕಡಲೆ", hi: "चना" },
+  "Black Gram (Urad)": { kn: "ಉದ್ದು", hi: "उड़द" },
+  "Upland Cotton": { kn: "ಹತ್ತಿ", hi: "कपास" },
+};
+
+function displayCropName(canonicalName: string, locale: Locale): string {
+  return CROP_DISPLAY_NAMES[canonicalName]?.[locale] ?? canonicalName;
+}
+
 interface RecognitionResultEvent {
   results: { [index: number]: { [index: number]: { transcript: string } } };
 }
@@ -511,7 +528,7 @@ export function FarmerInteraction({ copy, locale }: { copy: Translation; locale:
             <article className="info-card" aria-live="polite">
               {interaction.resolvedCrop && (
                 <h4>
-                  {interaction.resolvedCrop.canonicalName}
+                  {displayCropName(interaction.resolvedCrop.canonicalName, locale)}
                   {interaction.resolvedCrop.scientificName
                     ? ` (${interaction.resolvedCrop.scientificName})`
                     : ""}
@@ -530,7 +547,7 @@ export function FarmerInteraction({ copy, locale }: { copy: Translation; locale:
                       className="secondary-button"
                       onClick={() => selectPrompt(candidate.canonicalName)}
                     >
-                      {candidate.canonicalName}
+                      {displayCropName(candidate.canonicalName, locale)}
                       {candidate.scientificName ? ` · ${candidate.scientificName}` : ""}
                     </button>
                   ))}

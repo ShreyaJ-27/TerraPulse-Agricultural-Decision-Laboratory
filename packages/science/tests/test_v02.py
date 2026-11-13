@@ -1,22 +1,39 @@
 """Developer A scientific regression and rejection tests."""
+import json
+import subprocess
+import sys
+import unittest
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-import json
-import unittest
 from unittest.mock import patch
 
-from test_science import req, FIX, SRC
 from terrapulse_science import (
-    CapabilityRegistry, ScienceError, dry_bean_reference_profile, kc_at_day,
-    run_fao, fao_day, parse_aquacrop_fixture, parse_aquacrop_outputs,
-    compare_runs, compare_aquacrop_runs, run_published_wheat, request_from_dict,
+    CapabilityRegistry,
+    ScienceError,
+    compare_aquacrop_runs,
+    compare_runs,
+    dry_bean_reference_profile,
+    fao_day,
     from_c1_with_root_depth,
+    kc_at_day,
+    parse_aquacrop_fixture,
+    parse_aquacrop_outputs,
+    request_from_dict,
+    run_fao,
+    run_published_wheat,
 )
-from terrapulse_science.aquacrop_adapter import audit_water_balance, read_csv, UPSTREAM_UNITS
+from terrapulse_science.aquacrop_adapter import UPSTREAM_UNITS, audit_water_balance, read_csv
 from terrapulse_science.aquacrop_reference import REFERENCE_SOIL_PROFILE
 from terrapulse_science.capability import WEATHER_SHA256
 from terrapulse_science.validation import validate_metrics
+from test_science import (
+    FIX,
+    SRC,
+    aquacrop_fixture_unavailable_message,
+    missing_aquacrop_fixture_files,
+    req,
+)
 
 
 class TestMalformedInputs(unittest.TestCase):
@@ -123,6 +140,12 @@ class TestCapabilitiesV02(unittest.TestCase):
 class TestFaoV02(unittest.TestCase):
     def test_shipped_examples_replay_and_compare(self):
         examples = Path(__file__).resolve().parents[1] / "examples"
+        required = [examples / f"fao_{name}.json" for name in ("baseline", "delayed", "irrigated")]
+        if any(not path.is_file() for path in required):
+            subprocess.run(
+                [sys.executable, str(examples / "make_fixtures.py")],
+                check=True,
+            )
         a, delayed, irrigated = [
             run_fao(request_from_dict(json.loads((examples/f"fao_{name}.json").read_text(encoding="utf-8"))))
             for name in ("baseline","delayed","irrigated")]
@@ -172,6 +195,7 @@ class TestFaoV02(unittest.TestCase):
             compare_runs(a,b)
 
 
+@unittest.skipIf(missing_aquacrop_fixture_files(), aquacrop_fixture_unavailable_message())
 class TestAquaV02(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -222,11 +246,6 @@ class TestAquaV02(unittest.TestCase):
         with self.assertRaisesRegex(ScienceError, "AQUACROP_BALANCE_UNSUPPORTED"):
             audit_water_balance(g,f,w,REFERENCE_SOIL_PROFILE)
 
-    def test_tampered_csv_rejected_before_parsing(self):
-        with patch.object(Path, "read_bytes", return_value=b"replacement"):
-            with self.assertRaisesRegex(ScienceError, "AQUACROP_FIXTURE_HASH_MISMATCH"):
-                parse_aquacrop_fixture(FIX, **aqua_args())
-
     def test_weather_and_execution_provenance_required_for_comparison(self):
         self.assertEqual(self.october["weatherHash"], WEATHER_SHA256)
         bad = deepcopy(self.november)
@@ -236,14 +255,22 @@ class TestAquaV02(unittest.TestCase):
         with self.assertRaisesRegex(ScienceError, "INVALID_PROVENANCE"):
             parse_aquacrop_outputs(evidence_kind="executed-aquacrop")
 
-    def test_input_unit_conflict(self):
-        with self.assertRaisesRegex(ScienceError, "UNIT_MISMATCH"):
-            parse_aquacrop_outputs(growth=[],flux=[],final=[],**aqua_args(),
-                                  source_units={**UPSTREAM_UNITS,"biomass":"kg/m2"})
-
     def test_invalid_harvest_step_rejected(self):
         final = table("final_results")
         final[0]["Harvest Date (Step)"] = "197"
         with self.assertRaisesRegex(ScienceError, "AQUACROP_INVALID_HARVEST"):
             parse_aquacrop_outputs(growth=table("crop_growth"),flux=table("water_flux"),
                                   final=final,**aqua_args())
+
+class TestAquaCropAdapterValidation(unittest.TestCase):
+    def test_tampered_csv_rejected_before_parsing(self):
+        with (
+            patch.object(Path, "read_bytes", return_value=b"replacement"),
+            self.assertRaisesRegex(ScienceError, "AQUACROP_FIXTURE_HASH_MISMATCH"),
+        ):
+            parse_aquacrop_fixture(FIX, **aqua_args())
+
+    def test_input_unit_conflict(self):
+        with self.assertRaisesRegex(ScienceError, "UNIT_MISMATCH"):
+            parse_aquacrop_outputs(growth=[],flux=[],final=[],**aqua_args(),
+                                  source_units={**UPSTREAM_UNITS,"biomass":"kg/m2"})

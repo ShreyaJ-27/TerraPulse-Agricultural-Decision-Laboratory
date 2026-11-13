@@ -14,6 +14,204 @@ from app.services.crop_lens.resolver import (
 
 LocaleType = Literal["en", "kn", "hi"]
 
+SUPPORTED_OUTPUT_LABELS: dict[str, dict[LocaleType, str]] = {
+    "actualEvapotranspiration": {
+        "en": "actual evapotranspiration",
+        "kn": "ವಾಸ್ತವಿಕ ವಾಷ್ಪೋತ್ಸರ್ಜನೆ (ETa)",
+        "hi": "वास्तविक वाष्पोत्सर्जन (ETa)",
+    },
+    "waterStress": {"en": "water stress", "kn": "ನೀರಿನ ಒತ್ತಡ", "hi": "जल तनाव"},
+    "irrigation": {"en": "irrigation", "kn": "ನೀರಾವರಿ", "hi": "सिंचाई"},
+    "canopyCover": {"en": "canopy cover", "kn": "ಕ್ಯಾನೋಪಿ ಆವರಣ", "hi": "कैनोपी आवरण"},
+    "biomass": {"en": "biomass", "kn": "ಜೈವಿಕ ರಾಶಿ", "hi": "जैवभार"},
+    "yield": {"en": "yield", "kn": "ಇಳುವರಿ", "hi": "उपज"},
+}
+IDENTITY_ONLY_LABELS: dict[LocaleType, str] = {
+    "en": "Identity and taxonomy only",
+    "kn": "ಗುರುತು ಮತ್ತು ವರ್ಗೀಕರಣ ಮಾತ್ರ",
+    "hi": "केवल पहचान और वर्गीकरण",
+}
+CROP_DISPLAY_NAMES: dict[str, dict[LocaleType, str]] = {
+    "Turmeric": {"en": "Turmeric", "kn": "ಅರಿಶಿನ", "hi": "हल्दी"},
+    "Maize": {"en": "Maize", "kn": "ಮೆಕ್ಕೆಜೋಳ", "hi": "मक्का"},
+    "Wheat": {"en": "Wheat", "kn": "ಗೋಧಿ", "hi": "गेहूँ"},
+    "Pearl Millet": {"en": "Pearl Millet", "kn": "ಸಜ್ಜೆ", "hi": "बाजरा"},
+    "Finger Millet": {"en": "Finger Millet", "kn": "ರಾಗಿ", "hi": "रागी"},
+    "Foxtail Millet": {"en": "Foxtail Millet", "kn": "ನವಣೆ", "hi": "कंगनी"},
+    "Chickpea (Bengal Gram)": {"en": "Chickpea", "kn": "ಕಡಲೆ", "hi": "चना"},
+    "Black Gram (Urad)": {"en": "Black Gram", "kn": "ಉದ್ದು", "hi": "उड़द"},
+    "Upland Cotton": {"en": "Cotton", "kn": "ಹತ್ತಿ", "hi": "कपास"},
+    "Okra": {"en": "Okra", "kn": "ಬೆಂಡೆಕಾಯಿ", "hi": "भिंडी"},
+}
+LIMITATION_TRANSLATIONS: dict[str, dict[LocaleType, str]] = {
+    "Empty query.": {
+        "en": "Empty query.",
+        "kn": "ಪ್ರಶ್ನೆ ಖಾಲಿಯಾಗಿದೆ.",
+        "hi": "प्रश्न खाली है।",
+    },
+    "No yield output": {
+        "en": "No yield output",
+        "kn": "ಇಳುವರಿ ಫಲಿತಾಂಶ ಲಭ್ಯವಿಲ್ಲ.",
+        "hi": "उपज परिणाम उपलब्ध नहीं है।",
+    },
+    "No calibrated dry-matter yield or protein estimation.": {
+        "en": "No calibrated dry-matter yield or protein estimation.",
+        "kn": "ಮಾಪನಾಂಕಿತ ಒಣಪದಾರ್ಥ ಇಳುವರಿ ಅಥವಾ ಪ್ರೋಟೀನ್ ಅಂದಾಜು ಲಭ್ಯವಿಲ್ಲ.",
+        "hi": "कैलिब्रेटेड शुष्क-पदार्थ उपज या प्रोटीन का अनुमान उपलब्ध नहीं है।",
+    },
+    "Water balance only.": {
+        "en": "Water balance only.",
+        "kn": "ನೀರಿನ ಸಮತೋಲನ ಮಾತ್ರ.",
+        "hi": "केवल जल संतुलन।",
+    },
+    "Crop identity is supported, but no quantitative AquaCrop or FAO-56 calibration is available.": {
+        "en": "Crop identity is supported, but no quantitative AquaCrop or FAO-56 calibration is available.",
+        "kn": "ಬೆಳೆ ಗುರುತು ಲಭ್ಯವಿದೆ; ಆದರೆ ಪ್ರಮಾಣಾತ್ಮಕ AquaCrop ಅಥವಾ FAO-56 ಮಾಪನಾಂಕ ಲಭ್ಯವಿಲ್ಲ.",
+        "hi": "फसल की पहचान उपलब्ध है, लेकिन मात्रात्मक AquaCrop या FAO-56 कैलिब्रेशन उपलब्ध नहीं है।",
+    },
+    "Scientific simulation must not be inferred from this identity-only record.": {
+        "en": "Scientific simulation must not be inferred from this identity-only record.",
+        "kn": "ಈ ಗುರುತು-ಮಾತ್ರ ದಾಖಲೆಯಿಂದ ವೈಜ್ಞಾನಿಕ ಸಿಮ್ಯುಲೇಶನ್ ಇದೆ ಎಂದು ಊಹಿಸಬಾರದು.",
+        "hi": "इस पहचान-मात्र रिकॉर्ड से वैज्ञानिक सिमुलेशन का अनुमान नहीं लगाना चाहिए।",
+    },
+    "Root-zone water depletion only; yield estimation not supported.": {
+        "en": "Root-zone water depletion only; yield estimation not supported.",
+        "kn": "ಬೇರಿನ ವಲಯದ ನೀರಿನ ಕೊರತೆ ಮಾತ್ರ; ಇಳುವರಿ ಅಂದಾಜು ಬೆಂಬಲಿತವಲ್ಲ.",
+        "hi": "केवल जड़-क्षेत्र की जल कमी; उपज का अनुमान समर्थित नहीं है।",
+    },
+    "Yield output is not supported.": {
+        "en": "Yield output is not supported.",
+        "kn": "ಇಳುವರಿ ಫಲಿತಾಂಶ ಬೆಂಬಲಿತವಲ್ಲ.",
+        "hi": "उपज परिणाम समर्थित नहीं है।",
+    },
+    "No quantitative AquaCrop or FAO-56 simulation calibrated.": {
+        "en": "No quantitative AquaCrop or FAO-56 simulation calibrated.",
+        "kn": "ಪ್ರಮಾಣಾತ್ಮಕ AquaCrop ಅಥವಾ FAO-56 ಸಿಮ್ಯುಲೇಶನ್‌ಗೆ ಮಾಪನಾಂಕ ಮಾಡಿಲ್ಲ.",
+        "hi": "मात्रात्मक AquaCrop या FAO-56 सिमुलेशन कैलिब्रेट नहीं है।",
+    },
+    "No yield or pod development prediction.": {
+        "en": "No yield or pod development prediction.",
+        "kn": "ಇಳುವರಿ ಅಥವಾ ಕಾಯಿ ಬೆಳವಣಿಗೆಯ ಮುನ್ಸೂಚನೆ ಲಭ್ಯವಿಲ್ಲ.",
+        "hi": "उपज या फली-विकास का पूर्वानुमान उपलब्ध नहीं है।",
+    },
+    "Simulation model not currently calibrated.": {
+        "en": "Simulation model not currently calibrated.",
+        "kn": "ಸಿಮ್ಯುಲೇಶನ್ ಮಾದರಿಗೆ ಪ್ರಸ್ತುತ ಮಾಪನಾಂಕ ಮಾಡಿಲ್ಲ.",
+        "hi": "सिमुलेशन मॉडल का फिलहाल कैलिब्रेशन नहीं है।",
+    },
+    "Crop not calibrated for quantitative AquaCrop or FAO-56 simulation.": {
+        "en": "Crop not calibrated for quantitative AquaCrop or FAO-56 simulation.",
+        "kn": "ಈ ಬೆಳೆಗೆ ಪ್ರಮಾಣಾತ್ಮಕ AquaCrop ಅಥವಾ FAO-56 ಸಿಮ್ಯುಲೇಶನ್ ಮಾಪನಾಂಕ ಮಾಡಿಲ್ಲ.",
+        "hi": "इस फसल के लिए मात्रात्मक AquaCrop या FAO-56 सिमुलेशन कैलिब्रेट नहीं है।",
+    },
+    "Identity and taxonomic references only. Fabricated yield/growth output is strictly prohibited.": {
+        "en": "Identity and taxonomic references only. Fabricated yield/growth output is strictly prohibited.",
+        "kn": "ಗುರುತು ಮತ್ತು ವರ್ಗೀಕರಣ ಉಲ್ಲೇಖಗಳು ಮಾತ್ರ ಲಭ್ಯ. ಕಲ್ಪಿತ ಇಳುವರಿ ಅಥವಾ ಬೆಳವಣಿಗೆಯ ಫಲಿತಾಂಶವನ್ನು ನೀಡಬಾರದು.",
+        "hi": "केवल पहचान और वर्गीकरण संदर्भ उपलब्ध हैं। मनगढ़ंत उपज या वृद्धि परिणाम सख्त वर्जित हैं।",
+    },
+    "Requires verified planting date and irrigation schedule.": {
+        "en": "Requires verified planting date and irrigation schedule.",
+        "kn": "ಪರಿಶೀಲಿಸಿದ ಬಿತ್ತನೆ ದಿನಾಂಕ ಮತ್ತು ನೀರಾವರಿ ವೇಳಾಪಟ್ಟಿ ಅಗತ್ಯ.",
+        "hi": "सत्यापित बुवाई तिथि और सिंचाई अनुसूची आवश्यक है।",
+    },
+    "Valid only under pest-free baseline assumption.": {
+        "en": "Valid only under pest-free baseline assumption.",
+        "kn": "ಕೀಟರಹಿತ ಮೂಲ ಊಹೆಯಲ್ಲಷ್ಟೇ ಅನ್ವಯಿಸುತ್ತದೆ.",
+        "hi": "केवल कीट-मुक्त आधारभूत मान्यता के अंतर्गत मान्य है।",
+    },
+    "Plant pathology and chemical/pest diagnosis are outside TerraPulse's biophysical scope.": {
+        "en": "Plant pathology and chemical/pest diagnosis are outside TerraPulse's biophysical scope.",
+        "kn": "ಸಸ್ಯ ರೋಗಶಾಸ್ತ್ರ ಮತ್ತು ರಾಸಾಯನಿಕ ಅಥವಾ ಕೀಟ ರೋಗನಿರ್ಣಯ TerraPulse‌ನ ಜೈವಭೌತಿಕ ವ್ಯಾಪ್ತಿಗೆ ಸೇರಿಲ್ಲ.",
+        "hi": "पादप रोग विज्ञान तथा रसायन या कीट निदान TerraPulse के जैव-भौतिक दायरे से बाहर हैं।",
+    },
+    "Market pricing, commodity forecasting, and financial speculation are strictly excluded from TerraPulse.": {
+        "en": "Market pricing, commodity forecasting, and financial speculation are strictly excluded from TerraPulse.",
+        "kn": "ಮಾರುಕಟ್ಟೆ ಬೆಲೆ, ಸರಕು ಬೆಲೆ ಮುನ್ಸೂಚನೆ ಮತ್ತು ಹಣಕಾಸು ಊಹಾಪೋಹಗಳು TerraPulse ವ್ಯಾಪ್ತಿಗೆ ಸೇರಿಲ್ಲ.",
+        "hi": "बाजार भाव, कमोडिटी पूर्वानुमान और वित्तीय अटकलें TerraPulse के दायरे से बाहर हैं।",
+    },
+    "Yield simulation depends on engine capability: AquaCrop supports yield; FAO-56 does not.": {
+        "en": "Yield simulation depends on engine capability: AquaCrop supports yield; FAO-56 does not.",
+        "kn": "ಇಳುವರಿ ಸಿಮ್ಯುಲೇಶನ್ ಎಂಜಿನ್ ಸಾಮರ್ಥ್ಯವನ್ನು ಅವಲಂಬಿಸಿದೆ: AquaCrop ಬೆಂಬಲಿಸುತ್ತದೆ; FAO-56 ಬೆಂಬಲಿಸುವುದಿಲ್ಲ.",
+        "hi": "उपज सिमुलेशन इंजन की क्षमता पर निर्भर है: AquaCrop समर्थित है, FAO-56 नहीं।",
+    },
+    "Assumes pest-free baseline.": {
+        "en": "Assumes pest-free baseline.",
+        "kn": "ಕೀಟರಹಿತ ಮೂಲ ಸ್ಥಿತಿಯನ್ನು ಊಹಿಸುತ್ತದೆ.",
+        "hi": "कीट-मुक्त आधारभूत स्थिति मानता है।",
+    },
+    "No quantitative simulation calibrated for this crop.": {
+        "en": "No quantitative simulation calibrated for this crop.",
+        "kn": "ಈ ಬೆಳೆಗೆ ಪ್ರಮಾಣಾತ್ಮಕ ಸಿಮ್ಯುಲೇಶನ್ ಮಾಪನಾಂಕ ಮಾಡಿಲ್ಲ.",
+        "hi": "इस फसल के लिए मात्रात्मक सिमुलेशन कैलिब्रेट नहीं है।",
+    },
+    "Identity and taxonomy reference only.": {
+        "en": "Identity and taxonomy reference only.",
+        "kn": "ಗುರುತು ಮತ್ತು ವರ್ಗೀಕರಣ ಉಲ್ಲೇಖ ಮಾತ್ರ.",
+        "hi": "केवल पहचान और वर्गीकरण संदर्भ।",
+    },
+    "Quantitative water calculation requires plot location, weather data, and soil profile.": {
+        "en": "Quantitative water calculation requires plot location, weather data, and soil profile.",
+        "kn": "ಪ್ರಮಾಣಾತ್ಮಕ ನೀರಿನ ಲೆಕ್ಕಾಚಾರಕ್ಕೆ ಜಮೀನಿನ ಸ್ಥಳ, ಹವಾಮಾನ ಡೇಟಾ ಮತ್ತು ಮಣ್ಣಿನ ಪ್ರೊಫೈಲ್ ಅಗತ್ಯ.",
+        "hi": "मात्रात्मक जल गणना के लिए खेत का स्थान, मौसम डेटा और मिट्टी की प्रोफ़ाइल आवश्यक है।",
+    },
+    "Standard Kc values require adjustment for local climate humidity and wind conditions.": {
+        "en": "Standard Kc values require adjustment for local climate humidity and wind conditions.",
+        "kn": "ಪ್ರಮಾಣಿತ Kc ಮೌಲ್ಯಗಳನ್ನು ಸ್ಥಳೀಯ ಆರ್ದ್ರತೆ ಮತ್ತು ಗಾಳಿಯ ಸ್ಥಿತಿಗೆ ಹೊಂದಿಸಬೇಕು.",
+        "hi": "मानक Kc मानों को स्थानीय आर्द्रता और हवा की स्थिति के अनुसार समायोजित करना होगा।",
+    },
+    "Dynamic water balance requires verified planting date and weather realization.": {
+        "en": "Dynamic water balance requires verified planting date and weather realization.",
+        "kn": "ಚಲನೆಯಲ್ಲಿರುವ ನೀರಿನ ಸಮತೋಲನಕ್ಕೆ ಪರಿಶೀಲಿಸಿದ ಬಿತ್ತನೆ ದಿನಾಂಕ ಮತ್ತು ಹವಾಮಾನ ದಾಖಲೆ ಅಗತ್ಯ.",
+        "hi": "गतिशील जल संतुलन के लिए सत्यापित बुवाई तिथि और मौसम साक्ष्य आवश्यक है।",
+    },
+    "No quantitative water model calibrated for this crop.": {
+        "en": "No quantitative water model calibrated for this crop.",
+        "kn": "ಈ ಬೆಳೆಗೆ ಪ್ರಮಾಣಾತ್ಮಕ ನೀರಿನ ಮಾದರಿಯನ್ನು ಮಾಪನಾಂಕ ಮಾಡಿಲ್ಲ.",
+        "hi": "इस फसल के लिए मात्रात्मक जल मॉडल कैलिब्रेट नहीं है।",
+    },
+    "'ಹಳದಿ' is ambiguous between the color yellow and colloquial turmeric reference.": {
+        "en": "'ಹಳದಿ' is ambiguous between the color yellow and colloquial turmeric reference.",
+        "kn": "'ಹಳದಿ' ಎಂಬುದು ಹಳದಿ ಬಣ್ಣವನ್ನೂ ಅರಿಶಿನ ಬೆಳೆಯನ್ನೂ ಸೂಚಿಸಬಹುದು.",
+        "hi": "'ಹಳದಿ' से पीले रंग या बोलचाल में हल्दी की फसल, दोनों का अर्थ हो सकता है।",
+    },
+    "Ambiguous crop identification requires explicit user confirmation.": {
+        "en": "Ambiguous crop identification requires explicit user confirmation.",
+        "kn": "ಅಸ್ಪಷ್ಟ ಬೆಳೆ ಗುರುತಿಗೆ ಬಳಕೆದಾರರ ಸ್ಪಷ್ಟ ದೃಢೀಕರಣ ಅಗತ್ಯ.",
+        "hi": "अस्पष्ट फसल पहचान के लिए उपयोगकर्ता की स्पष्ट पुष्टि आवश्यक है।",
+    },
+    "General query outside recognized crop water or capability categories.": {
+        "en": "General query outside recognized crop water or capability categories.",
+        "kn": "ಈ ಸಾಮಾನ್ಯ ಪ್ರಶ್ನೆ ಗುರುತಿಸಲಾದ ಬೆಳೆ ನೀರು ಅಥವಾ ಸಾಮರ್ಥ್ಯದ ವಿಭಾಗಗಳಿಗೆ ಸೇರಿಲ್ಲ.",
+        "hi": "यह सामान्य प्रश्न पहचानी गई फसल-जल या क्षमता श्रेणियों से बाहर है।",
+    },
+}
+
+
+def _localized_user_text(value: str, language: LocaleType) -> str:
+    if language == "en":
+        return value
+    for canonical, names in sorted(
+        CROP_DISPLAY_NAMES.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        value = value.replace(canonical, names[language])
+    return value
+
+
+def _localized_limitation(value: str, language: LocaleType) -> str:
+    if value.startswith("No calibrated dry-matter yield output for ") and value.endswith(
+        " under FAO-56."
+    ):
+        crop = value.removeprefix("No calibrated dry-matter yield output for ").removesuffix(
+            " under FAO-56."
+        )
+        crop = _localized_user_text(crop, language)
+        if language == "kn":
+            return f"{crop} ಬೆಳೆಗೆ FAO-56 ಅಡಿಯಲ್ಲಿ ಮಾಪನಾಂಕಿತ ಒಣಪದಾರ್ಥ ಇಳುವರಿ ಫಲಿತಾಂಶ ಲಭ್ಯವಿಲ್ಲ."
+        if language == "hi":
+            return f"{crop} के लिए FAO-56 के अंतर्गत कैलिब्रेटेड शुष्क-पदार्थ उपज परिणाम उपलब्ध नहीं है।"
+    return LIMITATION_TRANSLATIONS.get(value, {}).get(language, value)
+
+
 # Keyword trigger patterns for local languages
 PATHOLOGY_KEYWORDS = {
     "en": [
@@ -104,6 +302,19 @@ class InteractionResult:
     limitations: list[str] = field(default_factory=list)
     escalation_required: bool = False
     sources: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "response_text", _localized_user_text(self.response_text, self.language)
+        )
+        object.__setattr__(
+            self, "speech_text", _localized_user_text(self.speech_text, self.language)
+        )
+        object.__setattr__(
+            self,
+            "limitations",
+            [_localized_limitation(item, self.language) for item in self.limitations],
+        )
 
 
 class BoundedInteractionService:
@@ -573,7 +784,14 @@ class BoundedInteractionService:
         canonical = crop.canonical_name
         sci = crop.scientific_name
         engine = crop.selected_engine
-        outputs = ", ".join(crop.supported_outputs) if crop.supported_outputs else "Identity & taxonomy only"
+        outputs = (
+            ", ".join(
+                SUPPORTED_OUTPUT_LABELS.get(output, {}).get(language, output)
+                for output in crop.supported_outputs
+            )
+            if crop.supported_outputs
+            else IDENTITY_ONLY_LABELS[language]
+        )
 
         if language == "kn":
             resp = (

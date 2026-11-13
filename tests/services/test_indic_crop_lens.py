@@ -168,6 +168,8 @@ def test_interaction_crop_capability_fao56_turmeric(interaction_service: Bounded
     assert res_kn.resolved_crop is not None
     assert "FAO-56" in res_kn.response_text
     assert "ಇಳುವರಿ" in res_kn.response_text
+    assert "ಅರಿಶಿನ" in res_kn.response_text
+    assert "Turmeric" not in res_kn.response_text
 
     # Hindi inquiry
     res_hi = interaction_service.interact("क्या हल्दी की उपज का अनुमान मिलेगा?", "hi")
@@ -176,6 +178,29 @@ def test_interaction_crop_capability_fao56_turmeric(interaction_service: Bounded
     assert res_hi.resolved_crop is not None
     assert "FAO-56" in res_hi.response_text
     assert "उपज" in res_hi.response_text
+    assert "हल्दी" in res_hi.response_text
+    assert "Turmeric" not in res_hi.response_text
+
+
+def test_crop_resolution_localizes_supported_outputs_and_limitations(
+    interaction_service: BoundedInteractionService,
+):
+    res_kn = interaction_service.interact("ನನ್ನ ಬೆಳೆ ಅರಿಶಿನ", "kn")
+    assert res_kn.intent == "crop_resolution"
+    assert "ವಾಸ್ತವಿಕ ವಾಷ್ಪೋತ್ಸರ್ಜನೆ" in res_kn.response_text
+    assert "ನೀರಿನ ಒತ್ತಡ" in res_kn.response_text
+    assert "ನೀರಾವರಿ" in res_kn.response_text
+    assert "actualEvapotranspiration" not in res_kn.response_text
+    assert "No yield output" not in res_kn.limitations
+    assert "ಇಳುವರಿ" in res_kn.limitations[0]
+
+    res_hi = interaction_service.interact("मेरी फसल हल्दी", "hi")
+    assert res_hi.intent == "crop_resolution"
+    assert "वास्तविक वाष्पोत्सर्जन" in res_hi.response_text
+    assert "जल तनाव" in res_hi.response_text
+    assert "सिंचाई" in res_hi.response_text
+    assert "No yield output" not in res_hi.limitations
+    assert "उपज" in res_hi.limitations[0]
 
 
 def test_interaction_crop_capability_aquacrop_maize(interaction_service: BoundedInteractionService):
