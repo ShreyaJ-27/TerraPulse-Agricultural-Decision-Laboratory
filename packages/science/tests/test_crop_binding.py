@@ -61,16 +61,13 @@ class TestCropBinding(unittest.TestCase):
         with self.assertRaisesRegex(ScienceError,"UNSUPPORTED_MAPPING"):
             self.service.bind_fao("turmeric", turmeric_mapping="demo-1")
 
-    def test_wheat_catalogue_conflicts_with_pinned_aquacrop_example(self):
-        with self.assertRaisesRegex(ScienceError,"CROP_ENGINE_MISMATCH.*FAO-56.*Tunis-Wheat"):
-            self.service.bind_fao("gehun")
-
-    def test_aligned_wheat_still_cannot_run_on_farm_inputs(self):
-        record = replace(self.lookup(WHEAT_ID),selected_engine="AquaCrop",engine_version="3.1.0")
-        resolver = self.resolver_type([record])
-        service = CropBindingService(resolve=resolver.resolve,get_crop_by_id=lambda uid:record)
+    def test_wheat_catalogue_exposes_only_the_pinned_aquacrop_example(self):
+        capability = self.resolver.resolve("gehun").capability
+        self.assertEqual(capability.selected_engine, "AquaCrop")
+        self.assertEqual(capability.parameter_versions, ["Tunis-Wheat-example-3.1.0"])
+        self.assertEqual(capability.supported_outputs, [])
         with self.assertRaisesRegex(ScienceError,"CROP_EXAMPLE_ONLY"):
-            service.prepare_fao(None,query="wheat")
+            self.service.prepare_fao(None,query="wheat")
 
     def test_maize_millets_and_chickpea_declarations_do_not_enable_models(self):
         for query in ("maize","pearl millet","finger millet","chana"):

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm
 from app.core.db import get_session
 from app.models import DecisionBranch, Plot, ScientificState, SimulationRun
 from app.schemas import ApiResponse
@@ -13,7 +14,7 @@ from app.schemas import ApiResponse
 router = APIRouter(prefix="/api/v1", tags=["observatory"])
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/scientific-states", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/scientific-states", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_scientific_state(
     farm_id: UUID,
     plot_id: UUID,

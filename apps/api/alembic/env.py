@@ -15,10 +15,14 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
+    config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_database_url.replace("%", "%%"))
     connectable = engine_from_config(config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_name=lambda name, kind, parents: kind != "table" or name in target_metadata.tables,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

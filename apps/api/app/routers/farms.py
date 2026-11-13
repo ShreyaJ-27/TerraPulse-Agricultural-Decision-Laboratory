@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm, workspace_digest
 from app.core.db import get_session
 from app.schemas import (
     ApiError,
@@ -17,6 +18,7 @@ from app.schemas import (
     PlotCreateRequest,
     PlotResponse,
 )
+from app.services.farmer_alerts.registration import issue_farm_link
 from app.services.onboarding import AmbiguousCropError, OnboardingService
 
 router = APIRouter(prefix="/api/v1/farms", tags=["farm-onboarding"])
@@ -39,15 +41,29 @@ async def create_farm(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ApiResponse:
     """Register a new farm with confirmed location coordinates."""
-    farm: FarmResponse = await service.create_farm(payload)
+    farm: FarmResponse = await service.create_farm(payload, workspace_key_hash=workspace_digest(request))
     # Registration succeeds even if Telegram is temporarily unavailable.
     # The returned link enables one-tap opt-in after registration.
-    from app.services.farmer_alerts.registration import link_for_newly_registered_farm
     registration = farm.model_dump(by_alias=True)
-    connect_url = await link_for_newly_registered_farm(session, farm.farm_id)
+    connect_url = await issue_farm_link(session, farm.farm_id)
     if connect_url:
         registration["telegramConnectUrl"] = connect_url
     return ApiResponse(data=registration, correlationId=request.state.correlation_id)
+
+
+@router.post("/{farm_id}/telegram-link", response_model=ApiResponse,
+             dependencies=[Depends(authorize_path_farm)])
+async def reconnect_telegram(
+    farm_id: UUID,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ApiResponse:
+    if workspace_digest(request) is None:
+        raise HTTPException(status_code=401, detail="A farm workspace key is required.")
+    url = await issue_farm_link(session, farm_id)
+    if not url:
+        raise HTTPException(status_code=503, detail="Telegram linking is currently unavailable.")
+    return ApiResponse(data={"telegramConnectUrl": url}, correlationId=request.state.correlation_id)
 
 
 @router.get("", response_model=ApiResponse)
@@ -56,14 +72,14 @@ async def list_farms(
     service: ServiceDep,
 ) -> ApiResponse:
     """List all registered farms."""
-    farms = await service.list_farms()
+    farms = await service.list_farms(workspace_key_hash=workspace_digest(request))
     return ApiResponse(
         data={"farms": [f.model_dump(by_alias=True) for f in farms], "total": len(farms)},
         correlationId=request.state.correlation_id,
     )
 
 
-@router.get("/{farm_id}", response_model=ApiResponse)
+@router.get("/{farm_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_farm(
     farm_id: UUID,
     request: Request,
@@ -82,7 +98,7 @@ async def get_farm(
     )
 
 
-@router.post("/{farm_id}/plots", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{farm_id}/plots", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
 async def create_plot(
     farm_id: UUID,
     payload: PlotCreateRequest,
@@ -133,7 +149,7 @@ async def create_plot(
         )
 
 
-@router.get("/{farm_id}/plots", response_model=ApiResponse)
+@router.get("/{farm_id}/plots", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def list_plots(
     farm_id: UUID,
     request: Request,
@@ -153,7 +169,7 @@ async def list_plots(
         )
 
 
-@router.get("/{farm_id}/plots/{plot_id}", response_model=ApiResponse)
+@router.get("/{farm_id}/plots/{plot_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_plot(
     farm_id: UUID,
     plot_id: UUID,

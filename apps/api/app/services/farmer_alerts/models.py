@@ -6,7 +6,7 @@ No live request or network activity occurs on import.
 from __future__ import annotations
 from datetime import date, datetime, timezone
 from uuid import UUID, uuid4
-from sqlalchemy import (BigInteger, Boolean, Date, DateTime, ForeignKey, Integer,
+from sqlalchemy import (BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer,
                         JSON, String, UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models import Base
@@ -17,8 +17,11 @@ def utc_now() -> datetime:
 
 class TelegramLink(Base):
     __tablename__ = "telegram_link_intents"
+    __table_args__ = (
+        Index("ix_telegram_link_farm", "farm_id"),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"), index=True)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -27,10 +30,14 @@ class TelegramLink(Base):
 
 class TelegramSubscription(Base):
     __tablename__ = "telegram_subscriptions"
-    __table_args__ = (UniqueConstraint("farm_id", "chat_id", name="uq_telegram_farm_chat"),)
+    __table_args__ = (
+        UniqueConstraint("farm_id", "chat_id", name="uq_telegram_farm_chat"),
+        Index("ix_telegram_sub_farm", "farm_id"),
+        Index("ix_telegram_sub_chat", "chat_id"),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"), index=True)
-    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"))
+    chat_id: Mapped[int] = mapped_column(BigInteger)
     user_id: Mapped[int] = mapped_column(BigInteger)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     locale: Mapped[str] = mapped_column(String(5), default="en")
@@ -43,10 +50,14 @@ class TelegramSubscription(Base):
 
 class FarmerAlert(Base):
     __tablename__ = "farmer_alerts"
+    __table_args__ = (
+        Index("ix_alert_farm", "farm_id"),
+        Index("ix_alert_plot", "plot_id"),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     dedupe_key: Mapped[str] = mapped_column(String(64), unique=True)
-    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"), index=True)
-    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id", ondelete="CASCADE"), index=True)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"))
+    plot_id: Mapped[UUID] = mapped_column(ForeignKey("plots.id", ondelete="CASCADE"))
     category: Mapped[str] = mapped_column(String(16))
     kind: Mapped[str] = mapped_column(String(80))
     event_date: Mapped[date] = mapped_column(Date)
@@ -56,11 +67,16 @@ class FarmerAlert(Base):
 
 class TelegramDelivery(Base):
     __tablename__ = "telegram_deliveries"
-    __table_args__ = (UniqueConstraint("alert_id", "subscription_id", name="uq_telegram_delivery"),)
+    __table_args__ = (
+        UniqueConstraint("alert_id", "subscription_id", name="uq_telegram_delivery"),
+        Index("ix_delivery_alert", "alert_id"),
+        Index("ix_delivery_subscription", "subscription_id"),
+        Index("ix_delivery_status", "status"),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    alert_id: Mapped[UUID] = mapped_column(ForeignKey("farmer_alerts.id", ondelete="CASCADE"), index=True)
-    subscription_id: Mapped[UUID] = mapped_column(ForeignKey("telegram_subscriptions.id", ondelete="CASCADE"), index=True)
-    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    alert_id: Mapped[UUID] = mapped_column(ForeignKey("farmer_alerts.id", ondelete="CASCADE"))
+    subscription_id: Mapped[UUID] = mapped_column(ForeignKey("telegram_subscriptions.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(24), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -72,3 +88,8 @@ class TelegramUpdateCursor(Base):
     __tablename__ = "telegram_update_cursor"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     next_update_id: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class TelegramWebhookUpdate(Base):
+    __tablename__ = "telegram_webhook_updates"
+    update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)

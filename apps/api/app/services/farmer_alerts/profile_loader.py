@@ -9,6 +9,8 @@ from datetime import date
 import json
 from pathlib import Path
 from uuid import UUID
+from app.services.advisory import DEMO_REGION_ID, PUNJAB_CONTEXT
+
 from .calendar import CalendarMilestone, CalendarWindow, CropCalendarProfile
 
 
@@ -35,7 +37,7 @@ def load_profiles(raw: list[dict]) -> dict[tuple[str, UUID], CropCalendarProfile
                 source, v.get("guidance", "Review your crop and local conditions."), version))
         profile = CropCalendarProfile(region, crop, tuple(milestones),
             item["sourceId"], item["sourceVersion"],
-            item.get("plantingWindowNote"), tuple(windows))
+            item.get("plantingWindowNote"), tuple(windows), item.get("sourceUrl"))
         key = (region, crop)
         if key in profiles:
             raise ValueError("duplicate crop-region calendar profile")
@@ -44,9 +46,25 @@ def load_profiles(raw: list[dict]) -> dict[tuple[str, UUID], CropCalendarProfile
 
 
 def load_profiles_file(path: str | Path | None) -> dict:
-    if not path:
-        return {}
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise ValueError("Calendar profiles file must be a JSON list")
-    return load_profiles(raw)
+    # Extension guidance publishes qualitative windows and milestones. These
+    # remain undated unless an explicit schedule with provenance is supplied.
+    profiles = {}
+    for crop_id, context in PUNJAB_CONTEXT.items():
+        source = context.source
+        milestones = tuple(
+            CalendarMilestone(
+                item.id, item.label, None, item.source_section, item.definition, source.edition
+            )
+            for item in context.milestones
+        )
+        profiles[(DEMO_REGION_ID, crop_id)] = CropCalendarProfile(
+            DEMO_REGION_ID, crop_id, milestones, source.publisher, source.edition,
+            f"{context.planting_window.label}. {context.planting_window.applicability}",
+            source_url=source.url,
+        )
+    if path:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            raise ValueError("Calendar profiles file must be a JSON list")
+        profiles.update(load_profiles(raw))
+    return profiles

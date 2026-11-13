@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import require_farm_access, workspace_digest
 from app.core.db import get_session
 from app.models import EnvironmentalProvenance, EnvironmentalSnapshot, Farm, Plot
 from app.schemas import ApiResponse
@@ -19,6 +20,7 @@ async def prepare_environment(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ApiResponse:
+    await require_farm_access(session, payload.farm_id, workspace_digest(request))
     farm = await session.get(Farm, payload.farm_id)
     plot = await session.get(Plot, payload.plot_id) if payload.plot_id else None
     if farm is None:
@@ -58,6 +60,7 @@ async def prepare_environment(
         or f"{farm.id}:{plot.id}:{payload.simulation_period.start_date}:{payload.simulation_period.end_date}",
     )
     session.add(snapshot)
+    await session.flush()
     for source in data["provenance"]:
         session.add(
             EnvironmentalProvenance(

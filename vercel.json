@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "apps/web/dist",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "{apps/api/app/**,packages/science/src/**}",
+      "excludeFiles": "{apps/web/**,node_modules/**,tests/**,packages/science/tests/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/telegram/cron",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

@@ -31,6 +31,11 @@ IDENTITY_ONLY_LABELS: dict[LocaleType, str] = {
     "kn": "ಗುರುತು ಮತ್ತು ವರ್ಗೀಕರಣ ಮಾತ್ರ",
     "hi": "केवल पहचान और वर्गीकरण",
 }
+WHEAT_EXAMPLE_LABELS: dict[LocaleType, str] = {
+    "en": "Wheat is available as the bundled Tunis AquaCrop example. Farm-scale simulation outputs are unavailable.",
+    "kn": "ಗೋಧಿಗೆ ಟುನಿಸ್ AquaCrop ಉದಾಹರಣೆ ಲಭ್ಯವಿದೆ. ಜಮೀನಿನ ಮಟ್ಟದ ಸಿಮ್ಯುಲೇಶನ್ ಫಲಿತಾಂಶಗಳು ಲಭ್ಯವಿಲ್ಲ.",
+    "hi": "गेहूँ के लिए AquaCrop का ट्यूनिस उदाहरण उपलब्ध है। खेत-स्तरीय सिमुलेशन के परिणाम उपलब्ध नहीं हैं।",
+}
 CROP_DISPLAY_NAMES: dict[str, dict[LocaleType, str]] = {
     "Turmeric": {"en": "Turmeric", "kn": "ಅರಿಶಿನ", "hi": "हल्दी"},
     "Maize": {"en": "Maize", "kn": "ಮೆಕ್ಕೆಜೋಳ", "hi": "मक्का"},
@@ -506,22 +511,19 @@ class BoundedInteractionService:
             # General capability explanation
             if language == "kn":
                 resp = (
-                    "ಟೆರ್ರಾಪಲ್ಸ್‌ನಲ್ಲಿ ಮೆಕ್ಕೆಜೋಳಕ್ಕೆ AquaCrop ಮಾದರಿಯ ಮೂಲಕ ಇಳುವರಿ ಮುನ್ಸೂಚನೆ ಲಭ್ಯವಿದೆ. "
-                    "ಅರಿಶಿನ, ಗೋಧಿ, ಸಜ್ಜೆ, ರಾಗಿ ಮತ್ತು ಕಡಲೆ ಬೆಳೆಗಳಿಗೆ FAO-56 ಮಾದರಿಯ ಮೂಲಕ ನೀರಿನ ಒತ್ತಡ ಮತ್ತು ಆವಿಯಾಗುವಿಕೆಯನ್ನು ಮಾತ್ರ ಲೆಕ್ಕಹಾಕಲಾಗುತ್ತದೆ, ಇಳುವರಿಯನ್ನಲ್ಲ."
+                    "ಅರಿಶಿನಕ್ಕೆ FAO-56 ನೀರಿನ ಸಮತೋಲನಕ್ಕಾಗಿ ತಾತ್ಕಾಲಿಕ A, B ಅಥವಾ C ಹಂತ ನಕ್ಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ. "
+                    + WHEAT_EXAMPLE_LABELS[language]
                 )
-                speech = "ಮೆಕ್ಕೆಜೋಳಕ್ಕೆ ಇಳುವರಿ ಮಾದರಿ ಬೆಂಬಲವಿದೆ. ಅರಿಶಿನ ಮತ್ತು ರಾಗಿಗೆ ನೀರಿನ ಸಮತೋಲನ ಮಾತ್ರ ಲಭ್ಯ."
             elif language == "hi":
                 resp = (
-                    "टेरापल्स में मक्का के लिए AquaCrop मॉडल द्वारा उपज अनुमान उपलब्ध है। "
-                    "हल्दी, गेहूं, बाजरा, रागी और चना फसलों के लिए FAO-56 मॉडल द्वारा केवल जल संतुलन और जल तनाव का आकलन किया जाता है, उपज का नहीं।"
+                    "हल्दी के FAO-56 जल संतुलन के लिए अनंतिम चरण मानचित्र A, B या C चुनें। "
+                    + WHEAT_EXAMPLE_LABELS[language]
                 )
-                speech = "मक्का के लिए उपज मॉडल समर्थित है। हल्दी और रागी के लिए केवल जल संतुलन उपलब्ध है।"
             else:
                 resp = (
-                    "In TerraPulse, calibrated dry-matter yield simulation is supported for Maize using the AquaCrop engine. "
-                    "For Turmeric, Wheat, Pearl Millet, Finger Millet, and Chickpea, the FAO-56 engine simulates daily root-zone water balance and water stress (Ks), but does not produce calibrated yield predictions."
+                    "Turmeric supports FAO-56 root-zone water balance with explicit provisional mapping A, B, or C. "
+                    + WHEAT_EXAMPLE_LABELS[language]
                 )
-                speech = "Maize supports calibrated yield simulation under AquaCrop. Turmeric and millets support water balance under FAO-56."
 
             return InteractionResult(
                 intent="crop_capability",
@@ -530,7 +532,7 @@ class BoundedInteractionService:
                 resolved_crop=None,
                 candidates=[],
                 response_text=resp,
-                speech_text=speech,
+                speech_text=resp,
                 limitations=["Yield simulation depends on engine capability: AquaCrop supports yield; FAO-56 does not."],
                 sources=["FAO-56 Irrigation and Drainage Paper", "FAO AquaCrop Reference Manual"],
             )
@@ -539,25 +541,27 @@ class BoundedInteractionService:
         engine = crop.selected_engine
         canonical = crop.canonical_name
 
+        if canonical == "Wheat":
+            return self._handle_wheat_example(resolution, language, "crop_capability")
+
         if engine == "AquaCrop":
             if language == "kn":
                 resp = (
-                    f"{canonical} ಬೆಳೆಗೆ AquaCrop ({crop.engine_version}) ಎಂಜಿನ್ ಮೂಲಕ ಜೈವಿಕ ರಾಶಿ ಮತ್ತು ಇಳುವರಿ ಮುನ್ಸೂಚನೆಯನ್ನು ಬೆಂಬಲಿಸಲಾಗುತ್ತದೆ. "
-                    "ಇದಕ್ಕೆ ಬಿತ್ತನೆ ದಿನಾಂಕ, ಮಣ್ಣಿನ ಪ್ರೊಫೈಲ್ ಮತ್ತು ಹವಾಮಾನ ಡೇಟಾ ಅಗತ್ಯವಿದೆ."
+                    f"{canonical} ಬೆಳೆಗೆ ಕ್ಯಾಟಲಾಗ್‌ನಲ್ಲಿ AquaCrop ಉಲ್ಲೇಖವಿದೆ. "
+                    "ಜಮೀನಿನ ಮಟ್ಟದ ಸಿಮ್ಯುಲೇಶನ್ ಲಭ್ಯವಿಲ್ಲ."
                 )
-                speech = f"{canonical} ಬೆಳೆಗೆ AquaCrop ಮಾದರಿಯ ಮೂಲಕ ಇಳುವರಿ ಮುನ್ಸೂಚನೆ ಲಭ್ಯವಿದೆ."
+                speech = resp
             elif language == "hi":
                 resp = (
-                    f"{canonical} फसल के लिए AquaCrop ({crop.engine_version}) इंजन द्वारा बायोमास और उपज का अनुमान लगाया जा सकता है। "
-                    "इसके लिए बुवाई की तारीख, मिट्टी की प्रोफाइल और मौसम के आंकड़ों की आवश्यकता होती है।"
+                    f"कैटलॉग में {canonical} के लिए AquaCrop का उल्लेख है। "
+                    "खेत-स्तरीय सिमुलेशन उपलब्ध नहीं है।"
                 )
-                speech = f"{canonical} के लिए AquaCrop मॉडल द्वारा उपज का अनुमान समर्थित है।"
+                speech = resp
             else:
                 resp = (
-                    f"For {canonical}, calibrated biomass and dry-matter yield estimation is supported using the AquaCrop engine (v{crop.engine_version}). "
-                    "This requires verified planting dates, calibrated SoilGrids layers, and ensemble weather observations."
+                    f"The catalogue lists AquaCrop for {canonical}. Farm-scale simulation is unavailable."
                 )
-                speech = f"Yield simulation is supported for {canonical} using AquaCrop."
+                speech = resp
 
             return InteractionResult(
                 intent="crop_capability",
@@ -567,26 +571,27 @@ class BoundedInteractionService:
                 candidates=resolution.candidates,
                 response_text=resp,
                 speech_text=speech,
-                limitations=["Requires verified planting date and irrigation schedule.", "Assumes pest-free baseline."],
+                limitations=["No verified farm-scale AquaCrop profile is enabled for this crop."],
                 sources=["FAO AquaCrop Model Reference", "TerraPulse C7 Model Registry"],
             )
 
-        elif engine == "FAO-56":
+        elif engine == "FAO-56" and canonical == "Turmeric":
             if language == "kn":
                 resp = (
                     f"{canonical} ಬೆಳೆಗಾಗಿ FAO-56 ({crop.engine_version}) ಮಾದರಿಯು ಬೇರಿನ ವಲಯದ ನೀರಿನ ಕೊರತೆ ಮತ್ತು ಆವಿಯಾಗುವಿಕೆಯನ್ನು (ET) ಲೆಕ್ಕಹಾಕುತ್ತದೆ. "
-                    "ಆದರೆ ಈ ಬೆಳೆಗೆ ಮಾಪನಾಂಕ ನಿರ್ಣಯಿಸಿದ ಇಳುವರಿ (yield) ಮುನ್ಸೂಚನೆ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ."
+                    "ತಾತ್ಕಾಲಿಕ A, B ಅಥವಾ C ಹಂತ ನಕ್ಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ. ಇಳುವರಿ ಮುನ್ಸೂಚನೆ ಲಭ್ಯವಿಲ್ಲ."
                 )
                 speech = f"{canonical} ಬೆಳೆಗೆ FAO-56 ನೀರಿನ ಸಮತೋಲನ ಲಭ್ಯವಿದೆ, ಆದರೆ ಇಳುವರಿ ಮುನ್ಸೂಚನೆ ಲಭ್ಯವಿಲ್ಲ."
             elif language == "hi":
                 resp = (
                     f"{canonical} फसल के लिए FAO-56 ({crop.engine_version}) मॉडल जड़-क्षेत्र में जल की कमी और वाष्पोत्सर्जन (ET) का आकलन करता है। "
-                    "हालांकि, इस फसल के लिए कैलिब्रेटेड उपज (yield) का अनुमान समर्थित नहीं है।"
+                    "अनंतिम चरण मानचित्र A, B या C चुनें। उपज का अनुमान उपलब्ध नहीं है।"
                 )
                 speech = f"{canonical} के लिए FAO-56 जल संतुलन उपलब्ध है, लेकिन उपज अनुमान समर्थित नहीं है।"
             else:
                 resp = (
-                    f"For {canonical}, TerraPulse runs the FAO-56 dual crop coefficient model (v{crop.engine_version}) to simulate daily root-zone soil water depletion, evapotranspiration, and water stress (Ks). "
+                    f"For {canonical}, TerraPulse uses a single crop coefficient under FAO-56. "
+                    "Daily root-zone water balance requires explicit provisional stage mapping A, B, or C. "
                     f"However, calibrated dry-matter yield prediction is explicitly not supported for {canonical} under FAO-56."
                 )
                 speech = f"{canonical} supports water balance and water stress simulation under FAO-56, but not yield prediction."
@@ -719,6 +724,8 @@ class BoundedInteractionService:
                 limitations=["Standard Kc values require adjustment for local climate humidity and wind conditions."],
                 sources=["FAO-56 Irrigation and Drainage Paper 56", "TerraPulse C7 Model Registry"],
             )
+        elif canonical == "Wheat":
+            return self._handle_wheat_example(resolution, language, "water_guidance")
         elif crop.selected_engine == "AquaCrop":
             if language == "kn":
                 resp = (
@@ -774,12 +781,31 @@ class BoundedInteractionService:
                 sources=["TerraPulse C7 Model Registry"],
             )
 
+    def _handle_wheat_example(
+        self, resolution: ResolutionResult, language: LocaleType,
+        intent: Literal["crop_capability", "crop_resolution", "water_guidance"],
+    ) -> InteractionResult:
+        text = WHEAT_EXAMPLE_LABELS[language]
+        return InteractionResult(
+            intent=intent,
+            language=language,
+            resolution_status=ResolutionStatus.EXACT_MATCH,
+            resolved_crop=resolution.crop,
+            candidates=resolution.candidates,
+            response_text=text,
+            speech_text=text,
+            limitations=[text],
+            sources=["TerraPulse C7 Model Registry"],
+        )
+
     def _handle_crop_resolution(
         self, resolution: ResolutionResult, language: LocaleType
     ) -> InteractionResult:
         crop = resolution.crop
         if crop is None:
             return self._handle_unknown(resolution.query, language)
+        if crop.canonical_name == "Wheat":
+            return self._handle_wheat_example(resolution, language, "crop_resolution")
 
         canonical = crop.canonical_name
         sci = crop.scientific_name

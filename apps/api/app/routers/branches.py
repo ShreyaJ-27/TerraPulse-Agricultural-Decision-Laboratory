@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm
 from app.core.db import get_session
 from app.schemas import ApiResponse
 from app.services.branches import BranchService
@@ -16,7 +17,7 @@ def _failure(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": str(exc)})
 
 
-@router.post("/farms/{farm_id}/plots/{plot_id}/branches", response_model=ApiResponse, status_code=201)
+@router.post("/farms/{farm_id}/plots/{plot_id}/branches", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse, status_code=201)
 async def create_branch(
     farm_id: UUID,
     plot_id: UUID,
@@ -44,7 +45,7 @@ async def create_branch(
     )
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/branches", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/branches", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def list_branches(
     farm_id: UUID,
     plot_id: UUID,
@@ -61,7 +62,7 @@ async def list_branches(
     )
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/branches/{branch_id}", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/branches/{branch_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_branch(
     farm_id: UUID,
     plot_id: UUID,
@@ -79,7 +80,7 @@ async def get_branch(
     )
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/timeline", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/timeline", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_timeline(
     farm_id: UUID,
     plot_id: UUID,

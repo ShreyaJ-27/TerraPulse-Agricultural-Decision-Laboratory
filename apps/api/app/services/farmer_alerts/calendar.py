@@ -12,6 +12,15 @@ class PlantingDate:
     date: date | None
     certainty: DateCertainty = "recorded"
 
+    @classmethod
+    def from_plot(cls, planting_date: date | None, management: dict) -> PlantingDate:
+        certainty = management.get("plantingDateCertainty", "recorded")
+        if planting_date is None:
+            return cls(None, "unconfirmed")
+        if certainty not in ("recorded", "confirmed", "estimated"):
+            certainty = "recorded"
+        return cls(planting_date, certainty)
+
     def __post_init__(self):
         if self.certainty == "unconfirmed" and self.date is not None:
             raise ValueError("unconfirmed planting date must be absent")
@@ -61,6 +70,7 @@ class CropCalendarProfile:
     source_version: str
     planting_window_note: str | None = None
     planting_windows: tuple[CalendarWindow, ...] = ()
+    source_url: str | None = None
 
     def __post_init__(self):
         if not self.region_id or not self.source_id or not self.source_version:

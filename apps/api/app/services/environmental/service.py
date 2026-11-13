@@ -251,6 +251,8 @@ class EnvironmentalInputService:
                     f"Crop '{crop_name}' uses engine 'identity/ecology-only' which does not support "
                     "quantitative simulation. Quantitative yield and water-balance modeling are unsupported."
                 )
+            elif req.require_quantitative_simulation and not capability.supported_outputs:
+                errors.append(f"Farm-scale simulation is unsupported for crop '{crop_name}'.")
 
             # Check requested outputs against crop's supported outputs
             if req.requested_outputs:
@@ -443,9 +445,9 @@ class EnvironmentalInputService:
             if fc.value is not None and wp.value is not None:
                 if fc.value < 0 or wp.value < 0:
                     errors.append("Physical consistency violation: soil water contents cannot be negative.")
-                if fc.value < wp.value:
+                if fc.value <= wp.value:
                     errors.append(
-                        f"Physical consistency violation: field capacity ({fc.value} m3/m3) cannot be less than "
+                        f"Physical consistency violation: field capacity ({fc.value} m3/m3) must exceed "
                         f"wilting point ({wp.value} m3/m3)."
                     )
         else:

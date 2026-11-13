@@ -15,14 +15,10 @@ from .telegram import create_deep_link
 log = logging.getLogger("terrapulse.farmer_alerts")
 
 
-async def link_for_newly_registered_farm(session: AsyncSession, farm_id: UUID) -> str | None:
-    """Generate an optional, short-lived deep link without blocking registration.
-
-    This function must be called server-side immediately after a successful
-    CREATE of that farm, not from a GET endpoint or from a caller-supplied ID.
-    """
+async def issue_farm_link(session: AsyncSession, farm_id: UUID) -> str | None:
+    """Generate an optional deep link after verifying workspace ownership."""
     username = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip()
-    if not username:
+    if not username or os.environ.get("TERRAPULSE_TELEGRAM_ENABLED") != "1":
         return None
     try:
         token = await issue_link(session, farm_id=farm_id, ownership_verified=True)

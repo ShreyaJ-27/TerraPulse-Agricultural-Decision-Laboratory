@@ -4,15 +4,31 @@ export class ApiError extends Error {
   }
 }
 
-const baseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
+const baseUrl = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "")).replace(/\/$/, "");
+
+function workspaceKey(): string {
+  const keyName = "terrapulse-workspace-key";
+  const existing = window.localStorage.getItem(keyName);
+  if (existing && /^[a-f0-9]{64}$/.test(existing)) return existing;
+  const bytes = window.crypto.getRandomValues(new Uint8Array(32));
+  const generated = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  window.localStorage.setItem(keyName, generated);
+  return generated;
+}
 
 export async function api<T>(path: string, init?: Parameters<typeof window.fetch>[1]): Promise<T> {
+  let key: string;
+  try {
+    key = workspaceKey();
+  } catch {
+    throw new ApiError(0, "STORAGE_UNAVAILABLE", "Allow browser storage to use your private farm workspace.");
+  }
   const correlationId = window.crypto.randomUUID();
   let response: Awaited<ReturnType<typeof window.fetch>>;
   try {
     response = await window.fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId, ...(init?.headers || {}) },
+      headers: { "Content-Type": "application/json", "X-Correlation-ID": correlationId, Authorization: `Bearer ${key}`, ...(init?.headers || {}) },
     });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "The TerraPulse API could not be reached.");
@@ -21,13 +37,15 @@ export async function api<T>(path: string, init?: Parameters<typeof window.fetch
   if (!response.ok) {
     const error = body.error || {};
     const detail = body.detail || {};
-    throw new ApiError(response.status, error.code || detail.code || "HTTP_ERROR", error.message || detail.message || "The request failed.", error.fields);
+    throw new ApiError(response.status, error.code || detail.code || "HTTP_ERROR", error.message || (typeof detail === "string" ? detail : detail.message) || "The request failed.", error.fields);
   }
   return (body.data ?? body) as T;
 }
 
 export const apiClient = {
   listFarms: () => api<{ farms: Farm[]; total: number }>("/api/v1/farms"),
+  getCalendar: (farmId: string) => api<{ asOfDate: string; plots: CalendarPlot[] }>(`/api/v1/agri-calendar/farms/${farmId}`),
+  issueTelegramLink: (farmId: string) => api<{ telegramConnectUrl: string }>(`/api/v1/farms/${farmId}/telegram-link`, { method: "POST" }),
   getFarm: (id: string) => api<Farm>(`/api/v1/farms/${id}`),
   createFarm: (value: unknown) => api<Farm>("/api/v1/farms", { method: "POST", body: JSON.stringify(value) }),
   createPlot: (farmId: string, value: unknown) => api<Plot>(`/api/v1/farms/${farmId}/plots`, { method: "POST", body: JSON.stringify(value) }),
@@ -49,6 +67,26 @@ export const apiClient = {
     api<CropInteraction>("/api/v1/crops/interact", { method: "POST", body: JSON.stringify(payload) }),
   analyzeFarm: (payload: AnalysisRequest) =>
     api<AnalysisResult>("/api/v1/analysis", { method: "POST", body: JSON.stringify(payload) }),
+  listNotifications: (farmId: string) =>
+    api<{ farmId: string; notifications: any[]; total: number }>(`/api/v1/notifications/farms/${farmId}`),
+  triggerTestNotification: (farmId: string, payload: any) =>
+    api<any>(`/api/v1/notifications/farms/${farmId}/test`, { method: "POST", body: JSON.stringify(payload) }),
+  getTelegramStatus: (farmId: string) =>
+    api<{ farmId: string; connected: boolean; botUsername: string; subscriptionCount: number; subscriptions: any[] }>(`/api/v1/notifications/telegram/status/${farmId}`),
+  createTelegramLink: (farmId: string) =>
+    api<{ farmId: string; token: string; connectUrl: string; botUsername: string; expiresInMinutes: number }>(`/api/v1/notifications/telegram/link/${farmId}`, { method: "POST" }),
+  getDeliveries: (farmId: string) =>
+    api<{ farmId: string; deliveries: any[]; total: number }>(`/api/v1/notifications/deliveries/${farmId}`),
+  getAgriCalendarSeasons: () =>
+    api<{ seasons: any[]; total: number }>("/api/v1/agri-calendar/seasons"),
+  getAgriCalendarRegional: (regionId: string) =>
+    api<{ regionId: string; profiles: any[]; total: number }>(`/api/v1/agri-calendar/regional/${regionId}`),
+  getAgriCalendarForFarm: (farmId: string) =>
+    api<{ farmId: string; asOfDate: string; plots: any[]; total: number; seasons: any[] }>(`/api/v1/agri-calendar/farms/${farmId}`),
+  getAdvisory: (regionId: string, cropId: string) =>
+    api<any>(`/api/v1/advisory/regions/${regionId}/crops/${cropId}`),
+  generateCustomCalendar: (payload: any) =>
+    api<any>("/api/v1/agri-calendar/generate", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export type CropInteraction = {
@@ -65,7 +103,21 @@ export type CropInteraction = {
 };
 
 export type Farm = { farmId: string; name: string; timezone: string; location: { latitude: number; longitude: number; crs: string }; plots: Plot[]; createdAt?: string };
-export type Plot = { plotId: string; farmId: string; areaM2: { value: number; unit: string }; cropId: string; cropCanonicalName: string; cropScientificName?: string; plantingDate?: string; sharedResourceIds?: string[] };
+export type Plot = { plotId: string; farmId: string; areaM2: { value: number; unit: string }; cropId: string; cropCanonicalName: string; cropScientificName?: string; plantingDate?: string; management?: { plotName?: string; regionId?: string; plantingDateCertainty?: string }; sharedResourceIds?: string[] };
+export type CalendarPlot = {
+  plotId: string;
+  plotName: string;
+  cropName: string;
+  plantingDate: string | null;
+  plantingCertainty: string;
+  regionalGuidanceAvailable: boolean;
+  regionalSource?: string;
+  regionalSourceVersion?: string;
+  regionalSourceUrl?: string;
+  plantingWindowNote?: string;
+  next31Days: { date: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
+  undatedActivities: { title: string; guidance: string; source: string; sourceVersion?: string }[];
+};
 export type Resource = { resourceId: string; farmId: string; name: string; resourceType: string; unit: string; openingVolume: number; metadata?: Record<string, unknown>; createdAt?: string };
 export type Crop = {
   cropId: string;

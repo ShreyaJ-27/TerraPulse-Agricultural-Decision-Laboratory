@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import authorize_path_farm
 from app.core.db import get_session
 from app.schemas import ApiResponse
 from app.services.comparison_schemas import ComparisonCreateRequest, ComparisonResponse
@@ -26,12 +27,12 @@ def _dump(comparison):
         matchedInputs=comparison.matched_inputs,
         reasons=comparison.non_comparable_reasons or [],
         payload=comparison.payload,
-        createdAt=comparison.created_at,
+        createdAt=getattr(comparison, "created_at", None) or ((comparison.payload or {}).get("createdAt") if isinstance(comparison.payload, dict) else None),
     )
     return data.model_dump(by_alias=True, mode="json")
 
 
-@router.post("/farms/{farm_id}/plots/{plot_id}/comparisons", response_model=ApiResponse, status_code=201)
+@router.post("/farms/{farm_id}/plots/{plot_id}/comparisons", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse, status_code=201)
 async def create_comparison(
     farm_id: UUID,
     plot_id: UUID,
@@ -54,7 +55,7 @@ async def create_comparison(
     return ApiResponse(data=_dump(comparison), correlationId=request.state.correlation_id)
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/comparisons", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/comparisons", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def list_comparisons(
     farm_id: UUID,
     plot_id: UUID,
@@ -68,7 +69,7 @@ async def list_comparisons(
     )
 
 
-@router.get("/farms/{farm_id}/plots/{plot_id}/comparisons/{comparison_id}", response_model=ApiResponse)
+@router.get("/farms/{farm_id}/plots/{plot_id}/comparisons/{comparison_id}", dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
 async def get_comparison(
     farm_id: UUID,
     plot_id: UUID,

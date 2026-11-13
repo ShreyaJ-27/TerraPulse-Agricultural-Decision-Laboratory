@@ -67,6 +67,7 @@ class SimulationService:
         if str(plot.crop_id) == "00000000-0000-0000-0000-000000000003" and payload.turmeric_mapping not in ("A", "B", "C"):
             raise ValueError("CROP_MAPPING_REQUIRED")
         branch_id = payload.branch_id
+        planting_date = plot.planting_date
         if branch_id is None:
             branch_id = uuid4()
             period_start = (
@@ -88,6 +89,7 @@ class SimulationService:
                     decision_diff={},
                 )
             )
+            await self.session.flush()
             self.session.add(BranchDecision(id=uuid4(), branch_id=branch_id, decision_type="baseline", payload={}))
             self.session.add(
                 TimelineEvent(
@@ -105,6 +107,10 @@ class SimulationService:
             branch = await self.session.get(DecisionBranch, branch_id)
             if branch is None or branch.farm_id != payload.farm_id or branch.plot_id != payload.plot_id:
                 raise ValueError("INVALID_BRANCH")
+            if branch.base_snapshot_hash != snapshot.input_hash:
+                raise ValueError("BRANCH_SNAPSHOT_MISMATCH")
+            if branch.decision_type == "planting_date":
+                planting_date = date.fromisoformat(branch.decision_diff["plantingDate"])
         await self.session.flush()
         if payload.irrigation_mode == "irrigated":
             resource_service = ResourceService(self.session)
@@ -129,6 +135,8 @@ class SimulationService:
             weather_member_id=self._weather_member(snapshot.payload),
             input_provenance={
                 "turmericMapping": payload.turmeric_mapping,
+                "plantingDate": planting_date.isoformat() if planting_date else None,
+                "fallowKc": payload.fallow_kc,
                 "irrigationMode": payload.irrigation_mode,
                 "resourceId": str(payload.resource_id) if payload.resource_id else None,
             },
@@ -208,6 +216,8 @@ class SimulationService:
                         )
                     run.status = "completed"
                     run.science_envelope = result["scienceEnvelope"]
+                    run.engine_version = result["scienceEnvelope"]["modelVersion"]
+                    run.parameter_version = result["scienceEnvelope"]["cropBinding"]["parameterVersion"]
                     run.input_provenance = {
                         **(run.input_provenance or {}),
                         **result["inputProvenance"],
@@ -251,7 +261,11 @@ class SimulationService:
             c3_model=__import__("app.contracts", fromlist=["C3ScientificState"]).C3ScientificState,
         )
         period = c1.simulation_period
-        capability = lookup(plot.crop_id).to_c7_capability()
+        planting_date = (run.input_provenance or {}).get("plantingDate")
+        weather_kind = (
+            "forecast" if any(source.startswith("open-meteo:") for source in c1.data_source_ids)
+            else "model-estimate"
+        )
         return service.execute(
             snapshot=c1,
             crop_id=plot.crop_id,
@@ -261,16 +275,18 @@ class SimulationService:
             simulation_run_id=run.id,
             turmeric_mapping=(run.input_provenance or {}).get("turmericMapping"),
             area_m2=float(plot.area_m2),
-            planting_date=str(plot.planting_date or period.start_date),
+            planting_date=planting_date or str(plot.planting_date or period.start_date),
             root_depth_m=0.3,
             depletion_fraction=0.5,
             initial_depletion_mm=0.0,
             weather_realization_id=run.weather_realization_id or _hash(c1.model_dump(mode="json")),
             ensemble_member_id=run.weather_member_id,
-            weather_kind="model-estimate",
+            weather_kind=weather_kind,
+            fallow_kc=(run.input_provenance or {}).get("fallowKc"),
             rainfed=ledger is None,
             ledger=ledger,
             schedule=schedule,
-            requested_outputs=capability.supported_outputs,
-            environmental_warnings=[],
+            environmental_warnings=[
+                "Fixed 0.30 m root depth, 0.5 depletion fraction and zero initial depletion are model assumptions.",
+            ],
         )

@@ -72,7 +72,7 @@ FAO and fixture entry points remain for trusted scientific use.
 | Developer C declaration | Developer A binding and required alignment |
 | --- | --- |
 | Turmeric `…0003`, `Curcuma longa`, FAO-56 `1.0`, `demo-1`, placeholder coefficient and empty parameter sources | Requires explicit selection of A's sourced provisional A/B/C profiles. Align the catalogue versions, sources, supported outputs and limitations with A before exposing them as application science. |
-| Wheat `…0020`, `Triticum aestivum`, FAO-56 `1.0`, `fao56-wheat-standard` | Reports an engine mismatch. A verifies `Tunis-Wheat-example-3.1.0` only. Keep the example separate from farm eligibility, or register and verify a distinct FAO wheat pathway before enabling it. |
+| Wheat `…0020`, `Triticum aestivum`, AquaCrop `3.1.0`, `Tunis-Wheat-example-3.1.0` | C7 lists the pinned example and zero farm outputs. The farm binding returns `CROP_EXAMPLE_ONLY`. |
 | Maize `…0010`, `Zea mays`, AquaCrop `3.1.0`, `aquacrop-maize-v1` | No verified A profile or adapter. Suppress numerical eligibility and yield/growth offers until a maize pathway is verified. |
 | Pearl millet `…0031`, finger millet `…0032`, chickpea `…0041`, declared FAO-56 profiles | No verified A binding. Catalogue declarations alone cannot enable simulation. |
 | Foxtail millet `…0033`, black gram `…0042`, upland cotton `…0050`, and off-catalogue identities | Identity/ecology only. No scientific run or simulated outputs. |

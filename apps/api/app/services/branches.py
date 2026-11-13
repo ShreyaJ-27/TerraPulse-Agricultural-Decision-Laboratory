@@ -61,6 +61,7 @@ class BranchService:
             decision_diff=diff,
         )
         self.session.add(branch)
+        await self.session.flush()
         self.session.add(
             BranchDecision(
                 id=uuid4(), branch_id=branch.id, decision_type=decision_type, payload=diff

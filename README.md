@@ -16,7 +16,7 @@ docker compose up -d postgres
 alembic upgrade head
 ```
 
-Run the API with `uvicorn app.main:app --app-dir apps/api --reload` and the frontend with `npm run dev:web`. The API health check is `http://localhost:8000/api/v1/health`.
+Run the API with `python -m app.serve` and the frontend with `npm run dev:web`. The API health check is `http://localhost:8000/api/v1/health`.
 
 ## Checks
 

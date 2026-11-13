@@ -144,7 +144,7 @@ class TestScientificRunService(unittest.TestCase):
         environmental = self.environmental_result()
         cases = (
             ({"crop_id":str(TURMERIC_ID)}, "INVALID_CANONICAL_CROP_ID"),
-            ({"crop_id":WHEAT_ID}, "CROP_ENGINE_MISMATCH"),
+            ({"crop_id":WHEAT_ID}, "CROP_EXAMPLE_ONLY"),
             ({"crop_id":UUID("00000000-0000-0000-0000-000000000010")}, "UNSUPPORTED_CROP_CAPABILITY"),
             ({"crop_id":UUID("00000000-0000-0000-0000-000000000050")}, "CROP_IDENTITY_ONLY"),
             ({"turmeric_mapping":None}, "CROP_MAPPING_REQUIRED"),
