@@ -37,6 +37,9 @@ Use `fao_input_from_c1_v1` for authoritative C1 JSON and
 `c3_states_from_run` to project executed FAO-56 or AquaCrop states into C3.
 For a catalogue-driven farm run, wire the server's Crop Lens resolver and
 canonical lookup into `CropBindingService` and call its `run_fao` entry point.
+For repository orchestration, use `ScientificRunService.execute` with the
+authoritative C1/C3 models. It returns validated C3 states and full run evidence,
+or an error code and stage. See the handoff for wiring and persistence.
 See the handoff for the exact dated schedule required alongside C8.
 To run the cross-contract and crop-binding tests with the repository API environment:
 

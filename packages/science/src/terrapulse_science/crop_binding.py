@@ -58,6 +58,12 @@ class CropBindingService:
         else:
             fail("CROP_IDENTITY_UNRESOLVED", "Crop Lens did not resolve a curated crop")
 
+        return self.bind_canonical_fao(crop_id, turmeric_mapping=turmeric_mapping)
+
+    def bind_canonical_fao(self, crop_id: UUID, *, turmeric_mapping: str | None) -> CropBinding:
+        """Bind an identity already resolved and authorized by the server."""
+        if not isinstance(crop_id, UUID):
+            fail("INVALID_CANONICAL_CROP_ID", "expected a server-resolved crop UUID")
         record = self._get_crop_by_id(crop_id)
         if record is None or record.crop_id != crop_id:
             fail("CROP_CATALOGUE_MISMATCH", "resolved UUID is absent from the authoritative catalogue")
@@ -104,13 +110,17 @@ class CropBindingService:
     def run_fao(self, c1, *, requested_outputs=(), **context) -> dict:
         """Run with the current trusted resolver and retain the canonical ID."""
         binding, inputs = self.prepare_fao(c1, **context)
-        result = run_fao(inputs.request, requested_outputs=requested_outputs)
-        result["cropBinding"] = {
-            "version":binding.version,
-            "cropId":str(binding.crop_id),
-            "catalogueScientificName":binding.catalogue_scientific_name,
-            "catalogueEngine":binding.catalogue_engine,
-            "parameterVersion":binding.profile.parameter_version,
-            "parameterHash":result["capability"]["parameterHash"],
-        }
-        return result
+        return _run_bound_fao(binding, inputs, requested_outputs=requested_outputs)
+
+
+def _run_bound_fao(binding: CropBinding, inputs: RepositoryFaoInput, *, requested_outputs=()) -> dict:
+    result = run_fao(inputs.request, requested_outputs=requested_outputs)
+    result["cropBinding"] = {
+        "version":binding.version,
+        "cropId":str(binding.crop_id),
+        "catalogueScientificName":binding.catalogue_scientific_name,
+        "catalogueEngine":binding.catalogue_engine,
+        "parameterVersion":binding.profile.parameter_version,
+        "parameterHash":result["capability"]["parameterHash"],
+    }
+    return result
