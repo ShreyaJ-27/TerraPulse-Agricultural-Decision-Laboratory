@@ -1,0 +1,24 @@
+{
+  "name": "terrapulse",
+  "private": true,
+  "version": "2.0.0",
+  "engines": {
+    "node": "20.11.1"
+  },
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "lint:web": "npm --workspace apps/web run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/contracts"
+  ],
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}
+
