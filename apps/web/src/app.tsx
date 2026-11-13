@@ -1,3 +1,4 @@
+import { FarmerApp, isFarmerPath } from "./FarmerApp";
 import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
@@ -72,6 +73,7 @@ class Boundary extends Component<{ children: ReactNode; copy: typeof translation
 export function App() {
   const { path, navigate } = useNavigation(); const [locale, setLocale] = useState(getInitialLocale); const copy = translations[locale];
   const route: Route = path.startsWith("/farms") ? "connect" : path === "/assisted" ? "assisted" : path === "/observatory" ? "observatory" : "connect";
+  if (isFarmerPath(path)) return <AppErrorBoundary copy={copy}><FarmerApp path={path} navigate={navigate} /></AppErrorBoundary>;
   let content: ReactNode;
   const parts = path.split("/").filter(Boolean);
   if (path === "/" || path === "/connect" || path === "/farms") content = <FarmList navigate={navigate} />;
