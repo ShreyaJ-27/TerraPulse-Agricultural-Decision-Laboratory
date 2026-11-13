@@ -104,7 +104,9 @@ def irrigation_from_c8_v1(ledger, *, farm_id, branch_id, plot_id, area_m2,
             _measurement(row.get(key), "litre", f"C8.{key}")
             for key in ("requestedAmount", "withdrawnAmount", "effectiveAmount")
         )
-        if effective > withdrawn + LEDGER_TOL_L or withdrawn > requested + LEDGER_TOL_L:
+        # Ordering applies to each allocation. The tolerance is for arithmetic
+        # reconciliation, so many individually small overdraws cannot add up.
+        if effective > withdrawn or withdrawn > requested:
             fail("LEDGER_CONSERVATION", "require effective <= withdrawn <= requested")
         allocations[allocated_plot] = effective
         withdrawals.append(withdrawn)
@@ -136,9 +138,12 @@ def irrigation_from_c8_v1(ledger, *, farm_id, branch_id, plot_id, area_m2,
         if not start <= day <= end:
             fail("LEDGER_WINDOW", "scheduled irrigation lies outside the run")
         daily[day] = real(row.get("effectiveLitres"), "effectiveLitres", minimum=0)
-    if abs(math.fsum(daily.values()) - allocations.get(plot_id, 0)) > LEDGER_TOL_L:
+    allocated = allocations.get(plot_id, 0)
+    delivered = math.fsum(daily.values())
+    if (allocated == 0 and delivered != 0) or abs(delivered - allocated) > LEDGER_TOL_L:
         fail("LEDGER_SCHEDULE_MISMATCH", "dated effective litres do not reconcile to the C8 plot total")
-    return {day.isoformat(): litres / area for day, litres in sorted(daily.items())}
+    return {day.isoformat(): real(litres / area, "effective irrigation depth", minimum=0)
+            for day, litres in sorted(daily.items())}
 
 
 @dataclass(frozen=True)
@@ -239,8 +244,10 @@ def c3_states_from_run(run, *, farm_id, simulation_run_id, provenance):
                     "availability":{"status":"available"}}
         return {"unit":unit, "availability":{"status":status, "reason":reason}}
 
-    def metric(state, key, unit, transform=lambda value: value):
+    def metric(state, key, unit, transform=lambda value: value, *, crop_only=False):
         item = state["metrics"].get(key)
+        if crop_only and state["status"] == "inactive":
+            return measurement(unit, reason="crop inactive on this date")
         if item is None:
             return measurement(unit)
         if item["status"] == "available":
@@ -254,7 +261,8 @@ def c3_states_from_run(run, *, farm_id, simulation_run_id, provenance):
         if is_fao:
             depth_mm = 1000 * real(run["soil"]["root_depth_m"], "FAO root depth", minimum=0)
             storage = metric(state, "soilThetaM3M3", "mm", lambda theta: theta * depth_mm)
-            stress = metric(state, "waterStressKs", "ratio", lambda ks: 1 - ks)
+            # Raw science stores Ks (1 is unstressed); C3 exposes stress severity.
+            stress = metric(state, "waterStressKs", "ratio", lambda ks: 1 - ks, crop_only=True)
         else:
             storage = metric(state, "rootWaterStorageMm", "mm")
             stress = measurement("ratio", status="unsupported", reason="no comparable Ks exported")
@@ -265,8 +273,8 @@ def c3_states_from_run(run, *, farm_id, simulation_run_id, provenance):
             "soilWater":storage,
             "rootZone":measurement("mm", status="unsupported",
                 reason="root-zone semantics require a shared mapping; see the science envelope"),
-            "cropWaterDemand":metric(state, "potentialEtMm", "mm"),
-            "actualEvapotranspiration":metric(state, "actualEtMm", "mm"),
+            "cropWaterDemand":metric(state, "potentialEtMm", "mm", crop_only=True),
+            "actualEvapotranspiration":metric(state, "actualEtMm", "mm", crop_only=True),
             "waterStress":stress,
             "irrigation":measurement("mm", legacy.get("effectiveIrrigationMm")),
             "rainfall":measurement("mm", legacy.get("rainfallMm")),

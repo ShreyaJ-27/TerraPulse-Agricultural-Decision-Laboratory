@@ -130,3 +130,26 @@ class TestRepositoryContracts(unittest.TestCase):
         schedule["days"][0]["date"] = "2026-06-03"
         with self.assertRaisesRegex(ScienceError,"LEDGER_WINDOW"):
             irrigation_from_c8_v1(self.c8,schedule=schedule,**self.ledger_args)
+
+    def test_c8_rejects_replayed_deliveries_and_cross_branch_ledger(self):
+        schedule = self.schedule(self.c8)
+        schedule["days"].append(dict(schedule["days"][0]))
+        with self.assertRaisesRegex(ScienceError, "DUPLICATE_ALLOCATION"):
+            irrigation_from_c8_v1(self.c8, schedule=schedule, **self.ledger_args)
+        fork = self.ledger_args | {"branch_id": "00000000-0000-0000-0000-000000000014"}
+        with self.assertRaisesRegex(ScienceError, "LEDGER_IDENTITY_MISMATCH"):
+            irrigation_from_c8_v1(self.c8, schedule=self.schedule(self.c8), **fork)
+        self.c8["plotAllocations"].append(dict(self.c8["plotAllocations"][0]))
+        with self.assertRaisesRegex(ScienceError, "DUPLICATE_ALLOCATION"):
+            irrigation_from_c8_v1(self.c8, schedule=self.schedule(self.c8), **self.ledger_args)
+
+    def test_c8_rejects_small_overdraws_and_unallocated_delivery(self):
+        self.c8["plotAllocations"][0]["requestedAmount"]["value"] = 1000 - 1e-7
+        with self.assertRaisesRegex(ScienceError, "LEDGER_CONSERVATION"):
+            irrigation_from_c8_v1(self.c8, schedule=self.schedule(self.c8), **self.ledger_args)
+        self.c8["plotAllocations"][0]["requestedAmount"]["value"] = 1000
+        self.c8["plotAllocations"][0]["plotId"] = "00000000-0000-0000-0000-000000000020"
+        schedule = self.schedule(self.c8)
+        schedule["days"][0]["effectiveLitres"] = 1e-7
+        with self.assertRaisesRegex(ScienceError, "LEDGER_SCHEDULE_MISMATCH"):
+            irrigation_from_c8_v1(self.c8, schedule=schedule, **self.ledger_args)
