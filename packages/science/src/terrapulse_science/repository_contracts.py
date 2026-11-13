@@ -187,10 +187,13 @@ def fao_input_from_c1_v1(c1, *, plot_id, branch_id, area_m2, planting_date,
         item = _object(item, "daily weather")
         if item.get("ensembleMemberId") != ensemble_member_id:
             continue
+        et0 = item.get("referenceEvapotranspirationMm")
+        if et0 is None:
+            fail("MEASUREMENT_UNAVAILABLE", f"referenceEvapotranspirationMm is required on {item.get('date')}")
         weather.append(WeatherDay(
             date=iso_date(item.get("date")).isoformat(),
             rainfall_mm=_measurement(item.get("rainfallMm"), "mm", "rainfallMm"),
-            reference_et_mm=_measurement(item.get("referenceEvapotranspirationMm"), "mm", "referenceEvapotranspirationMm"),
+            reference_et_mm=_measurement(et0, "mm", "referenceEvapotranspirationMm"),
             min_temp_c=_measurement(item.get("temperatureMinC"), "degC", "temperatureMinC", minimum=None),
             max_temp_c=_measurement(item.get("temperatureMaxC"), "degC", "temperatureMaxC", minimum=None),
             member_id=ensemble_member_id, provenance=provenance,

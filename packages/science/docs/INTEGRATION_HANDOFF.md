@@ -2,6 +2,58 @@
 
 Status: **Developer A v0.2 science package**. The new `repository_contracts.py` boundary uses the repository's C1/C3/C8 1.0 JSON shapes. The legacy flat view remains available. Application wiring and persistence remain Developer D work. See the [package README](../README.md) for evidence restoration.
 
+## Issue #11 science execution
+
+Configure `ScientificRunService(crop_binding=binding, c1_model=C1EnvironmentalInput,
+c3_model=C3ScientificState)` at application startup. Use the trusted Crop Lens
+resolver and canonical lookup to construct `binding` as described below.
+
+Pass the authoritative `EnvironmentalInputResult.c1_input` model only after
+checking `is_valid`, authorized farm/plot/branch UUIDs, an allocated simulation
+run UUID, and the canonical crop UUID from confirmed server-side identity.
+Pass `environmental_warnings=result.warnings`, explicit `turmeric_mapping`,
+area, planting date, root depth, depletion fraction, initial depletion, weather
+realization ID/kind and the normalized member ID (or `None` for deterministic).
+Set `rainfed=True` explicitly or supply the matching C8 JSON and dated schedule.
+The science service checks snapshot farm identity and revalidates C1. Crop binding
+selects FAO-56 before execution. Missing ET₀ is fatal to FAO-56 even when C's
+environmental service returns a valid snapshot with an ET₀ warning.
+
+`execute(...)` returns either a completed result with `states`,
+`scienceEnvelope`, `inputProvenance` and combined `warnings`, or
+`{"status":"failed","error":{"code":...,"message":...,"stage":...}}`.
+Stages are `input`, `engine`, and `output`. Failed results contain no partial
+C3 rows. Developer D owns mapping codes to HTTP responses and treating unexpected
+programming/infra exceptions as server errors, with correlation IDs in either case.
+
+Developer D should store the C1 payload and `environmentalSnapshotHash` in
+`EnvironmentalSnapshot`, its sources in `EnvironmentalProvenance`, and set
+`SimulationRun` IDs, engine name/version, status and `input_hash` using the
+returned identities, projected engine and `scienceEnvelope.inputHash`.
+Persist each C3 row as `ScientificState.payload` with its date, availability,
+plot, branch and run UUID. Preserve the full envelope and accompanying
+`inputProvenance` and warnings under the same persistent run UUID. Current
+`SimulationRun` columns cannot hold the complete envelope. D owns its storage
+design and transaction, including crop binding, capability and parameter
+version/hash, weather member/realization/hash, source provenance, schedule and
+ledger hashes, envelope version and typed failures. C3's engine version alone
+cannot reconstruct those values.
+
+The repository pins Python 3.14.3. The science package requires Python 3.12+
+and uses no AquaCrop runtime dependency for this FAO-56 boundary. Tests run
+against the merged environmental service with offline adapter responses,
+the real C1 models and real C3 validation.
+
+## Issue #18 science follow-up
+
+Keep the existing independent scenario comparators. For repository-facing C5,
+validate the farm and persistent run/snapshot identities, carry the crop binding,
+input hashes, assumptions and provenance for both scenarios, and project only
+compatible dated metrics into the authoritative C5 model. Add tests for
+rejecting mismatched farm or binding and for provenance through C5. Developer D
+supplies the persisted branches, authorized fork/decision history and comparison
+API. The existing numerical comparison evidence remains applicable.
+
 ## Repository contract 1.0 boundary
 
 ### Crop identity and science eligibility (Issue #5)
