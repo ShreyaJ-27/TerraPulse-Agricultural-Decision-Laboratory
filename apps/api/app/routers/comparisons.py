@@ -27,7 +27,7 @@ def _dump(comparison):
         matchedInputs=comparison.matched_inputs,
         reasons=comparison.non_comparable_reasons or [],
         payload=comparison.payload,
-        createdAt=comparison.created_at,
+        createdAt=(comparison.payload or {}).get("createdAt"),
     )
     return data.model_dump(by_alias=True, mode="json")
 
