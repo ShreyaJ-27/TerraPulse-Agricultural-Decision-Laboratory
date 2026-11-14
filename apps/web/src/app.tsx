@@ -1,6 +1,7 @@
 import { FarmerApp } from "./FarmerApp";
 import { WorkspaceFeature, WorkspaceFeatures } from "./components/WorkspaceFeatures";
 import { TelegramConnect } from "./components/TelegramConnect";
+import { PitchAlertControl } from "./components/PitchAlertControl";
 import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
@@ -575,7 +576,7 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
   return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><section className="form-panel"><div className="form-actions">
     <button className="secondary-button" onClick={() => navigate(`/calendar/${farmId}`)}>Calendar</button>
     <button className="secondary-button" onClick={connect}>Set up Telegram</button>
-    </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><ResourcePanel farm={farm} /></PageContainer>;
+    </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><PitchAlertControl farmId={farmId} /><ResourcePanel farm={farm} /></PageContainer>;
 }
 
 function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
