@@ -757,11 +757,13 @@ function CropPlot({
         const x = (row - (spec.rows - 1) / 2) * spec.rowGap + (hash(seed) - 0.5) * spec.rowGap * 0.18;
         const z = (col - (spec.along - 1) / 2) * spec.alongGap + (hash(seed + 1) - 0.5) * spec.alongGap * 0.18;
         const hidden = cutaway && z > -1;
-        const height = hidden ? 0 : (0.78 + hash(seed + 2) * 0.4);
-        const bush = kind === "turmeric" ? height : kind === "orchard" ? (hidden ? 0 : 0.85 + hash(seed + 6) * 0.35) : 1;
+        const vigorScale = visual?.vigor != null ? Math.max(0.4, Math.min(1.4, visual.vigor * 1.2)) : 1.0;
+        const heightMultiplier = visual?.plantHeight != null ? Math.max(0.4, Math.min(1.3, visual.plantHeight * 1.15)) : 1.0;
+        const baseHeight = hidden ? 0 : (0.78 + hash(seed + 2) * 0.4) * heightMultiplier;
+        const bush = kind === "turmeric" ? baseHeight * vigorScale : kind === "orchard" ? (hidden ? 0 : 0.85 + hash(seed + 6) * 0.35) : vigorScale;
         object.position.set(x, 0, z);
         object.rotation.set((hash(seed + 3) - 0.5) * 0.12, hash(seed + 4) * Math.PI * 2, (hash(seed + 5) - 0.5) * 0.12);
-        object.scale.set(height === 0 ? 0 : bush, height === 0 ? 0 : height, height === 0 ? 0 : bush);
+        object.scale.set(baseHeight === 0 ? 0 : bush, baseHeight === 0 ? 0 : baseHeight, baseHeight === 0 ? 0 : bush);
         object.updateMatrix();
         if (kind === "wheat") {
           stalkColor.set("#c6a84e").multiplyScalar(0.88 + hash(seed + 8) * 0.28);
@@ -808,7 +810,7 @@ function CropPlot({
       grass.instanceMatrix.needsUpdate = true;
       grass.computeBoundingSphere();
     }
-  }, [count, cutaway, kind, plot.index, spec.along, spec.alongGap, spec.rowGap, spec.rows, stress]);
+  }, [count, cutaway, kind, plot.index, spec.along, spec.alongGap, spec.rowGap, spec.rows, stress, visual?.vigor, visual?.plantHeight]);
 
   const wetness = moisture == null ? 0.35 : Math.min(1, Math.max(0, (moisture - 25) / 70));
   const soil = new Color("#c2b07a").lerp(new Color("#2f4a28"), wetness).getStyle();
@@ -981,7 +983,7 @@ function SoilCutaway({
         <meshStandardMaterial color="#2e86c1" transparent opacity={0.08 + wetness * 0.2} depthWrite={false} />
       </mesh>
     </>}
-    {showRoots && <Roots kind={kind} limit={limit} faceZ={faceZ} vigor={1} />}
+    {showRoots && <Roots kind={kind} limit={limit} faceZ={faceZ} vigor={visual?.vigor ?? 1} />}
     {Array.from({ length: 6 }, (_, index) => (
       <group key={index} position={[(index - 2.5) * 3.3, 0, 1.7]}>
         <Specimen kind={kind} stress={visual?.waterStress} />

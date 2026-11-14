@@ -76,6 +76,7 @@ export function useFarmPlots(farmId: string, plotId: string) {
 
 export function branchScenario(
   side: FieldSide, branch: Branch | undefined, request: ReturnType<typeof useFieldState>,
+  overrideVisual?: FieldScenario["visual"],
 ): FieldScenario {
   const state = request.state;
   const label = branch ? branch.decisionType.replaceAll("_", " ") + " · " + branch.branchId.slice(0, 8)
@@ -88,7 +89,7 @@ export function branchScenario(
   const soil = state && fao ? measurement(state, "soilWater") : undefined;
   return {
     side, label, description, metrics: state ? scientificMetrics(state) : undefined,
-    visual: stress != null || soil != null ? { waterStress: stress, soilWaterMm: soil } : undefined,
+    visual: overrideVisual ?? (stress != null || soil != null ? { waterStress: stress, soilWaterMm: soil } : undefined),
   };
 }
 

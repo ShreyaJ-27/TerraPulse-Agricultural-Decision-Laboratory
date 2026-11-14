@@ -529,8 +529,8 @@ export function applySakuraSunsetVariant(source: string) {
       "per-spray variation carried to the blossom",
     ],
     [
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
       "per-spray variation read by the blossom",
     ],
     [
@@ -908,8 +908,8 @@ export function applySequoiaMistVariant(source: string) {
       "per-spray variation carried to the foliage",
     ],
     [
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
       "per-spray variation read by the foliage",
     ],
     [
@@ -1253,8 +1253,8 @@ export function applyMapleAutumnVariant(source: string) {
       "per-leaf variation carried to the leaf",
     ],
     [
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
-        "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',",
+      "'uniform sampler2D uMap;',\n        'uniform float uAlpha; uniform float uBoxH;',\n        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',\n        'varying float vRnd;',",
       "per-leaf variation read by the leaf",
     ],
     [
