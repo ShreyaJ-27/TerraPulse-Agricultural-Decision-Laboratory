@@ -674,84 +674,86 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
   };
 
   return <PageContainer>
-    <div className="page-intro">
-      <p className="eyebrow">Environmental evidence</p>
-      <h2>{plot.cropCanonicalName}</h2>
-      <p>{farm.name} · {plot.areaM2.value} m²</p>
-      <p>Planting date {startDate || "unavailable"}{startDate && !dateReady ? " (needs confirmation)" : ""}</p>
-      <div className="workspace-links">
-        <button className="secondary-button" disabled={Boolean(pending)} onClick={() => {
-          setPlantingDate(startDate || "");
-          setEditing(true);
-        }}>{dateReady ? "Edit planting date" : "Confirm planting date"}</button>
-        <button className="secondary-button" onClick={() => navigate(`${plotPath}/observatory`)}>Living Field</button>
-        <button className="secondary-button" onClick={() => navigate(`${plotPath}/results`)}>Simulation history</button>
+    <div className="environment-evidence">
+      <div className="page-intro">
+        <p className="eyebrow">Environmental evidence</p>
+        <h2>{plot.cropCanonicalName}</h2>
+        <p>{farm.name} · {plot.areaM2.value} m²</p>
+        <p>Planting date {startDate || "unavailable"}{startDate && !dateReady ? " (needs confirmation)" : ""}</p>
+        <div className="workspace-links">
+          <button className="secondary-button" disabled={Boolean(pending)} onClick={() => {
+            setPlantingDate(startDate || "");
+            setEditing(true);
+          }}>{dateReady ? "Edit planting date" : "Confirm planting date"}</button>
+          <button className="secondary-button" onClick={() => navigate(`${plotPath}/observatory`)}>Living Field</button>
+          <button className="secondary-button" onClick={() => navigate(`${plotPath}/results`)}>Simulation history</button>
+        </div>
       </div>
+      {editing && <form className="form-panel planting-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        <label>Actual planting date
+          <input type="date" value={plantingDate} max={today} required disabled={pending === "save"}
+            onChange={(event) => setPlantingDate(event.target.value)} />
+        </label>
+        <div className="form-actions">
+          <button type="button" className="secondary-button" disabled={Boolean(pending)} onClick={() => setEditing(false)}>Cancel</button>
+          <button className="primary-button" disabled={Boolean(pending)}>{pending === "save" ? "Saving…" : "Save confirmed date"}</button>
+        </div>
+      </form>}
+      <p>{dateReady
+        ? `Evidence period ${startDate} to ${endDate}${startDate === today ? " (includes forecast days)" : ""}.`
+        : "Confirm the actual planting date to prepare evidence for this crop."}</p>
+      <button className="primary-button" disabled={!dateReady || editing || Boolean(pending)} onClick={prepare}>
+        {pending === "prepare" ? "Preparing evidence…" : "Prepare evidence"}
+      </button>
+      {error && <ErrorState label={error} />}
+      {environment && <>
+        <div className="evidence-grid">
+          <ReusableCard>
+            <h3>Soil profile</h3>
+            <Metric label="Depth" value={environment.c1Input?.soil?.depthCm} />
+            <Metric label="Texture" value={environment.c1Input?.soil?.texture} />
+            <Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} />
+            <Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} />
+          </ReusableCard>
+          <ReusableCard>
+            <h3>Weather conditions</h3>
+            <p>{environment.c1Input?.dailyWeather?.filter((day) => day.rainfallMm.availability.status === "available").length || 0} days with rainfall data</p>
+            {environment.c1Input?.dailyWeather?.slice(0, 5).map((day) => <Metric key={day.date} label={day.date} value={day.rainfallMm} />)}
+          </ReusableCard>
+          <ReusableCard>
+            <h3>Crop capability</h3>
+            <p>{engine || "Unavailable"} {environment.capability?.engineVersion || ""}</p>
+            {environment.simulationBlocker && <p role="status">
+              {engine === "AquaCrop" ? "Farm-scale AquaCrop is unavailable for this crop. " : ""}
+              {environment.simulationBlocker.message}
+            </p>}
+            <p>{environment.capability?.knownLimitations?.join(" ")}</p>
+          </ReusableCard>
+          <ReusableCard>
+            <h3>Validation and provenance</h3>
+            <p>{environment.isValid ? "Environmental inputs validated." : "Environmental inputs need attention."}</p>
+            {Boolean(environment.errors?.length) && <ul>{environment.errors?.map((item) => <li key={item}>{item}</li>)}</ul>}
+            <p>{environment.warnings?.join(" ")}</p>
+            {environment.retrievedAt && <p>Snapshot collected {new Date(environment.retrievedAt).toLocaleString()}</p>}
+          </ReusableCard>
+        </div>
+        {canRun && <div className="workspace-links">
+          {turmeric && <label className="mapping-select">Turmeric stage mapping
+            <select value={mapping} onChange={(event) => setMapping(event.target.value)}>
+              <option value="">Select A, B or C</option>
+              <option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option>
+            </select>
+          </label>}
+          <button className="primary-button" disabled={editing || Boolean(pending) || (turmeric && !mapping)} onClick={run}>
+            {pending === "run" ? "Submitting…" : "Run Simulation"}
+          </button>
+        </div>}
+        <div className="workspace-links">
+          <button className="secondary-button" onClick={() => navigate(`${plotPath}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button>
+          <button className="secondary-button" onClick={() => navigate(`${plotPath}/future-fold`)}>Future Fold</button>
+        </div>
+      </>}
     </div>
-    {editing && <form className="form-panel planting-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
-      <label>Actual planting date
-        <input type="date" value={plantingDate} max={today} required disabled={pending === "save"}
-          onChange={(event) => setPlantingDate(event.target.value)} />
-      </label>
-      <div className="form-actions">
-        <button type="button" className="secondary-button" disabled={Boolean(pending)} onClick={() => setEditing(false)}>Cancel</button>
-        <button className="primary-button" disabled={Boolean(pending)}>{pending === "save" ? "Saving…" : "Save confirmed date"}</button>
-      </div>
-    </form>}
-    <p>{dateReady
-      ? `Evidence period ${startDate} to ${endDate}${startDate === today ? " (includes forecast days)" : ""}.`
-      : "Confirm the actual planting date to prepare evidence for this crop."}</p>
-    <button className="primary-button" disabled={!dateReady || editing || Boolean(pending)} onClick={prepare}>
-      {pending === "prepare" ? "Preparing evidence…" : "Prepare evidence"}
-    </button>
-    {error && <ErrorState label={error} />}
-    {environment && <>
-      <div className="evidence-grid">
-        <ReusableCard>
-          <h3>Soil profile</h3>
-          <Metric label="Depth" value={environment.c1Input?.soil?.depthCm} />
-          <Metric label="Texture" value={environment.c1Input?.soil?.texture} />
-          <Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} />
-          <Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} />
-        </ReusableCard>
-        <ReusableCard>
-          <h3>Weather conditions</h3>
-          <p>{environment.c1Input?.dailyWeather?.filter((day) => day.rainfallMm.availability.status === "available").length || 0} days with rainfall data</p>
-          {environment.c1Input?.dailyWeather?.slice(0, 5).map((day) => <Metric key={day.date} label={day.date} value={day.rainfallMm} />)}
-        </ReusableCard>
-        <ReusableCard>
-          <h3>Crop capability</h3>
-          <p>{engine || "Unavailable"} {environment.capability?.engineVersion || ""}</p>
-          {environment.simulationBlocker && <p role="status">
-            {engine === "AquaCrop" ? "Farm-scale AquaCrop is unavailable for this crop. " : ""}
-            {environment.simulationBlocker.message}
-          </p>}
-          <p>{environment.capability?.knownLimitations?.join(" ")}</p>
-        </ReusableCard>
-        <ReusableCard>
-          <h3>Validation and provenance</h3>
-          <p>{environment.isValid ? "Environmental inputs validated." : "Environmental inputs need attention."}</p>
-          {Boolean(environment.errors?.length) && <ul>{environment.errors?.map((item) => <li key={item}>{item}</li>)}</ul>}
-          <p>{environment.warnings?.join(" ")}</p>
-          {environment.retrievedAt && <p>Snapshot collected {new Date(environment.retrievedAt).toLocaleString()}</p>}
-        </ReusableCard>
-      </div>
-      {canRun && <div className="workspace-links">
-        {turmeric && <label className="mapping-select">Turmeric stage mapping
-          <select value={mapping} onChange={(event) => setMapping(event.target.value)}>
-            <option value="">Select A, B or C</option>
-            <option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option>
-          </select>
-        </label>}
-        <button className="primary-button" disabled={editing || Boolean(pending) || (turmeric && !mapping)} onClick={run}>
-          {pending === "run" ? "Submitting…" : "Run Simulation"}
-        </button>
-      </div>}
-      <div className="workspace-links">
-        <button className="secondary-button" onClick={() => navigate(`${plotPath}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button>
-        <button className="secondary-button" onClick={() => navigate(`${plotPath}/future-fold`)}>Future Fold</button>
-      </div>
-    </>}
   </PageContainer>;
 }
 

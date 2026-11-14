@@ -16,9 +16,11 @@
 .app-shell .content-wrap { max-width: none; background: #f6f6f1; min-height: calc(100vh - 116px); }
 .app-shell .form-actions, .workspace-links { flex-wrap: wrap; }
 .app-shell .planting-form { max-width: 28rem; }
-.app-shell .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.app-shell .evidence-grid li { overflow-wrap: anywhere; }
+.environment-evidence .secondary-button { color: #214c38; }
+.environment-evidence .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.environment-evidence .evidence-grid .info-card { min-height: 0; }
+.environment-evidence .evidence-grid li { overflow-wrap: anywhere; }
 @media (max-width: 760px) {
   .app-shell .content-wrap { min-height: calc(100vh - 90px); }
-  .app-shell .evidence-grid { grid-template-columns: minmax(0, 1fr); }
+  .environment-evidence .evidence-grid { grid-template-columns: minmax(0, 1fr); }
 }
