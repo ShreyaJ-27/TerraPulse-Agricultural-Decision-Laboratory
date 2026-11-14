@@ -13,7 +13,7 @@ def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
                         crop_name: str, plot_name: str = "Plot 1", region_id: str | None, planting: PlantingDate,
                         on_date: date, profile: CropCalendarProfile | None) -> dict:
     matched = profile if profile and profile.region_id == region_id and profile.crop_id == crop_id else None
-    end = on_date + timedelta(days=31)
+    end = on_date + timedelta(days=30)
     events = []
     if planting.date and on_date <= planting.date <= end:
         events.append({"date": planting.date.isoformat(),
@@ -22,9 +22,10 @@ def build_calendar_view(*, farm_id: UUID, plot_id: UUID, crop_id: UUID | None,
             "certainty": planting.certainty})
     if matched:
         for window in matched.planting_windows:
-            if on_date <= window.start <= end and (
+            if window.start <= end and on_date <= window.end and (
                     planting.date is None or planting.date > window.end):
-                events.append({"date": window.start.isoformat(),
+                events.append({"date": max(window.start, on_date).isoformat(),
+                    "endDate": window.end.isoformat(),
                     "title": f"{crop_name} regional planting window",
                     "action": "Consider field conditions and the published regional guidance.",
                     "source": window.source_id, "sourceVersion": window.evidence_version,

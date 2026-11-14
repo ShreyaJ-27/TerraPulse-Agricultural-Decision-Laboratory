@@ -44,8 +44,11 @@ export async function api<T>(path: string, init?: Parameters<typeof window.fetch
 
 export const apiClient = {
   listFarms: () => api<{ farms: Farm[]; total: number }>("/api/v1/farms"),
+  redeemFarmOpenLink: (token: string) => api<{ farmIds: string[]; total: number }>("/api/v1/workspace-link/redeem", { method: "POST", body: JSON.stringify({ token }) }),
   getCalendar: (farmId: string) => api<{ asOfDate: string; plots: CalendarPlot[] }>(`/api/v1/agri-calendar/farms/${farmId}`),
   issueTelegramLink: (farmId: string) => api<{ telegramConnectUrl: string }>(`/api/v1/farms/${farmId}/telegram-link`, { method: "POST" }),
+  getPitchAlertStatus: (farmId: string) => api<{ available: boolean; connected?: boolean; cooldownSeconds?: number }>(`/api/v1/farms/${farmId}/pitch-alert`),
+  sendPitchAlert: (farmId: string, requestId: string) => api<{ sent: boolean; receiptId: string; telegramMessageId?: number }>(`/api/v1/farms/${farmId}/pitch-alert`, { method: "POST", body: JSON.stringify({ requestId }) }),
   getFarm: (id: string) => api<Farm>(`/api/v1/farms/${id}`),
   createFarm: (value: unknown) => api<Farm>("/api/v1/farms", { method: "POST", body: JSON.stringify(value) }),
   createPlot: (farmId: string, value: unknown) => api<Plot>(`/api/v1/farms/${farmId}/plots`, { method: "POST", body: JSON.stringify(value) }),
@@ -69,12 +72,8 @@ export const apiClient = {
     api<AnalysisResult>("/api/v1/analysis", { method: "POST", body: JSON.stringify(payload) }),
   listNotifications: (farmId: string) =>
     api<{ farmId: string; notifications: any[]; total: number }>(`/api/v1/notifications/farms/${farmId}`),
-  triggerTestNotification: (farmId: string, payload: any) =>
-    api<any>(`/api/v1/notifications/farms/${farmId}/test`, { method: "POST", body: JSON.stringify(payload) }),
   getTelegramStatus: (farmId: string) =>
     api<{ farmId: string; connected: boolean; botUsername: string; subscriptionCount: number; subscriptions: any[] }>(`/api/v1/notifications/telegram/status/${farmId}`),
-  createTelegramLink: (farmId: string) =>
-    api<{ farmId: string; token: string; connectUrl: string; botUsername: string; expiresInMinutes: number }>(`/api/v1/notifications/telegram/link/${farmId}`, { method: "POST" }),
   getDeliveries: (farmId: string) =>
     api<{ farmId: string; deliveries: any[]; total: number }>(`/api/v1/notifications/deliveries/${farmId}`),
   getAgriCalendarSeasons: () =>
@@ -110,12 +109,13 @@ export type CalendarPlot = {
   cropName: string;
   plantingDate: string | null;
   plantingCertainty: string;
+  regionId: string | null;
   regionalGuidanceAvailable: boolean;
   regionalSource?: string;
   regionalSourceVersion?: string;
   regionalSourceUrl?: string;
   plantingWindowNote?: string;
-  next31Days: { date: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
+  next31Days: { date: string; endDate?: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
   undatedActivities: { title: string; guidance: string; source: string; sourceVersion?: string }[];
 };
 export type Resource = { resourceId: string; farmId: string; name: string; resourceType: string; unit: string; openingVolume: number; metadata?: Record<string, unknown>; createdAt?: string };

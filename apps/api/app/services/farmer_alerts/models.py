@@ -93,3 +93,51 @@ class TelegramUpdateCursor(Base):
 class TelegramWebhookUpdate(Base):
     __tablename__ = "telegram_webhook_updates"
     update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+
+
+class PitchAlertSend(Base):
+    """Logged scenario messages, distinct from real evidence-backed advisories."""
+    __tablename__ = "telegram_pitch_sends"
+    __table_args__ = (
+        UniqueConstraint("farm_id", "request_id", name="uq_pitch_farm_request"),
+        Index("ix_pitch_farm_created", "farm_id", "created_at"),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"))
+    subscription_id: Mapped[UUID] = mapped_column(ForeignKey("telegram_subscriptions.id", ondelete="CASCADE"))
+    request_id: Mapped[UUID] = mapped_column(nullable=False)
+    scenario: Mapped[str] = mapped_column(String(48), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class FarmWorkspaceGrant(Base):
+    """A new browser may access only farms linked to its redeemed Telegram link."""
+    __tablename__ = "farm_workspace_grants"
+    __table_args__ = (
+        UniqueConstraint("farm_id", "token_hash", name="uq_farm_workspace_grant"),
+        Index("ix_workspace_grant_token", "token_hash"),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    farm_id: Mapped[UUID] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class TelegramBrowserReconnect(Base):
+    """Short-lived one-tap link minted in an existing private Telegram chat."""
+    __tablename__ = "telegram_browser_reconnects"
+    __table_args__ = (Index("ix_browser_reconnect_client_created", "client_hash", "created_at"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    poll_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    client_hash: Mapped[str] = mapped_column(String(64))
+    farm_id: Mapped[UUID | None] = mapped_column(ForeignKey("farms.id", ondelete="CASCADE"), nullable=True)
+    approved_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    approved_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

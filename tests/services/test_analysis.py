@@ -406,7 +406,7 @@ async def test_llm_client_fallback_when_unconfigured(in_memory_onboarding, crop_
     builder = EvidenceBundleBuilder(in_memory_onboarding, crop_resolver, environmental_service)
     bundle = await builder.build(AnalysisRequest(farmId=farm.farm_id, plotId=plot.plot_id), c1_override=c1_model)
 
-    client = AnalysisLlmClient(api_key=None)
+    client = AnalysisLlmClient(api_key="", groq_api_key="")
     assert not client.is_configured
     res = await client.generate_explanation(bundle, "What is my water balance?")
     assert res is None
@@ -463,8 +463,9 @@ async def test_llm_client_fallback_on_hallucinated_number(in_memory_onboarding, 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["gemini", "groq"])
 async def test_llm_accepts_only_structured_claims_with_exact_sources(
-    in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot
+    in_memory_onboarding, crop_resolver, environmental_service, seeded_farm_and_plot, provider
 ):
     farm, plot = seeded_farm_and_plot
     builder = EvidenceBundleBuilder(in_memory_onboarding, crop_resolver, environmental_service)
@@ -500,24 +501,27 @@ async def test_llm_accepts_only_structured_claims_with_exact_sources(
     }
     mock_resp = AsyncMock()
     mock_resp.status_code = 200
-    mock_resp.json = lambda: {
-        "candidates": [
-            {"content": {"parts": [{"text": json.dumps(response_data)}]}}
-        ]
-    }
-    client = AnalysisLlmClient(api_key="mock-api-key")
+    if provider == "groq":
+        mock_resp.json = lambda: {"choices": [{"message": {"content": json.dumps(response_data)}}]}
+        client = AnalysisLlmClient(groq_api_key="mock-api-key")
+    else:
+        mock_resp.json = lambda: {
+            "candidates": [{"content": {"parts": [{"text": json.dumps(response_data)}]}}]
+        }
+        client = AnalysisLlmClient(api_key="mock-api-key")
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp) as post:
         result = await client.generate_explanation(bundle, "Explain the plot area.")
     assert result is not None
     assert result[2][0].source_id == claim["sourceId"]
+    if provider == "groq":
+        args, kwargs = post.call_args
+        assert args == ("https://api.groq.com/openai/v1/chat/completions",)
+        assert kwargs["headers"]["Authorization"] == "Bearer mock-api-key"
+        assert kwargs["json"]["response_format"] == {"type": "json_object"}
+        assert "mock-api-key" not in json.dumps(kwargs["json"])
 
     response_data["sections"][0]["claims"][0]["sourceId"] = "wrong-source"
-    mock_resp.json = lambda: {
-        "candidates": [
-            {"content": {"parts": [{"text": json.dumps(response_data)}]}}
-        ]
-    }
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
         rejected = await client.generate_explanation(bundle, "Explain the plot area.")
     assert rejected is None

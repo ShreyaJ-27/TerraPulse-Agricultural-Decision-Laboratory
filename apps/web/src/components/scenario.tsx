@@ -64,7 +64,11 @@ export function Observatory({ farmId, plotId, navigate }: PlotWorkspace) {
       <p>{state.provenance.engine} {state.provenance.engineVersion} · {state.provenance.parameterVersion || "parameter version unavailable"}</p>
       <p>Run {state.simulationRunId} · snapshot {state.provenance.environmentalSnapshotId}</p>
     </ReusableCard>}
-    <button type="button" className="secondary-button" onClick={() => navigate(scenePath(farmId, plotId, "future-fold") + dateQuery)}>Open Future Fold</button>
+    <div className="workspace-links">
+      <button type="button" className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/environment`)}>Environmental Evidence</button>
+      <button type="button" className="secondary-button" onClick={() => navigate(scenePath(farmId, plotId, "future-fold") + dateQuery)}>Open Future Fold</button>
+      <button type="button" className="secondary-button" onClick={() => navigate(`/farms/${farmId}`)}>Farm Workspace</button>
+    </div>
   </PageContainer>;
 }
 

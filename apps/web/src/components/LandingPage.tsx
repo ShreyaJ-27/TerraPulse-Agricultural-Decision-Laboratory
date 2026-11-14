@@ -58,7 +58,7 @@ export function LandingPage({
   const handleNavClick = (tab: typeof NAV_TABS[number]) => {
     setActiveNavTab(tab);
     if (tab === "Farm Workspace") {
-      if (navigate) navigate("/dashboard?tab=overview");
+      if (navigate) navigate("/farms");
       else scrollToSection("solution");
     } else if (tab === "Future Fold") {
       scrollToSection("future-fold");

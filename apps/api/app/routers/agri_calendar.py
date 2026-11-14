@@ -4,8 +4,7 @@ sowing recommendations, growth stages, irrigation scheduling and explanations.
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -66,15 +65,7 @@ SEASONS_INFO = [
 
 
 def _get_profiles():
-    profiles_path = os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE")
-    if not profiles_path or not os.path.exists(profiles_path):
-        candidate = Path(__file__).resolve().parents[4] / "packages/contracts/fixtures/calendar-profiles.json"
-        if candidate.exists():
-            profiles_path = str(candidate)
-    try:
-        return load_profiles_file(profiles_path)
-    except Exception:
-        return {}
+    return load_profiles_file(os.environ.get("TERRAPULSE_CALENDAR_PROFILES_FILE"))
 
 
 @router.get("/seasons", response_model=ApiResponse)
@@ -197,7 +188,7 @@ async def calendar_for_farm(
 
     for index, plot in enumerate(plots, start=1):
         metadata = plot.management or {}
-        region = metadata.get("regionId", "IN-PB")
+        region = metadata.get("regionId")
         crop = await session.get(CropIdentity, plot.crop_id) if plot.crop_id else None
 
         cal = build_calendar_view(
@@ -212,22 +203,13 @@ async def calendar_for_farm(
             profile=profiles.get((region, plot.crop_id)) if isinstance(region, str) else None,
         )
 
-        # Enhance with current stage and why explanations
+        # A modeled stage requires observations or scientific state for this plot.
         if plot.planting_date:
             days_grown = (today - plot.planting_date).days
-            cal["daysSincePlanting"] = max(0, days_grown)
-            matched_profile = profiles.get((region, plot.crop_id)) if isinstance(region, str) else None
-            if matched_profile and matched_profile.milestones:
-                current_stage = "Early establishment"
-                for m in matched_profile.milestones:
-                    if m.days_after_planting is not None and days_grown >= m.days_after_planting:
-                        current_stage = m.label
-                cal["currentGrowthStage"] = current_stage
-            else:
-                cal["currentGrowthStage"] = "Active growth"
+            cal["daysSincePlanting"] = days_grown if days_grown >= 0 else None
         else:
             cal["daysSincePlanting"] = None
-            cal["currentGrowthStage"] = "Awaiting sowing"
+        cal["currentGrowthStage"] = None
 
         cal["activeSeason"] = "Kharif" if 6 <= today.month <= 10 else "Rabi" if today.month >= 11 or today.month <= 2 else "Zaid"
         result.append(cal)

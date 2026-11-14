@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,11 +23,13 @@ class Settings(BaseSettings):
     soilgrids_wcs_url: str = "https://maps.isric.org/mapserv"
     soilgrids_timeout_seconds: float = 10.0
     gemini_api_key: str | None = None
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     @property
     def require_workspace_key(self) -> bool:
-        return self.app_env == "production"
+        return self.app_env == "production" or os.environ.get("VERCEL_ENV") in {"preview", "production"}
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

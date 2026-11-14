@@ -93,7 +93,7 @@ type BrowserSpeechWindow = typeof window & {
   webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
 };
 
-function useSpeechInput(
+export function useSpeechInput(
   locale: Locale,
   copy: Translation,
   onTranscript: (value: string) => void,
@@ -131,13 +131,12 @@ function useSpeechInput(
 
   const toggle = () => {
     setNotice("");
-    if (listening) {
+    if (recognitionRef.current) {
       try {
         recognitionRef.current?.stop();
       } catch {
         recognitionRef.current?.abort();
       }
-      setListening(false);
       return;
     }
     const browserWindow = window as BrowserSpeechWindow;
@@ -153,14 +152,14 @@ function useSpeechInput(
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.onstart = () => {
-        if (mountedRef.current) setListening(true);
+        if (mountedRef.current && recognitionRef.current === recognition) setListening(true);
       };
       recognition.onresult = (event) => {
         const transcript = event.results[0]?.[0]?.transcript?.trim();
-        if (mountedRef.current && transcript) onTranscript(transcript);
+        if (mountedRef.current && recognitionRef.current === recognition && transcript) onTranscript(transcript);
       };
       recognition.onerror = (event) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || recognitionRef.current !== recognition) return;
         setListening(false);
         const errors: Record<string, string> = {
           "not-allowed": copy.micPermissionDenied,
@@ -175,12 +174,15 @@ function useSpeechInput(
         setNotice(errors[event.error] || copy.speechError);
       };
       recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
+        recognitionRef.current = null;
         if (mountedRef.current) setListening(false);
-        if (recognitionRef.current === recognition) recognitionRef.current = null;
       };
       recognitionRef.current = recognition;
+      setListening(true);
       recognition.start();
     } catch {
+      recognitionRef.current = null;
       setListening(false);
       setNotice(copy.speechError);
     }

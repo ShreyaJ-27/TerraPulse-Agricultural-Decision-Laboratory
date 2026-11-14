@@ -11,6 +11,7 @@ from app.contracts import Availability, Coordinates, DataStatus, Measurement
 from app.models import CropIdentity, Farm, FarmResource, Plot, ResourcePlotAuthorization
 from app.schemas import FarmCreateRequest, FarmResponse, PlotCreateRequest, PlotResponse
 from app.services.crop_lens.registry import CROP_REGISTRY, get_crop_by_id
+from app.services.farmer_alerts.models import FarmWorkspaceGrant
 from app.services.crop_lens.resolver import CandidateMatch, CropLensResolver, ResolutionStatus
 from geoalchemy2.elements import WKTElement
 from sqlalchemy import select
@@ -160,7 +161,12 @@ class OnboardingService:
                 selectinload(Farm.plots).selectinload(Plot.resource_assignments)
             )
             if workspace_key_hash is not None:
-                stmt = stmt.where(Farm.workspace_key_hash == workspace_key_hash)
+                stmt = stmt.where(
+                    (Farm.workspace_key_hash == workspace_key_hash)
+                    | (Farm.id.in_(select(FarmWorkspaceGrant.farm_id).where(
+                        FarmWorkspaceGrant.token_hash == workspace_key_hash,
+                    )))
+                )
             result = await self.session.execute(stmt)
             return [_farm_to_response(f) for f in result.scalars().all()]
 

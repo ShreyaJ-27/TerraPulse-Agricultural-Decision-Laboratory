@@ -933,11 +933,13 @@
 
 .advisory-ask-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
 .advisory-input {
-  flex: 1;
+  flex: 1 1 16rem;
+  min-width: 0;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(88, 126, 75, 0.35);
   border-radius: 6px;
@@ -954,7 +956,7 @@
   color: #ffffff;
   border: 1px solid #4a8053;
   border-radius: 6px;
-  padding: 0 18px;
+  padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -962,6 +964,51 @@
 
 .advisory-send-btn:hover { background: #396f41; }
 .advisory-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.advisory-voice-status { font-size: 0.9rem; }
+
+.connected-calendar {
+  display: grid;
+  gap: 1.25rem;
+  color: #20372b;
+  --calendar-surface: #fff;
+  --calendar-control: #f8fbf7;
+  --calendar-border: #c7d4c9;
+  --calendar-link: #275d43;
+}
+
+.calendar-pane .connected-calendar {
+  color: #ecf4ed;
+  --calendar-surface: #192722;
+  --calendar-control: #101c17;
+  --calendar-border: #60746a;
+  --calendar-link: #bde5bc;
+}
+
+.calendar-pane .calendar-filters select { color-scheme: dark; }
+.connected-calendar h2, .connected-calendar h3, .connected-calendar h4 { color: inherit; }
+.connected-calendar :is(h2, h3, h4, p) { margin: 0; }
+.connected-calendar header p { margin-top: 0.5rem; }
+.calendar-filters, .calendar-records article {
+  background: var(--calendar-surface);
+  border: 1px solid var(--calendar-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.calendar-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+}
+.calendar-filters label, .calendar-records, .calendar-records article { display: grid; gap: 0.5rem; }
+.calendar-filters select {
+  min-width: 0;
+  padding: 0.55rem;
+  background: var(--calendar-control);
+  color: inherit;
+  border: 1px solid var(--calendar-border);
+  border-radius: 4px;
+}
+.calendar-records a { color: var(--calendar-link); text-decoration: underline; }
 
 .quick-prompts-row {
   display: flex;

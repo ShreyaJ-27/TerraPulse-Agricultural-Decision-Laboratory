@@ -1,7 +1,9 @@
 import { FarmerApp } from "./FarmerApp";
 import { WorkspaceFeature, WorkspaceFeatures } from "./components/WorkspaceFeatures";
 import { TelegramConnect } from "./components/TelegramConnect";
-import { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
+import { PitchAlertControl } from "./components/PitchAlertControl";
+import { FarmOpenLink } from "./components/FarmOpenLink";
+import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
 import { EmptyState, ErrorState, LoadingState, PageContainer, ReusableCard } from "./components/ui";
 import { apiClient, ApiError, Crop, CropResolution, Environment, Farm, Simulation } from "./services/apiClient";
@@ -14,19 +16,28 @@ import { AgriculturalDashboard } from "./components/AgriculturalDashboard";
 import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 
 const routePath = () => window.location.pathname.replace(/\/+$/, "") || "/";
+const readUrl = () => window.location.pathname + window.location.search;
 function useNavigation() {
-  const [path, setPath] = useState(routePath);
-  useEffect(() => { const onPop = () => setPath(routePath()); window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
-  const navigate = (next: string) => { window.history.pushState({}, "", next); setPath(routePath()); };
+  const [, setUrl] = useState(readUrl);
+  const path = routePath();
+  useEffect(() => { const onPop = () => setUrl(readUrl()); window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
+  const navigate = useCallback((next: string) => { window.history.pushState({}, "", next); setUrl(readUrl()); }, []);
   return { path, navigate };
 }
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Something went wrong. Please retry.";
 
 function FarmList({ navigate, copy }: { navigate: (path: string) => void; copy: typeof translations.en }) {
-  const [farms, setFarms] = useState<Farm[]>([]); const [error, setError] = useState("");
-  useEffect(() => { apiClient.listFarms().then((value) => setFarms(value.farms)).catch((e) => setError(message(e))); }, []);
+  const [farms, setFarms] = useState<Farm[]>(); const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    apiClient.listFarms()
+      .then(({ farms }) => { if (active) setFarms(farms); })
+      .catch((reason) => { if (active) setError(message(reason)); });
+    return () => { active = false; };
+  }, []);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms registered yet" description="Register a farm with a confirmed location to begin." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
+  if (!farms) return <PageContainer><LoadingState label="Loading saved farms…" /></PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms on this browser yet" description="Already registered? Send /open in your connected TerraPulse Telegram chat and tap the link to restore your saved farms. No re-registration needed." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
 }
 
 function FarmWizard({
@@ -570,12 +581,23 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
       setTelegramUrl((await apiClient.issueTelegramLink(farmId)).telegramConnectUrl);
     } catch (e) { setTelegramError(message(e)); }
   };
-  useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
+  useEffect(() => {
+    let active = true;
+    apiClient.getFarm(farmId).then((savedFarm) => {
+      if (!active) return;
+      setFarm(savedFarm);
+      window.localStorage.setItem("terrapulse-active-farm-id", savedFarm.farmId);
+    }).catch((e) => { if (active) setError(message(e)); });
+    return () => { active = false; };
+  }, [farmId]);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm) return <PageContainer><LoadingState label="Loading farm…" /></PageContainer>;
   return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><section className="form-panel"><div className="form-actions">
-    <button className="secondary-button" onClick={() => navigate(`/calendar/${farmId}`)}>Calendar</button>
+    <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=calendar`)}>Agricultural Calendar</button>
+    <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=living-field`)}>Living Field</button>
+    <button className="secondary-button" onClick={() => navigate(`/saved-decisions/${farmId}`)}>Saved Decisions</button>
+    <button className="secondary-button" onClick={() => navigate(`/advisory/${farmId}`)}>Advisory</button>
     <button className="secondary-button" onClick={connect}>Set up Telegram</button>
-    </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><ResourcePanel farm={farm} /></PageContainer>;
+    </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><PitchAlertControl farmId={farmId} /><ResourcePanel farm={farm} /></PageContainer>;
 }
 
 function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
@@ -598,7 +620,7 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
   };
   const run = async () => { if (!environment?.environmentalSnapshotId || !environment.isValid || (plot!.cropCanonicalName === "Turmeric" && !mapping)) return; setRunning(true); setError(""); try { const result = await apiClient.submitSimulation({ farmId, plotId, environmentalSnapshotId: environment.environmentalSnapshotId, irrigationMode: "rainfed", turmericMapping: mapping || undefined }); navigate(`/farms/${farmId}/plots/${plotId}/results/${result.simulationRunId}`); } catch (e) { setError(message(e)); } finally { setRunning(false); } };
   if (!farm || !plot) return <PageContainer>{error ? <ErrorState label={error} /> : <LoadingState label="Loading plot…" />}</PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">Environmental evidence</p><h2>{plot.cropCanonicalName}</h2><p>{farm.name} · {plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><button className="primary-button" disabled={preparing} onClick={prepare}>Prepare evidence <span>→</span></button></div>{error && <ErrorState label={error} />}{environment && <><div className="evidence-grid"><ReusableCard><h3>Soil profile</h3><Metric label="Depth" value={environment.c1Input?.soil?.depthCm} /><Metric label="Texture" value={environment.c1Input?.soil?.texture} /><Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} /><Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} /></ReusableCard><ReusableCard><h3>Weather conditions</h3><p>{environment.c1Input?.dailyWeather?.length || 0} returned records</p>{environment.c1Input?.dailyWeather?.slice(0, 5).map((w) => <Metric key={w.date} label={w.date} value={w.rainfallMm} />)}</ReusableCard><ReusableCard><h3>Crop capability</h3><p>{environment.capability?.selectedEngine || "Unavailable"} {environment.capability?.engineVersion || ""}</p><p>{environment.capability?.knownLimitations?.join(" ")}</p></ReusableCard><ReusableCard><h3>Validation and provenance</h3><p>{environment.isValid ? "Validated for the requested inputs." : "Not simulation-ready."}</p><p>{environment.warnings?.join(" ")}</p><p>Freshness: {environment.freshness || "not reported"}</p></ReusableCard></div>{environment.isValid && environment.capability?.selectedEngine === "FAO-56" && <><label className="mapping-select">Turmeric stage mapping<select value={mapping} onChange={(e) => setMapping(e.target.value)}><option value="">Select A, B or C</option><option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option></select></label><button className="primary-button" disabled={running || (plot.cropCanonicalName === "Turmeric" && !mapping)} onClick={run}>{running ? "Submitting…" : "Run Simulation"} <span>→</span></button></>}<button className="text-button evidence-link" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results`)}>View simulation results →</button><div className="workspace-links"><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Open Living Field</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/future-fold`)}>Future Fold</button></div></>}</PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">Environmental evidence</p><h2>{plot.cropCanonicalName}</h2><p>{farm.name} · {plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><button className="primary-button" disabled={preparing} onClick={prepare}>Prepare evidence <span>→</span></button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Living Field</button></div>{error && <ErrorState label={error} />}{environment && <><div className="evidence-grid"><ReusableCard><h3>Soil profile</h3><Metric label="Depth" value={environment.c1Input?.soil?.depthCm} /><Metric label="Texture" value={environment.c1Input?.soil?.texture} /><Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} /><Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} /></ReusableCard><ReusableCard><h3>Weather conditions</h3><p>{environment.c1Input?.dailyWeather?.length || 0} returned records</p>{environment.c1Input?.dailyWeather?.slice(0, 5).map((w) => <Metric key={w.date} label={w.date} value={w.rainfallMm} />)}</ReusableCard><ReusableCard><h3>Crop capability</h3><p>{environment.capability?.selectedEngine || "Unavailable"} {environment.capability?.engineVersion || ""}</p><p>{environment.capability?.knownLimitations?.join(" ")}</p></ReusableCard><ReusableCard><h3>Validation and provenance</h3><p>{environment.isValid ? "Validated for the requested inputs." : "Not simulation-ready."}</p><p>{environment.warnings?.join(" ")}</p><p>Freshness: {environment.freshness || "not reported"}</p></ReusableCard></div>{environment.isValid && environment.capability?.selectedEngine === "FAO-56" && <><label className="mapping-select">Turmeric stage mapping<select value={mapping} onChange={(e) => setMapping(e.target.value)}><option value="">Select A, B or C</option><option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option></select></label><button className="primary-button" disabled={running || (plot.cropCanonicalName === "Turmeric" && !mapping)} onClick={run}>{running ? "Submitting…" : "Run Simulation"} <span>→</span></button></>}<button className="text-button evidence-link" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results`)}>View simulation results →</button><div className="workspace-links"><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Open Living Field</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/future-fold`)}>Future Fold</button></div></>}</PageContainer>;
 }
 function Metric({ label, value }: { label: string; value: unknown }) { const m = value as { value?: number; unit?: string; availability?: { status: string; reason?: string } } | undefined; return <p className="metric"><span>{label}</span><strong>{typeof value === "string" ? value : m?.availability?.status === "available" ? `${m.value} ${m.unit}` : m?.availability?.reason || m?.availability?.status || "Unavailable"}</strong></p>; }
 
@@ -670,16 +692,22 @@ export function App() {
     "/timeline": "timeline",
   };
 
-  if (path === "/dashboard" || path.startsWith("/dashboard") || path === "/demo" || directTabMap[path]) {
+  const scopedFeature = path.match(/^\/(advisory|advisories|saved-decisions|crop-planning)\/([^/]+)$/);
+  const directTab = directTabMap[scopedFeature ? `/${scopedFeature[1]}` : path];
+  if (path === "/dashboard" || path.startsWith("/dashboard/") || path === "/demo" || directTab) {
     const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = directTabMap[path] || urlParams.get("tab") || "overview";
+    const requestedTab = urlParams.get("tab") || "overview";
+    const tabParam = directTab || directTabMap[`/${requestedTab}`] || requestedTab;
     const storedFarmId = window.localStorage.getItem("terrapulse-active-farm-id");
-    const farmIdParam = urlParams.get("farmId") || storedFarmId || "00000000-0000-0000-0000-000000000001";
+    const explicitFarmId = scopedFeature?.[2] || urlParams.get("farmId");
+    const farmIdParam = explicitFarmId || storedFarmId || "";
     return (
       <AgriculturalDashboard
+        key={farmIdParam}
         navigate={navigate}
         initialTab={tabParam}
         farmId={farmIdParam}
+        explicitFarm={Boolean(explicitFarmId)}
         locale={locale}
         onLocaleChange={(l) => {
           setLocale(l);
@@ -726,15 +754,16 @@ export function App() {
   if (feature) content = <WorkspaceFeatures feature={feature} farmId={parts[1]} navigate={navigate} />;
   else if (path === "/connect" || path === "/farm" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;
   else if (["/assisted", "/interact", "/advisories"].includes(path)) content = <FarmerInteraction copy={copy} locale={locale} />;
+  else if (path === "/recover") content = <FarmOpenLink navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new") content = <FarmWizard key={path} navigate={navigate} existingFarmId={parts[1]} />;
-  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "timeline") content = <Timeline key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "future-fold") content = <FutureFold key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results") content = <Results farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
-  else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
-  else if (parts[0] === "farms" && parts[1]) content = <FarmDetail farmId={parts[1]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[3]) content = <Evidence key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
+  else if (parts[0] === "farms" && parts[1]) content = <FarmDetail key={parts[1]} farmId={parts[1]} navigate={navigate} />;
   else content = <FarmList navigate={navigate} copy={copy} />;
 
   return (
@@ -747,7 +776,14 @@ export function App() {
           setLocale(l);
           window.localStorage.setItem("terrapulse-locale", l);
         }}
-        onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)}
+        onNavigate={(r) => {
+          const currentFarm = parts[0] === "farms" && parts[1];
+          if (currentFarm && directTabMap[`/${r}`]) {
+            navigate(`/${r}?farmId=${encodeURIComponent(currentFarm)}`);
+          } else {
+            navigate(r === "connect" ? "/farms" : `/${r}`);
+          }
+        }}
         title={
           ({
             connect: copy.workspace,
