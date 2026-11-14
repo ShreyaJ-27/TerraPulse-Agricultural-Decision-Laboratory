@@ -12,6 +12,8 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import Farm
 
+DEMO_FARM_ID = UUID("00000000-0000-0000-0000-000000000001")
+
 
 def workspace_digest(request: Request) -> str | None:
     authorization = request.headers.get("Authorization", "")
@@ -29,9 +31,12 @@ async def require_farm_access(
     if digest is None:
         return  # Local development mode only.
     farm = await session.get(Farm, farm_id)
-    if farm is None or not farm.workspace_key_hash or not compare_digest(
-        farm.workspace_key_hash, digest
-    ):
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found in this workspace.")
+    # The seeded local demo farm is shared so Future Fold can load its stored runs.
+    if not get_settings().require_workspace_key and farm_id == DEMO_FARM_ID:
+        return
+    if not farm.workspace_key_hash or not compare_digest(farm.workspace_key_hash, digest):
         raise HTTPException(status_code=404, detail="Farm not found in this workspace.")
 
 
