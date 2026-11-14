@@ -8,7 +8,7 @@ from app.models import BranchDecision, DecisionBranch, EnvironmentalSnapshot, Pl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-SUPPORTED_DECISIONS = {"planting_date", "irrigation"}
+SUPPORTED_DECISIONS = {"planting_date", "irrigation", "approved_decision"}
 
 
 class BranchService:
@@ -127,6 +127,8 @@ class BranchService:
             not isinstance(diff.get("ledger"), dict) or not diff["ledger"].get("ledgerHash")
         ):
             raise ValueError("C8_LEDGER_REQUIRED")
+        if decision_type == "approved_decision" and not diff.get("comparisonId"):
+            raise ValueError("COMPARISON_REQUIRED")
 
     @staticmethod
     def _weather_member(payload: dict) -> str | None:
@@ -145,4 +147,6 @@ class BranchService:
             return f"{prefix}: planting date {diff['plantingDate']}"
         if decision_type == "irrigation":
             return f"{prefix}: irrigation ledger {diff['ledger']['ledgerHash']}"
+        if decision_type == "approved_decision":
+            return f"Approved {diff.get('chosenSide', 'scenario')} under {diff.get('objective', 'the stored comparison')}"
         return prefix

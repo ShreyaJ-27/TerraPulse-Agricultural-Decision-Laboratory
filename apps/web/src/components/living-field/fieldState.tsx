@@ -9,22 +9,23 @@ export const scenePath = (farmId: string, plotId: string, view: "observatory" | 
   "/farms/" + encodeURIComponent(farmId) + "/plots/" + encodeURIComponent(plotId) + "/" + view;
 
 const fields = [
+  ["canopyCover", "Canopy cover"],
+  ["waterStress", "Water stress"],
+  ["soilWaterContent", "Soil water"],
   ["soilWater", "Soil water storage"],
   ["irrigation", "Irrigation"],
   ["rainfall", "Rainfall"],
 ] as const;
 
 function scientificMetrics(science: ScientificState) {
-  return fields.map(([key, label]) => {
+  const rows = fields.flatMap(([key, label]) => {
     const measurement = science.state[key] as Measurement | undefined;
     const value = measurement?.value;
-    return {
-      label,
-      value: science.availability === "available" && measurement?.availability?.status === "available"
-        && typeof value === "number" && Number.isFinite(value)
-        ? String(value) + " " + measurement.unit : "Unavailable",
-    };
+    if (!(science.availability === "available" && measurement?.availability?.status === "available"
+      && typeof value === "number" && Number.isFinite(value))) return [];
+    return [{ label, value: String(value) + " " + measurement.unit }];
   });
+  return rows.length ? rows : [{ label: "Stored state", value: "No numeric outputs for this date" }];
 }
 
 export function useFieldState(farmId: string, plotId: string, branchId: string, date: string, runId?: string) {

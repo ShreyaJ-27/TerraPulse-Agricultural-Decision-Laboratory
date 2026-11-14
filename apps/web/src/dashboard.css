@@ -385,6 +385,14 @@
 .no-alerts-msg { color: #7f9986; font-size: 0.9rem; margin: 0.5rem 0; }
 
 /* Living Field 3D Container */
+.fold-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: .75rem 0; }
+.fold-diff { white-space: pre-wrap; font-size: .75rem; color: #c5d7c8; background: #13241c; padding: .5rem; border-radius: 8px; }
+.fold-bars { display: grid; gap: .28rem; margin: .4rem 0; }
+.fold-bars i { display: block; height: 9px; border-radius: 99px; }
+.fold-bars i.a { background: #ffd080; }
+.fold-bars i.b { background: #89eaff; }
+.fold-results h3 { margin-top: .8rem; }
+@media (max-width: 800px) { .fold-grid { grid-template-columns: 1fr; } }
 .living-scene-container {
   min-height: 680px;
   background: #111e16;

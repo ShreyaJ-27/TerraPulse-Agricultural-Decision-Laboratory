@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { apiClient, Farm } from "../services/apiClient";
-import { LivingFieldScene } from "./living-field/LivingFieldScene";
-import { FutureFold, Timeline } from "./scenario";
+import type { FieldSide } from "./living-field/LivingFieldScene";
+import { DashboardLivingField, FutureFold, Timeline } from "./scenario";
 import { Locale, localeLabels, translations, tUI } from "../i18n";
 import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 import "../dashboard.css";
@@ -54,6 +54,8 @@ export function AgriculturalDashboard({
 
   // Saved Decisions State
   const [savingDecision, setSavingDecision] = useState(false);
+  const [foldSide, setFoldSide] = useState<FieldSide>(() =>
+    new URLSearchParams(window.location.search).get("side") === "alternative" ? "alternative" : "original");
   const [decisionFeedback, setDecisionFeedback] = useState("");
   const [persistedComparisons, setPersistedComparisons] = useState<any[]>([]);
 
@@ -231,38 +233,40 @@ export function AgriculturalDashboard({
     setSavingDecision(true);
     setDecisionFeedback("");
     try {
+      const [comparisonList, simulationList] = await Promise.all([
+        apiClient.listComparisons(selectedFarmId, selectedPlotId),
+        apiClient.listSimulations(selectedFarmId, selectedPlotId),
+      ]);
+      const latest = comparisonList.comparisons[0];
+      const snapshotId = simulationList.simulations.find((run) => run.status === "completed")?.environmentalSnapshotId;
+      if (!latest || !snapshotId) {
+        setDecisionFeedback("No stored comparison with a completed run is available to save.");
+        return;
+      }
       await apiClient.createBranch(selectedFarmId, selectedPlotId, {
         plotId: selectedPlotId,
-        environmentalSnapshotId: "00000000-0000-0000-0000-000000000301",
+        environmentalSnapshotId: snapshotId,
         effectiveDate: new Date().toISOString().slice(0, 10),
-        decisionType: "farmer_verified_decision",
+        decisionType: "approved_decision",
+        parentBranchId: foldSide === "alternative" ? latest.alternativeBranchId : latest.baselineBranchId,
         decisionDiff: {
-          action: "Authorized field irrigation and verified agronomic schedule",
-          source: "TerraPulse Decision Laboratory",
-          timestamp: new Date().toISOString(),
+          comparisonId: latest.comparisonId,
+          objective: "balance",
+          chosenSide: foldSide,
+          baselineBranchId: latest.baselineBranchId,
+          alternativeBranchId: latest.alternativeBranchId,
+          baselineRunId: latest.baselineRunId,
+          alternativeRunId: latest.alternativeRunId,
         },
-        parentBranchId: null,
       });
-      setDecisionFeedback("Decision successfully recorded to immutable farm timeline!");
-      apiClient
-        .listComparisons(selectedFarmId, selectedPlotId)
-        .then((res) => setPersistedComparisons(res.comparisons || []))
-        .catch(() => {});
-    } catch (e: any) {
-      setDecisionFeedback("Recorded decision: " + (e.message || "Saved"));
+      setDecisionFeedback("Approved decision saved to the farm timeline.");
+      setPersistedComparisons(comparisonList.comparisons || []);
+    } catch (e: unknown) {
+      setDecisionFeedback(e instanceof Error ? e.message : "The decision was not saved.");
     } finally {
       setSavingDecision(false);
     }
   };
-
-  // Format 3D Field Plots
-  const fieldPlots = useMemo(() => {
-    if (!farm?.plots) return [];
-    return farm.plots.map((p) => ({
-      id: p.plotId,
-      label: p.cropCanonicalName,
-    }));
-  }, [farm]);
 
   // Compute total farm area
   const totalFarmAreaM2 = useMemo(() => {
@@ -1379,8 +1383,15 @@ export function AgriculturalDashboard({
                 </div>
               )}
 
+              <div className="plot-selector-btns" style={{ marginBottom: "0.75rem" }}>
+                {farm?.plots?.map((p) => (
+                  <button key={p.plotId} type="button" className={`plot-sel-btn ${selectedPlotId === p.plotId ? "active" : ""}`}
+                    onClick={() => setSelectedPlotId(p.plotId)}>{p.cropCanonicalName} plot</button>
+                ))}
+              </div>
               <div className="fold-container">
-                <FutureFold farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate} />
+                <FutureFold farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate}
+                  onOpenLivingField={(side) => { setFoldSide(side); setCurrentTab("living-field"); }} />
               </div>
             </div>
           )}
@@ -1413,56 +1424,13 @@ export function AgriculturalDashboard({
               </div>
 
               <div className="living-scene-container">
-                <LivingFieldScene
-                  plots={fieldPlots}
+                <DashboardLivingField
+                  farmId={selectedFarmId}
                   plotId={selectedPlotId}
+                  side={foldSide}
+                  onChangeSide={setFoldSide}
                   onSelectPlot={(id: string) => setSelectedPlotId(id)}
-                  date="2026-11-14"
-                  original={{
-                    side: "original",
-                    label: "Baseline (Rainfed Schedule)",
-                    description: "Historic schedule relying on pre-monsoon precipitation",
-                    metrics: [
-                      { label: "Canopy Cover", value: "68%" },
-                      { label: "Biomass", value: "5.4 t/ha" },
-                      { label: "Water Stress", value: "0.88 (Moderate)" },
-                      { label: "Reservoir", value: "410,000 L" },
-                    ],
-                  }}
-                  alternative={{
-                    side: "alternative",
-                    label: "Branch B (Optimized Drip + Mulch)",
-                    description: "Proactive irrigation ahead of forecast dry spell",
-                    metrics: [
-                      { label: "Canopy Cover", value: "82%" },
-                      { label: "Biomass", value: "6.9 t/ha" },
-                      { label: "Water Stress", value: "0.94 (Optimal)" },
-                      { label: "Reservoir", value: "480,000 L" },
-                    ],
-                  }}
                 />
-              </div>
-
-              {/* Subsoil Strata Legend */}
-              <div className="soil-info-row">
-                <div className="soil-card">
-                  <h4>Canopy & Phenology Layer</h4>
-                  <p><strong>Crop Ground Cover:</strong> 68% (Baseline) vs 82% (Optimized)</p>
-                  <p><strong>Biomass Accumulation:</strong> 5.4 t/ha vs 6.9 t/ha (+27.7%)</p>
-                  <p><strong>Predicted Yield:</strong> 4.8 t/ha vs 5.6 t/ha (+16.6%)</p>
-                </div>
-                <div className="soil-card">
-                  <h4>Subsoil Strata Dynamics</h4>
-                  <p><strong>Active Root Depth:</strong> 90 cm into 120 cm soil column</p>
-                  <p><strong>Water Depletion ($D_r$):</strong> 34 mm (Well within RAW = 76 mm)</p>
-                  <p><strong>Field Capacity Retention:</strong> 88% in root zone</p>
-                </div>
-                <div className="soil-card">
-                  <h4>Conservation Accounting</h4>
-                  <p><strong>Net Water Saved:</strong> 42,000 Litres in Alternative Branch</p>
-                  <p><strong>Stress Abatement:</strong> -42.5% Water Stress Index</p>
-                  <p><strong>Runoff Loss:</strong> Reduced by 64% with furrow mulching</p>
-                </div>
               </div>
             </div>
           )}
