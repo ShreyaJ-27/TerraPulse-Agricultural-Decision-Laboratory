@@ -386,7 +386,7 @@
 
 /* Living Field 3D Container */
 .living-scene-container {
-  min-height: 480px;
+  min-height: 680px;
   background: #111e16;
   border: 1px solid rgba(88, 126, 75, 0.3);
   border-radius: 8px;
