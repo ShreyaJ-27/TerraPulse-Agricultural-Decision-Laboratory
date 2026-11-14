@@ -109,12 +109,13 @@ export type CalendarPlot = {
   cropName: string;
   plantingDate: string | null;
   plantingCertainty: string;
+  regionId: string | null;
   regionalGuidanceAvailable: boolean;
   regionalSource?: string;
   regionalSourceVersion?: string;
   regionalSourceUrl?: string;
   plantingWindowNote?: string;
-  next31Days: { date: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
+  next31Days: { date: string; endDate?: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
   undatedActivities: { title: string; guidance: string; source: string; sourceVersion?: string }[];
 };
 export type Resource = { resourceId: string; farmId: string; name: string; resourceType: string; unit: string; openingVolume: number; metadata?: Record<string, unknown>; createdAt?: string };

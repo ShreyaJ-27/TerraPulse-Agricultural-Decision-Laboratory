@@ -12,7 +12,7 @@ from app.services.analysis.models import (
     GroundedClaim,
 )
 from app.services.analysis.validator import QuantitativeClaimValidator
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger("terrapulse.analysis.llm_client")
 
@@ -34,16 +34,25 @@ class _StructuredExplanation(BaseModel):
 
 
 class AnalysisLlmClient:
-    """Optional Gemini client with strict structured-output validation."""
+    """Optional Groq or Gemini client with shared evidence validation."""
 
     def __init__(
         self,
         api_key: str | None = None,
         model_name: str = "gemini-2.5-flash",
         timeout_seconds: float = 5.0,
+        *,
+        groq_api_key: str | None = None,
     ) -> None:
-        self.api_key = api_key if api_key is not None else get_settings().gemini_api_key
-        self.model_name = model_name
+        settings = get_settings()
+        groq_key = groq_api_key if groq_api_key is not None else settings.groq_api_key
+        self.use_groq = bool(api_key is None and groq_key and groq_key.strip())
+        if self.use_groq:
+            self.api_key = groq_key
+            self.model_name = settings.groq_model
+        else:
+            self.api_key = api_key if api_key is not None else settings.gemini_api_key
+            self.model_name = model_name
         self.timeout_seconds = timeout_seconds
 
     @property
@@ -108,7 +117,6 @@ class AnalysisLlmClient:
         language: Literal["en", "kn", "hi"] = "en",
     ) -> tuple[str, list[AnalysisSection], list[GroundedClaim]] | None:
         if not self.is_configured:
-            logger.debug("Gemini is not configured; deterministic analysis remains available.")
             return None
 
         system_instruction = (
@@ -131,49 +139,60 @@ class AnalysisLlmClient:
             ensure_ascii=False,
             separators=(",", ":"),
         )
-        payload = {
-            "system_instruction": {"parts": [{"text": system_instruction}]},
-            "contents": [{"parts": [{"text": user_content}]}],
-            "generationConfig": {
+        if self.use_groq:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            payload = {
+                "model": self.model_name,
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_content},
+                ],
                 "temperature": 0.0,
-                "maxOutputTokens": 1500,
-                "responseMimeType": "application/json",
-            },
-        }
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.model_name}:generateContent"
-        )
+                "max_completion_tokens": 1500,
+                "response_format": {"type": "json_object"},
+            }
+        else:
+            url = (
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{self.model_name}:generateContent"
+            )
+            headers = {"x-goog-api-key": self.api_key or ""}
+            payload = {
+                "system_instruction": {"parts": [{"text": system_instruction}]},
+                "contents": [{"parts": [{"text": user_content}]}],
+                "generationConfig": {
+                    "temperature": 0.0,
+                    "maxOutputTokens": 1500,
+                    "responseMimeType": "application/json",
+                },
+            }
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.post(
-                    url,
-                    headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key or ""},
-                    json=payload,
-                )
+                response = await client.post(url, headers=headers, json=payload)
             if response.status_code != 200:
-                logger.warning("Gemini provider returned HTTP %d.", response.status_code)
+                logger.warning("Analysis provider returned HTTP %d.", response.status_code)
                 return None
             data = response.json()
-            parts = data["candidates"][0]["content"]["parts"]
-            candidate_text = next(
-                (part.get("text") for part in parts if isinstance(part.get("text"), str)), ""
-            )
-            if not candidate_text.strip():
-                logger.warning("Gemini returned an empty explanation.")
-                return None
+            if self.use_groq:
+                candidate_text = data["choices"][0]["message"]["content"]
+            else:
+                parts = data["candidates"][0]["content"]["parts"]
+                candidate_text = next(
+                    (part.get("text") for part in parts if isinstance(part.get("text"), str)), ""
+                )
             parsed = _StructuredExplanation.model_validate_json(candidate_text)
-        except (httpx.TimeoutException, httpx.RequestError) as exc:
-            logger.info("Gemini request failed or timed out (%s).", type(exc).__name__)
+        except httpx.RequestError as exc:
+            logger.info("Analysis provider request failed (%s).", type(exc).__name__)
             return None
-        except (KeyError, IndexError, TypeError, ValueError, ValidationError, json.JSONDecodeError):
-            logger.warning("Gemini returned an empty or malformed structured response.")
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError):
+            logger.warning("Analysis provider returned a malformed structured response.")
             return None
 
         claims = [claim for section in parsed.sections for claim in section.claims]
         valid, _errors = QuantitativeClaimValidator.validate_claims(claims, bundle)
         if not valid:
-            logger.warning("Gemini explanation rejected because evidence claims failed validation.")
+            logger.warning("Analysis explanation rejected because evidence claims failed validation.")
             return None
         prose = "\n".join(
             [parsed.summary]
@@ -181,7 +200,7 @@ class AnalysisLlmClient:
         )
         text_valid, _ = QuantitativeClaimValidator.validate_text(prose, bundle, claims)
         if not text_valid:
-            logger.warning("Gemini explanation rejected because prose contains an unverified number.")
+            logger.warning("Analysis explanation rejected because prose contains an unverified number.")
             return None
         sections = [
             AnalysisSection(

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     soilgrids_wcs_url: str = "https://maps.isric.org/mapserv"
     soilgrids_timeout_seconds: float = 10.0
     gemini_api_key: str | None = None
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     @property

@@ -581,12 +581,21 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
       setTelegramUrl((await apiClient.issueTelegramLink(farmId)).telegramConnectUrl);
     } catch (e) { setTelegramError(message(e)); }
   };
-  useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
+  useEffect(() => {
+    let active = true;
+    apiClient.getFarm(farmId).then((savedFarm) => {
+      if (!active) return;
+      setFarm(savedFarm);
+      window.localStorage.setItem("terrapulse-active-farm-id", savedFarm.farmId);
+    }).catch((e) => { if (active) setError(message(e)); });
+    return () => { active = false; };
+  }, [farmId]);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm) return <PageContainer><LoadingState label="Loading farm…" /></PageContainer>;
   return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><section className="form-panel"><div className="form-actions">
     <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=calendar`)}>Agricultural Calendar</button>
     <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=living-field`)}>Living Field</button>
-    <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=timeline`)}>Saved Decisions</button>
+    <button className="secondary-button" onClick={() => navigate(`/saved-decisions/${farmId}`)}>Saved Decisions</button>
+    <button className="secondary-button" onClick={() => navigate(`/advisory/${farmId}`)}>Advisory</button>
     <button className="secondary-button" onClick={connect}>Set up Telegram</button>
     </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><PitchAlertControl farmId={farmId} /><ResourcePanel farm={farm} /></PageContainer>;
 }
@@ -683,17 +692,22 @@ export function App() {
     "/timeline": "timeline",
   };
 
-  if (path === "/dashboard" || path.startsWith("/dashboard") || path === "/demo" || directTabMap[path]) {
+  const scopedFeature = path.match(/^\/(advisory|advisories|saved-decisions|crop-planning)\/([^/]+)$/);
+  const directTab = directTabMap[scopedFeature ? `/${scopedFeature[1]}` : path];
+  if (path === "/dashboard" || path.startsWith("/dashboard/") || path === "/demo" || directTab) {
     const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = directTabMap[path] || urlParams.get("tab") || "overview";
+    const requestedTab = urlParams.get("tab") || "overview";
+    const tabParam = directTab || directTabMap[`/${requestedTab}`] || requestedTab;
     const storedFarmId = window.localStorage.getItem("terrapulse-active-farm-id");
-    const farmIdParam = urlParams.get("farmId") || storedFarmId || "";
+    const explicitFarmId = scopedFeature?.[2] || urlParams.get("farmId");
+    const farmIdParam = explicitFarmId || storedFarmId || "";
     return (
       <AgriculturalDashboard
-        key={`${farmIdParam}:${tabParam}`}
+        key={farmIdParam}
         navigate={navigate}
         initialTab={tabParam}
         farmId={farmIdParam}
+        explicitFarm={Boolean(explicitFarmId)}
         locale={locale}
         onLocaleChange={(l) => {
           setLocale(l);
@@ -762,7 +776,14 @@ export function App() {
           setLocale(l);
           window.localStorage.setItem("terrapulse-locale", l);
         }}
-        onNavigate={(r) => navigate(r === "connect" ? "/farms" : `/${r}`)}
+        onNavigate={(r) => {
+          const currentFarm = parts[0] === "farms" && parts[1];
+          if (currentFarm && directTabMap[`/${r}`]) {
+            navigate(`/${r}?farmId=${encodeURIComponent(currentFarm)}`);
+          } else {
+            navigate(r === "connect" ? "/farms" : `/${r}`);
+          }
+        }}
         title={
           ({
             connect: copy.workspace,

@@ -25,12 +25,12 @@ export function ConnectedCalendar({ farmId }: { farmId: string }) {
   const shown = cropPlots.filter((row) => !plot || plot === row.plotId);
   const activities = shown.flatMap((row) => row.next31Days.map((activity) => ({ row, activity })))
     .sort((a, b) => a.activity.date.localeCompare(b.activity.date));
-  return <>
-    <div className="page-intro">
+  return <div className="connected-calendar">
+    <header>
       <h2>Agricultural calendar</h2>
       <p>Activities for the next 31 days, starting {data.asOfDate} in your farm’s time zone.</p>
-    </div>
-    <div className="form-panel">
+    </header>
+    <div className="calendar-filters">
       <label>Crop<select value={crop} onChange={(event) => { setCrop(event.target.value); setPlot(""); }}>
         <option value="">All crops</option>
         {crops.map((name) => <option key={name}>{name}</option>)}
@@ -40,17 +40,19 @@ export function ConnectedCalendar({ farmId }: { farmId: string }) {
         {cropPlots.map((row) => <option key={row.plotId} value={row.plotId}>{row.plotName}</option>)}
       </select></label>
     </div>
-    <section className="results-table">
+    <section className="calendar-records">
       <h3>Dated activities</h3>
       {activities.length === 0 && <p>No activities with dates in this period.</p>}
       {activities.map(({ row, activity }) => <article key={`${row.plotId}:${activity.date}:${activity.title}:${activity.source}`}>
-        <h4><time dateTime={activity.date}>{activity.date}</time> · {activity.title}</h4>
+        <h4><time dateTime={activity.date}>{activity.date}</time>
+          {activity.endDate && activity.endDate !== activity.date && <> to <time dateTime={activity.endDate}>{activity.endDate}</time></>}
+          {" · "}{activity.title}</h4>
         <p>{row.plotName} · {activity.certainty}</p>
         <p>{activity.action}</p>
         <small>{activity.source}{activity.sourceVersion && ` · ${activity.sourceVersion}`}</small>
       </article>)}
     </section>
-    <section className="results-table">
+    <section className="calendar-records">
       <h3>Planting records and regional guidance</h3>
       {shown.length === 0 && <p>Add a crop plot to see its calendar.</p>}
       {shown.map((row) => <article key={row.plotId}>
@@ -65,8 +67,10 @@ export function ConnectedCalendar({ farmId }: { farmId: string }) {
             <p>{activity.guidance}</p>
             <small>{activity.source} · {activity.sourceVersion}</small>
           </div>)}
-        </> : <p>Regional calendar guidance is unavailable for this crop and region.</p>}
+        </> : <p>{row.regionId
+          ? `No sourced regional calendar is available for ${row.cropName} in ${row.regionId}.`
+          : "No calendar region is recorded for this plot."}</p>}
       </article>)}
     </section>
-  </>;
+  </div>;
 }

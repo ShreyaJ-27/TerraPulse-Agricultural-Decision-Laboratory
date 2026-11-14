@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiClient, Farm } from "../services/apiClient";
 import { ConnectedCalendar } from "./ConnectedCalendar";
+import { PlotAdvisory } from "./PlotAdvisory";
 import { PitchAlertControl } from "./PitchAlertControl";
 import { ResourcePanel } from "./resources";
 import { ErrorState, LoadingState } from "./ui";
@@ -13,6 +14,7 @@ type Props = {
   navigate: (path: string) => void;
   initialTab?: string;
   farmId?: string;
+  explicitFarm?: boolean;
   locale?: Locale;
   onLocaleChange?: (locale: Locale) => void;
   atmosphere?: SylvaLivingWorldVariant;
@@ -23,16 +25,22 @@ export function AgriculturalDashboard({
   navigate,
   initialTab = "overview",
   farmId = "",
+  explicitFarm = false,
   locale = "en",
   onLocaleChange,
   atmosphere = "living-green",
   onAtmosphereChange,
 }: Props) {
-  const [currentTab, setCurrentTab] = useState(initialTab);
+  const currentTab = initialTab;
   const [allFarms, setAllFarms] = useState<Farm[]>();
   const [error, setError] = useState("");
-  const farm = allFarms?.find((item) => item.farmId === farmId) ?? allFarms?.[0];
+  const farm = allFarms?.find((item) => item.farmId === farmId) ?? (explicitFarm ? undefined : allFarms?.[0]);
   const selectedFarmId = farm?.farmId ?? "";
+  const setCurrentTab = (tab: string) => {
+    const params = new URLSearchParams({ tab });
+    if (selectedFarmId || farmId) params.set("farmId", selectedFarmId || farmId);
+    navigate(`/dashboard?${params}`);
+  };
 
   // Section States
   const [plotChoice, setSelectedPlotId] = useState("");
@@ -40,13 +48,6 @@ export function AgriculturalDashboard({
   const [notifications, setNotifications] = useState<any[]>([]);
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
   const [deliveries, setDeliveries] = useState<any[]>([]);
-
-  // Advisory State
-  const [advisoryPrompt, setAdvisoryPrompt] = useState("");
-  const [advisoryAnswer, setAdvisoryAnswer] = useState<any>(null);
-  const [advisoryAnalyzing, setAdvisoryAnalyzing] = useState(false);
-
-  // Saved Decisions State
 
   // Crop Lens State
   const [cropQuery, setCropQuery] = useState("Turmeric");
@@ -65,6 +66,10 @@ export function AgriculturalDashboard({
       .catch(() => { if (active) setError("Your saved farms could not be loaded."); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (selectedFarmId) window.localStorage.setItem("terrapulse-active-farm-id", selectedFarmId);
+  }, [selectedFarmId]);
 
   useEffect(() => {
     if (!selectedFarmId) return;
@@ -96,31 +101,6 @@ export function AgriculturalDashboard({
       }
     } finally {
       setCropResolving(false);
-    }
-  };
-
-  // Interactive Grounded Advisory Analysis
-  const handleAskAdvisory = async (queryText?: string) => {
-    const q = queryText || advisoryPrompt;
-    if (!q.trim() || !selectedPlotId) return;
-    setAdvisoryAnalyzing(true);
-    try {
-      const res = await apiClient.analyzeFarm({
-        farmId: selectedFarmId,
-        plotId: selectedPlotId,
-        question: q,
-        language: cropLanguage,
-        includeWeather: true,
-        includeSoil: true,
-        includeCrop: true,
-        includeSimulation: true,
-        includeComparison: true,
-      });
-      setAdvisoryAnswer(res);
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setAdvisoryAnalyzing(false);
     }
   };
 
@@ -394,6 +374,7 @@ export function AgriculturalDashboard({
               1. FARM WORKSPACE (OVERVIEW)
               ======================================================== */}
           {!allFarms && (error ? <ErrorState label={error} /> : <LoadingState label="Loading saved farms…" />)}
+          {explicitFarm && !!allFarms?.length && !farm && <ErrorState label="This farm is unavailable in this browser. Choose an accessible farm from the farm selector." />}
           {allFarms?.length === 0 && <section className="tab-pane">
             <h2>Your saved farms</h2>
             <p>Already registered? Send /open in your connected TerraPulse Telegram chat and tap the link.</p>
@@ -501,12 +482,8 @@ export function AgriculturalDashboard({
             <div className="tab-pane advisory-pane">
               <div className="pane-header">
                 <div>
-                  <span className="eyebrow">Evidence-Grounded Agricultural Advisory</span>
-                  <h2>PAU & UAS Agronomic Advisory</h2>
-                  <p className="subtitle">
-                    Evidence-grounded agronomic recommendations tailored to field coordinates,
-                    monitored soil profile, and active crop phenological stage.
-                  </p>
+                  <h2>Agricultural Advisory</h2>
+                  <p className="subtitle">{farm.name} · Weather, soil and scientific evidence for the selected plot</p>
                 </div>
                 <div className="plot-selector-btns">
                   {farm?.plots?.map((p) => (
@@ -515,65 +492,15 @@ export function AgriculturalDashboard({
                       className={`plot-sel-btn ${selectedPlotId === p.plotId ? "active" : ""}`}
                       onClick={() => setSelectedPlotId(p.plotId)}
                     >
-                      {p.cropCanonicalName} Plot
+                      {p.management?.plotName || p.cropCanonicalName}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {selectedPlotId && <p>Ask about this plot using its available weather, soil and scientific evidence.</p>}
-
-              <div>
-                <div className="advisory-ask-bar">
-                  <input
-                    className="advisory-input"
-                    value={advisoryPrompt}
-                    onChange={(e) => setAdvisoryPrompt(e.target.value)}
-                    placeholder="Ask an advisory question regarding weather, soil, or irrigation..."
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAskAdvisory();
-                    }}
-                  />
-                  <button
-                    className="advisory-send-btn"
-                    disabled={advisoryAnalyzing || !selectedPlotId || !advisoryPrompt.trim()}
-                    onClick={() => handleAskAdvisory()}
-                  >
-                    {advisoryAnalyzing ? "Analyzing…" : "Ask Assistant ↗"}
-                  </button>
-                </div>
-
-                {advisoryAnswer && (
-                  <div className="advisory-answer-card">
-                    <div className="answer-summary">
-                      <strong>Grounded Agronomic Analysis:</strong>
-                      <p>{advisoryAnswer.summary || advisoryAnswer.responseText}</p>
-                    </div>
-                    {advisoryAnswer.claims?.length > 0 && (
-                      <div className="grounded-claims-wrap">
-                        <h5>Grounded Scientific Evidence Claims:</h5>
-                        <ul>
-                          {advisoryAnswer.claims.map((c: any, idx: number) => (
-                            <li key={idx}>
-                              <strong>{c.metric}:</strong> {c.value} {c.unit} (Source: {c.sourceField} · {c.category})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {advisoryAnswer.dataFreshness?.length > 0 && (
-                      <div style={{ fontSize: "0.75rem", color: "#8fa896", marginTop: "0.4rem" }}>
-                        <span>Evidence Freshness: </span>
-                        {advisoryAnswer.dataFreshness.map((f: any, i: number) => (
-                          <span key={i} style={{ marginRight: "1rem" }}>
-                            {f.dataType}: <strong>{f.freshnessLabel}</strong>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              {selectedPlotId
+                ? <PlotAdvisory key={selectedPlotId} farmId={selectedFarmId} plotId={selectedPlotId} locale={locale} />
+                : <button className="inspect-plot-btn" onClick={() => navigate(farmPath + "/plots/new")}>Add a crop plot</button>}
             </div>
           )}
 
@@ -757,7 +684,7 @@ export function AgriculturalDashboard({
                   <div style={{ marginTop: "1.2rem" }}>
                     <button
                       className="primary-button"
-                      onClick={() => navigate("/register")}
+                      onClick={() => navigate(farmPath + "/plots/new")}
                     >
                       + Add Plot With This Crop →
                     </button>
