@@ -13,8 +13,12 @@ from app.core.config import get_settings
 from app.core.event_loop import new_event_loop
 from app.core.db import SessionFactory, engine
 from app.main import app
-from app.models import BranchDecision, DecisionBranch, EnvironmentalSnapshot, Farm, TimelineEvent
+from app.models import (
+    BranchDecision, DecisionBranch, EnvironmentalProvenance, EnvironmentalSnapshot,
+    Farm, TimelineEvent,
+)
 from app.routers.analysis import get_analysis_service
+from app.routers.environment import _store_snapshot
 from app.routers.farms import get_onboarding_service
 from app.services.farmer_alerts import persistence
 from app.services.farmer_alerts.models import (
@@ -41,6 +45,66 @@ def test_saved_farm_link_redeems_across_browsers(monkeypatch):
     use_real_services(monkeypatch)
     with asyncio.Runner(loop_factory=new_event_loop) as runner:
         runner.run(check_saved_farm_link(monkeypatch))
+
+
+def test_repeat_and_concurrent_snapshot_prepare_preserve_provenance(monkeypatch):
+    use_real_services(monkeypatch)
+    with asyncio.Runner(loop_factory=new_event_loop) as runner:
+        runner.run(check_snapshot_identity())
+
+
+async def check_snapshot_identity():
+    farm_id = None
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://terrapulse.test",
+        ) as client:
+            owner = {"Authorization": "Bearer " + uuid4().hex + uuid4().hex}
+            response = await client.post("/api/v1/farms", headers=owner, json={
+                "name": "Disposable snapshot test", "locationConfirmed": True,
+                "location": {"latitude": 30.9, "longitude": 75.8, "crs": "EPSG:4326"},
+            })
+            assert response.status_code == 201
+            farm_id = UUID(response.json()["data"]["farmId"])
+            response = await client.post(f"/api/v1/farms/{farm_id}/plots", headers=owner, json={
+                "cropQuery": "maize", "areaM2": {"value": 1000},
+            })
+            assert response.status_code == 201
+            plot_id = UUID(response.json()["data"]["plotId"])
+
+            async def store(second, *, valid=False):
+                timestamp = f"2026-11-14T00:00:{second:02d}+00:00"
+                async with SessionFactory() as session:
+                    return await _store_snapshot(session, farm_id, plot_id, {
+                        "status": "available" if valid else "missing", "isValid": valid,
+                        "planting": {"date": None, "certainty": "unconfirmed"},
+                        "simulationBlocker": None,
+                        "c1Input": {
+                            "simulationPeriod": {"startDate": "2026-11-10", "endDate": "2026-11-14"},
+                            "retrievedAt": timestamp,
+                            "provenance": [{"sourceId": "test:source", "retrievedAt": timestamp}],
+                        },
+                    })
+
+            first, second = await asyncio.gather(store(1), store(2))
+            assert first == second == await store(3)
+            recovered = await store(4, valid=True)
+            assert first["environmentalSnapshotId"] != recovered["environmentalSnapshotId"]
+            async with SessionFactory() as session:
+                sources = (await session.scalars(select(EnvironmentalProvenance).where(
+                    EnvironmentalProvenance.snapshot_id == UUID(first["environmentalSnapshotId"])
+                ))).all()
+                assert len(sources) == 1
+                assert sources[0].retrieved_at.isoformat() == first["retrievedAt"]
+    finally:
+        if farm_id:
+            async with SessionFactory() as session:
+                await session.execute(delete(EnvironmentalSnapshot).where(
+                    EnvironmentalSnapshot.farm_id == farm_id
+                ))
+                await session.execute(delete(Farm).where(Farm.id == farm_id))
+                await session.commit()
+        await engine.dispose()
 
 
 def use_real_services(monkeypatch):

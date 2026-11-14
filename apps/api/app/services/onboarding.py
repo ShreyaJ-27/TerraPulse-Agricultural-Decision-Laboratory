@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 import re
 import struct
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, ClassVar
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.contracts import Availability, Coordinates, DataStatus, Measurement
 from app.models import CropIdentity, Farm, FarmResource, Plot, ResourcePlotAuthorization
@@ -300,3 +301,36 @@ class OnboardingService:
             return [_plot_to_response(p) for p in result.scalars().all()]
 
         return [p for p in self._in_memory_plots.values() if p.farm_id == farm_id]
+
+    async def confirm_planting_date(
+        self, farm_id: UUID, plot_id: UUID, planting_date: date
+    ) -> PlotResponse | None:
+        farm = await self.get_farm(farm_id)
+        if farm is None:
+            return None
+        try:
+            today = datetime.now(ZoneInfo(farm.timezone)).date()
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("The farm timezone is invalid.") from exc
+        if planting_date > today:
+            raise ValueError("Enter the actual planting date, on or before today at the farm.")
+
+        if self.session is None:
+            plot = await self.get_plot(farm_id, plot_id)
+            if plot:
+                plot.planting_date = planting_date
+                plot.management = {**(plot.management or {}), "plantingDateCertainty": "confirmed"}
+            return plot
+
+        plot = await self.session.scalar(
+            select(Plot).where(Plot.id == plot_id, Plot.farm_id == farm_id)
+            .options(selectinload(Plot.resource_assignments))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if plot is None:
+            return None
+        plot.planting_date = planting_date
+        plot.management = {**(plot.management or {}), "plantingDateCertainty": "confirmed"}
+        await self.session.commit()
+        return _plot_to_response(plot)

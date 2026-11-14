@@ -200,9 +200,9 @@
 /* Main Pane */
 .dash-main {
   flex: 1;
-  padding: 2rem;
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 2rem);
   overflow-y: auto;
-  max-width: 1300px;
 }
 
 .tab-pane {

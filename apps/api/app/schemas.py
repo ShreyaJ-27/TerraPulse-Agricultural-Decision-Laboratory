@@ -76,6 +76,11 @@ class PlotCreateRequest(BaseModel):
         return self
 
 
+class PlotPlantingDateRequest(BaseModel):
+    planting_date: date = Field(alias="plantingDate")
+    model_config = ConfigDict(extra="forbid")
+
+
 class PlotResponse(BaseModel):
     plot_id: UUID = Field(alias="plotId")
     farm_id: UUID = Field(alias="farmId")

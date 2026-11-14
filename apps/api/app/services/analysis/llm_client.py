@@ -49,7 +49,12 @@ class AnalysisLlmClient:
         self.use_groq = bool(api_key is None and groq_key and groq_key.strip())
         if self.use_groq:
             self.api_key = groq_key
-            self.model_name = settings.groq_model
+            configured_model = settings.groq_model.strip()
+            self.model_name = (
+                "openai/gpt-oss-120b"
+                if configured_model in {"", "llama-3.3-70b-versatile"}
+                else configured_model
+            )
         else:
             self.api_key = api_key if api_key is not None else settings.gemini_api_key
             self.model_name = model_name

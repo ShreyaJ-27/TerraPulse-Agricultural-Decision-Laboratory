@@ -50,7 +50,10 @@ async def submit_simulation(
     try:
         run = await SimulationService(session).submit(payload)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail={"code": str(exc), "message": str(exc)})
+        raise HTTPException(status_code=422, detail={
+            "code": str(exc.args[0]),
+            "message": str(exc.args[1]) if len(exc.args) > 1 else str(exc),
+        }) from exc
     background.add_task(SimulationService(session).execute_background, run.id, SessionFactory)
     return ApiResponse(
         data={"simulationRunId": run.id, "status": run.status},

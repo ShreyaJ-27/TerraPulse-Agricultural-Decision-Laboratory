@@ -429,6 +429,15 @@ class EnvironmentalInputService:
             elif soil_props.depth_cm.value <= 0:
                 errors.append(f"Invalid soil depth: {soil_props.depth_cm.value} cm (must be > 0).")
 
+            if soil_result.availability.status == DataStatus.MISSING:
+                coverages = soil_result.raw_metadata.get("coverages", {})
+                failures = sorted({
+                    reason for name, reason in coverages.items()
+                    if name.startswith(("wv0033_", "wv1500_")) and reason != "sampled"
+                })
+                if failures:
+                    errors.append("SoilGrids hydraulic coverage is incomplete: " + "; ".join(failures) + ".")
+
             # Check field capacity
             fc = soil_props.field_capacity
             if fc.value is None or fc.availability.status != DataStatus.AVAILABLE:

@@ -261,7 +261,9 @@ class SoilGridsAdapter:
                         else:
                             converted_val = round(raw_num / divisor, 4)
                             min_v, max_v = meta.get("min"), meta.get("max")
-                            if (min_v is not None and converted_val < min_v) or (
+                            if not math.isfinite(converted_val) or (
+                                min_v is not None and converted_val < min_v
+                            ) or (
                                 max_v is not None and converted_val > max_v
                             ):
                                 avail = Availability(
@@ -401,6 +403,8 @@ class SoilGridsAdapter:
         # 3. Field Capacity (wv0033)
         fc_layer = parsed_layers.get("wv0033")
         fc_val = aggregate(fc_layer)
+        if fc_val == 0:
+            fc_val = None
         fc_m = _build_measurement(
             fc_val,
             unit="m3/m3",
@@ -412,6 +416,9 @@ class SoilGridsAdapter:
         # 4. Wilting Point (wv1500)
         wp_layer = parsed_layers.get("wv1500")
         wp_val = aggregate(wp_layer)
+        if using_wcs and fc_val is None and wp_val == 0:
+            # A zero wilting point can be valid only with a usable hydraulic profile.
+            wp_val = None
         wp_m = _build_measurement(
             wp_val,
             unit="m3/m3",

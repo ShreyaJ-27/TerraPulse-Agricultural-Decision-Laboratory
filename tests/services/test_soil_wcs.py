@@ -54,7 +54,7 @@ def test_geotiff_samples_containing_pixel_and_rejects_invalid_georeferencing():
             sample_geotiff(content, lat, lon)
 
 
-@pytest.mark.parametrize("failure", [None, "nodata", "http", "xml", "timeout"])
+@pytest.mark.parametrize("failure", [None, "nodata", "zero", "http", "xml", "timeout"])
 @pytest.mark.asyncio
 async def test_wcs_profile_provenance_and_missing_coverage(failure):
     def respond(request):
@@ -68,7 +68,7 @@ async def test_wcs_profile_provenance_and_missing_coverage(failure):
                 return httpx.Response(200, content=b"<ServiceException/>")
             if failure == "timeout":
                 raise httpx.ReadTimeout("upstream timeout")
-            value = -32768 if failure == "nodata" else 330
+            value = {"nodata": -32768, "zero": 0}.get(failure, 330)
         else:
             value = 300 if coverage.startswith("wv0033") else 120
         return httpx.Response(200, content=raster(value))

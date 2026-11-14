@@ -601,27 +601,160 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
 }
 
 function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
-  const [farm, setFarm] = useState<Farm>(); const [environment, setEnvironment] = useState<Environment>(); const [error, setError] = useState(""); const [running, setRunning] = useState(false); const [mapping, setMapping] = useState(""); const [preparing, setPreparing] = useState(false);
-  useEffect(() => { apiClient.getFarm(farmId).then(setFarm).catch((e) => setError(message(e))); }, [farmId]);
-  const plot = farm?.plots.find((p) => p.plotId === plotId);
-  const prepare = async () => {
-    if (!farm || !plot || preparing) return;
-    setPreparing(true);
+  const [farm, setFarm] = useState<Farm>();
+  const [environment, setEnvironment] = useState<Environment>();
+  const [error, setError] = useState("");
+  const [mapping, setMapping] = useState("");
+  const [pending, setPending] = useState<"save" | "prepare" | "run">();
+  const [editing, setEditing] = useState(false);
+  const [plantingDate, setPlantingDate] = useState("");
+  const plotPath = `/farms/${farmId}/plots/${plotId}`;
+
+  useEffect(() => {
+    let active = true;
+    apiClient.getFarm(farmId).then((savedFarm) => {
+      if (active) setFarm(savedFarm);
+    }).catch((e) => { if (active) setError(message(e)); });
+    return () => { active = false; };
+  }, [farmId]);
+
+  if (!farm) return <PageContainer>{error ? <ErrorState label={error} /> : <LoadingState label="Loading plot…" />}</PageContainer>;
+  const plot = farm.plots.find((item) => item.plotId === plotId);
+  if (!plot) return <PageContainer><ErrorState label="Plot was not found under this farm." /></PageContainer>;
+
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: farm.timezone }).format(new Date());
+  const startDate = plot.plantingDate;
+  const dateReady = Boolean(startDate && startDate <= today
+    && !["estimated", "unconfirmed"].includes(plot.management?.plantingDateCertainty || ""));
+  const endDate = startDate === today
+    ? new Date(Date.parse(today) + 6 * 86_400_000).toISOString().slice(0, 10)
+    : today;
+  const turmeric = plot.cropCanonicalName === "Turmeric";
+  const engine = environment?.capability?.selectedEngine;
+  const canRun = Boolean(dateReady && environment?.isValid && !environment.simulationBlocker
+    && (engine === "FAO-56" || engine === "AquaCrop"));
+
+  const save = async () => {
+    if (!plantingDate || pending) return;
+    setPending("save");
     setError("");
-    const today = new Intl.DateTimeFormat("sv-SE", { timeZone: farm.timezone }).format(new Date());
-    const startDate = plot.plantingDate || today;
+    try {
+      const saved = await apiClient.confirmPlantingDate(farmId, plotId, plantingDate);
+      setFarm({ ...farm, plots: farm.plots.map((item) => item.plotId === plotId ? saved : item) });
+      setEnvironment(undefined);
+      setEditing(false);
+    } catch (e) { setError(message(e)); }
+    finally { setPending(undefined); }
+  };
+  const prepare = async () => {
+    if (!startDate || !dateReady || pending) return;
+    setPending("prepare");
+    setError("");
+    setEnvironment(undefined);
     try {
       setEnvironment(await apiClient.prepareEnvironment({
-        farmId, plotId, simulationPeriod: { startDate, endDate: startDate > today ? startDate : today },
+        farmId, plotId, simulationPeriod: { startDate, endDate },
         requestedOutputs: [], includeEnsemble: false, forceRefresh: false,
       }));
     } catch (e) { setError(message(e)); }
-    finally { setPreparing(false); }
+    finally { setPending(undefined); }
   };
-  const run = async () => { if (!environment?.environmentalSnapshotId || !environment.isValid || (plot!.cropCanonicalName === "Turmeric" && !mapping)) return; setRunning(true); setError(""); try { const result = await apiClient.submitSimulation({ farmId, plotId, environmentalSnapshotId: environment.environmentalSnapshotId, irrigationMode: "rainfed", turmericMapping: mapping || undefined }); navigate(`/farms/${farmId}/plots/${plotId}/results/${result.simulationRunId}`); } catch (e) { setError(message(e)); } finally { setRunning(false); } };
-  if (!farm || !plot) return <PageContainer>{error ? <ErrorState label={error} /> : <LoadingState label="Loading plot…" />}</PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">Environmental evidence</p><h2>{plot.cropCanonicalName}</h2><p>{farm.name} · {plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><button className="primary-button" disabled={preparing} onClick={prepare}>Prepare evidence <span>→</span></button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Living Field</button></div>{error && <ErrorState label={error} />}{environment && <><div className="evidence-grid"><ReusableCard><h3>Soil profile</h3><Metric label="Depth" value={environment.c1Input?.soil?.depthCm} /><Metric label="Texture" value={environment.c1Input?.soil?.texture} /><Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} /><Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} /></ReusableCard><ReusableCard><h3>Weather conditions</h3><p>{environment.c1Input?.dailyWeather?.length || 0} returned records</p>{environment.c1Input?.dailyWeather?.slice(0, 5).map((w) => <Metric key={w.date} label={w.date} value={w.rainfallMm} />)}</ReusableCard><ReusableCard><h3>Crop capability</h3><p>{environment.capability?.selectedEngine || "Unavailable"} {environment.capability?.engineVersion || ""}</p><p>{environment.capability?.knownLimitations?.join(" ")}</p></ReusableCard><ReusableCard><h3>Validation and provenance</h3><p>{environment.isValid ? "Validated for the requested inputs." : "Not simulation-ready."}</p><p>{environment.warnings?.join(" ")}</p><p>Freshness: {environment.freshness || "not reported"}</p></ReusableCard></div>{environment.isValid && environment.capability?.selectedEngine === "FAO-56" && <><label className="mapping-select">Turmeric stage mapping<select value={mapping} onChange={(e) => setMapping(e.target.value)}><option value="">Select A, B or C</option><option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option></select></label><button className="primary-button" disabled={running || (plot.cropCanonicalName === "Turmeric" && !mapping)} onClick={run}>{running ? "Submitting…" : "Run Simulation"} <span>→</span></button></>}<button className="text-button evidence-link" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results`)}>View simulation results →</button><div className="workspace-links"><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/observatory`)}>Open Living Field</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button><button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/future-fold`)}>Future Fold</button></div></>}</PageContainer>;
+  const run = async () => {
+    if (!environment || !canRun || pending || (turmeric && !mapping)) return;
+    setPending("run");
+    setError("");
+    try {
+      const result = await apiClient.submitSimulation({
+        farmId, plotId, environmentalSnapshotId: environment.environmentalSnapshotId,
+        irrigationMode: "rainfed", turmericMapping: turmeric ? mapping : undefined,
+      });
+      navigate(`${plotPath}/results/${result.simulationRunId}`);
+    } catch (e) { setError(message(e)); }
+    finally { setPending(undefined); }
+  };
+
+  return <PageContainer>
+    <div className="page-intro">
+      <p className="eyebrow">Environmental evidence</p>
+      <h2>{plot.cropCanonicalName}</h2>
+      <p>{farm.name} · {plot.areaM2.value} m²</p>
+      <p>Planting date {startDate || "unavailable"}{startDate && !dateReady ? " (needs confirmation)" : ""}</p>
+      <div className="workspace-links">
+        <button className="secondary-button" disabled={Boolean(pending)} onClick={() => {
+          setPlantingDate(startDate || "");
+          setEditing(true);
+        }}>{dateReady ? "Edit planting date" : "Confirm planting date"}</button>
+        <button className="secondary-button" onClick={() => navigate(`${plotPath}/observatory`)}>Living Field</button>
+        <button className="secondary-button" onClick={() => navigate(`${plotPath}/results`)}>Simulation history</button>
+      </div>
+    </div>
+    {editing && <form className="form-panel planting-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <label>Actual planting date
+        <input type="date" value={plantingDate} max={today} required disabled={pending === "save"}
+          onChange={(event) => setPlantingDate(event.target.value)} />
+      </label>
+      <div className="form-actions">
+        <button type="button" className="secondary-button" disabled={Boolean(pending)} onClick={() => setEditing(false)}>Cancel</button>
+        <button className="primary-button" disabled={Boolean(pending)}>{pending === "save" ? "Saving…" : "Save confirmed date"}</button>
+      </div>
+    </form>}
+    <p>{dateReady
+      ? `Evidence period ${startDate} to ${endDate}${startDate === today ? " (includes forecast days)" : ""}.`
+      : "Confirm the actual planting date to prepare evidence for this crop."}</p>
+    <button className="primary-button" disabled={!dateReady || editing || Boolean(pending)} onClick={prepare}>
+      {pending === "prepare" ? "Preparing evidence…" : "Prepare evidence"}
+    </button>
+    {error && <ErrorState label={error} />}
+    {environment && <>
+      <div className="evidence-grid">
+        <ReusableCard>
+          <h3>Soil profile</h3>
+          <Metric label="Depth" value={environment.c1Input?.soil?.depthCm} />
+          <Metric label="Texture" value={environment.c1Input?.soil?.texture} />
+          <Metric label="Field capacity" value={environment.c1Input?.soil?.fieldCapacity} />
+          <Metric label="Wilting point" value={environment.c1Input?.soil?.wiltingPoint} />
+        </ReusableCard>
+        <ReusableCard>
+          <h3>Weather conditions</h3>
+          <p>{environment.c1Input?.dailyWeather?.filter((day) => day.rainfallMm.availability.status === "available").length || 0} days with rainfall data</p>
+          {environment.c1Input?.dailyWeather?.slice(0, 5).map((day) => <Metric key={day.date} label={day.date} value={day.rainfallMm} />)}
+        </ReusableCard>
+        <ReusableCard>
+          <h3>Crop capability</h3>
+          <p>{engine || "Unavailable"} {environment.capability?.engineVersion || ""}</p>
+          {environment.simulationBlocker && <p role="status">
+            {engine === "AquaCrop" ? "Farm-scale AquaCrop is unavailable for this crop. " : ""}
+            {environment.simulationBlocker.message}
+          </p>}
+          <p>{environment.capability?.knownLimitations?.join(" ")}</p>
+        </ReusableCard>
+        <ReusableCard>
+          <h3>Validation and provenance</h3>
+          <p>{environment.isValid ? "Environmental inputs validated." : "Environmental inputs need attention."}</p>
+          {Boolean(environment.errors?.length) && <ul>{environment.errors?.map((item) => <li key={item}>{item}</li>)}</ul>}
+          <p>{environment.warnings?.join(" ")}</p>
+          {environment.retrievedAt && <p>Snapshot collected {new Date(environment.retrievedAt).toLocaleString()}</p>}
+        </ReusableCard>
+      </div>
+      {canRun && <div className="workspace-links">
+        {turmeric && <label className="mapping-select">Turmeric stage mapping
+          <select value={mapping} onChange={(event) => setMapping(event.target.value)}>
+            <option value="">Select A, B or C</option>
+            <option value="A">A — early season</option><option value="B">B — middle season</option><option value="C">C — late season</option>
+          </select>
+        </label>}
+        <button className="primary-button" disabled={editing || Boolean(pending) || (turmeric && !mapping)} onClick={run}>
+          {pending === "run" ? "Submitting…" : "Run Simulation"}
+        </button>
+      </div>}
+      <div className="workspace-links">
+        <button className="secondary-button" onClick={() => navigate(`${plotPath}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button>
+        <button className="secondary-button" onClick={() => navigate(`${plotPath}/future-fold`)}>Future Fold</button>
+      </div>
+    </>}
+  </PageContainer>;
 }
+
 function Metric({ label, value }: { label: string; value: unknown }) { const m = value as { value?: number; unit?: string; availability?: { status: string; reason?: string } } | undefined; return <p className="metric"><span>{label}</span><strong>{typeof value === "string" ? value : m?.availability?.status === "available" ? `${m.value} ${m.unit}` : m?.availability?.reason || m?.availability?.status || "Unavailable"}</strong></p>; }
 
 function Results({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
@@ -630,7 +763,46 @@ function Results({ farmId, plotId, navigate }: { farmId: string; plotId: string;
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
   return <PageContainer><div className="page-intro"><p className="eyebrow">Scientific results</p><h2>Simulation history</h2><p>Only persisted runs and available scientific metrics are shown.</p></div>{runs.length === 0 ? <EmptyState title="No simulation results are available for this plot yet." description="Prepare environmental evidence first, then submit a supported simulation." action={<button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/environment`)}>Environmental Evidence</button>} /> : <div className="card-grid">{runs.map((run) => <button className="info-card farm-card" key={run.simulationRunId} onClick={() => navigate(`/farms/${farmId}/plots/${plotId}/results/${run.simulationRunId}`)}><h3>{run.status}</h3><p>{run.engine} {run.engineVersion} · {run.requestedAt || ""}</p><span className="card-link">Inspect run ↗</span></button>)}</div>}</PageContainer>;
 }
-function ResultDetail({ runId }: { runId: string }) { const [run, setRun] = useState<Simulation>(); const [error, setError] = useState(""); useEffect(() => { apiClient.getSimulation(runId).then(setRun).catch((e) => setError(message(e))); }, [runId]); if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!run) return <PageContainer><LoadingState label="Loading simulation…" /></PageContainer>; return <PageContainer><div className="page-intro"><p className="eyebrow">Run {run.simulationRunId}</p><h2>{run.status}</h2><p>{run.engine} {run.engineVersion} · snapshot {run.environmentalSnapshotId}</p></div><section className="results-table">{run.warnings?.map((warning) => <p key={warning} className="warning">{warning}</p>)}{run.errorMessage && <ErrorState label={`${run.errorCode}: ${run.errorMessage}`} />}{run.states?.length ? run.states.map((state, index) => <article key={index}><strong>{String(state.date)}</strong><pre>{JSON.stringify(state, null, 2)}</pre></article>) : <p>No available dated scientific states.</p>}</section></PageContainer>; }
+function ResultDetail({ runId }: { runId: string }) {
+  const [run, setRun] = useState<Simulation>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const result = await apiClient.getSimulation(runId);
+        if (!active) return;
+        setRun(result);
+        setError("");
+        if (result.status === "queued" || result.status === "running") {
+          timer = window.setTimeout(refresh, 2000);
+        }
+      } catch (e) {
+        if (active) setError(message(e));
+      }
+    };
+    void refresh();
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [runId]);
+  if (!run) return <PageContainer>{error ? <ErrorState label={error} /> : <LoadingState label="Loading simulation…" />}</PageContainer>;
+  return <PageContainer>
+    <div className="page-intro">
+      <p className="eyebrow">Run {run.simulationRunId}</p>
+      <h2 aria-live="polite">{run.status}</h2>
+      <p>{run.engine} {run.engineVersion} · snapshot {run.environmentalSnapshotId}</p>
+    </div>
+    {error && <ErrorState label={error} />}
+    <section className="results-table">
+      {run.warnings?.map((warning) => <p key={warning} className="warning">{warning}</p>)}
+      {run.errorMessage && <ErrorState label={`${run.errorCode}: ${run.errorMessage}`} />}
+      {run.states?.length ? run.states.map((state) => <article key={String(state.date)}>
+        <strong>{String(state.date)}</strong><pre>{JSON.stringify(state, null, 2)}</pre>
+      </article>) : <p>{run.status === "queued" || run.status === "running"
+        ? "Waiting for the simulation to finish…" : "No available dated scientific states."}</p>}
+    </section>
+  </PageContainer>;
+}
 
 function AppErrorBoundary({ children, copy }: { children: ReactNode; copy: typeof translations.en }) { return <Boundary copy={copy}>{children}</Boundary>; }
 class Boundary extends Component<{ children: ReactNode; copy: typeof translations.en }, { failed: boolean }> { state = { failed: false }; static getDerivedStateFromError() { return { failed: true }; } componentDidCatch(error: Error, info: ErrorInfo) { console.error("TerraPulse rendering failed", error, info); } render() { return this.state.failed ? <PageContainer><ErrorState label={this.props.copy.error} /></PageContainer> : this.props.children; } }
@@ -757,7 +929,7 @@ export function App() {
   else if (path === "/recover") content = <FarmOpenLink navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[3] === "new") content = <FarmWizard key={path} navigate={navigate} existingFarmId={parts[1]} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "environment") content = <Evidence key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
-  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail runId={parts[5]} />;
+  else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "results" && parts[5]) content = <ResultDetail key={parts[5]} runId={parts[5]} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "observatory") content = <Observatory key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "timeline") content = <Timeline key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;
   else if (parts[0] === "farms" && parts[2] === "plots" && parts[4] === "future-fold") content = <FutureFold key={path} farmId={parts[1]} plotId={parts[3]} navigate={navigate} />;

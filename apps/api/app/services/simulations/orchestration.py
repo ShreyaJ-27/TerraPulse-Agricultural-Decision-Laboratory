@@ -28,6 +28,22 @@ def _hash(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def farm_execution_blocker(crop_id: UUID, mapping: str | None = "A") -> tuple[str, str] | None:
+    science_path = Path(__file__).parents[5] / "packages" / "science" / "src"
+    if str(science_path) not in sys.path:
+        sys.path.insert(0, str(science_path))
+    from app.services.crop_lens.resolver import CropLensResolver
+    from terrapulse_science.contracts import ScienceError
+    from terrapulse_science.crop_binding import CropBindingService
+
+    binding = CropBindingService(resolve=CropLensResolver().resolve, get_crop_by_id=get_crop_by_id)
+    try:
+        binding.bind_canonical_fao(crop_id, turmeric_mapping=mapping)
+    except ScienceError as exc:
+        return exc.code, exc.message
+    return None
+
+
 class SimulationService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -66,9 +82,20 @@ class SimulationService:
             raise ValueError("CROP_IDENTITY_ONLY")
         if str(plot.crop_id) == "00000000-0000-0000-0000-000000000003" and payload.turmeric_mapping not in ("A", "B", "C"):
             raise ValueError("CROP_MAPPING_REQUIRED")
+        blocker = farm_execution_blocker(plot.crop_id, payload.turmeric_mapping)
+        if blocker:
+            raise ValueError(blocker[0], blocker[1])
+        if snapshot.payload.get("isValid") is False:
+            raise ValueError("ENVIRONMENT_INVALID", "Prepare valid environmental evidence before running a simulation.")
         branch_id = payload.branch_id
         planting_date = plot.planting_date
         if branch_id is None:
+            if "planting" in snapshot.payload:
+                certainty = (plot.management or {}).get("plantingDateCertainty")
+                if planting_date is None or certainty in {"estimated", "unconfirmed"}:
+                    raise ValueError("PLANTING_DATE_REQUIRED", "Confirm the planting date on the plot first.")
+                if snapshot.payload["planting"]["date"] != planting_date.isoformat():
+                    raise ValueError("PLANTING_DATE_CHANGED", "Prepare evidence again after changing the planting date.")
             branch_id = uuid4()
             period_start = (
                 snapshot.payload.get("c1Input", {})
@@ -245,9 +272,6 @@ class SimulationService:
                     "stage": "input",
                 },
             }
-        science_path = Path(__file__).parents[5] / "packages" / "science" / "src"
-        if str(science_path) not in sys.path:
-            sys.path.insert(0, str(science_path))
         from app.services.crop_lens.registry import get_crop_by_id as lookup
         from app.services.crop_lens.resolver import CropLensResolver
         from terrapulse_science.crop_binding import CropBindingService
@@ -261,7 +285,8 @@ class SimulationService:
             c3_model=__import__("app.contracts", fromlist=["C3ScientificState"]).C3ScientificState,
         )
         period = c1.simulation_period
-        planting_date = (run.input_provenance or {}).get("plantingDate")
+        provenance = run.input_provenance or {}
+        planting_date = provenance.get("plantingDate") if "plantingDate" in provenance else plot.planting_date
         weather_kind = (
             "forecast" if any(source.startswith("open-meteo:") for source in c1.data_source_ids)
             else "model-estimate"
@@ -275,7 +300,7 @@ class SimulationService:
             simulation_run_id=run.id,
             turmeric_mapping=(run.input_provenance or {}).get("turmericMapping"),
             area_m2=float(plot.area_m2),
-            planting_date=planting_date or str(plot.planting_date or period.start_date),
+            planting_date=str(planting_date or period.start_date),
             root_depth_m=0.3,
             depletion_fraction=0.5,
             initial_depletion_mm=0.0,

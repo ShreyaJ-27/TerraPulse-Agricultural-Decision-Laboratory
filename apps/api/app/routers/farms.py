@@ -16,6 +16,7 @@ from app.schemas import (
     FarmCreateRequest,
     FarmResponse,
     PlotCreateRequest,
+    PlotPlantingDateRequest,
     PlotResponse,
 )
 from app.services.farmer_alerts.registration import issue_farm_link
@@ -193,3 +194,21 @@ async def get_plot(
         data=plot.model_dump(by_alias=True),
         correlationId=request.state.correlation_id,
     )
+
+
+@router.patch("/{farm_id}/plots/{plot_id}/planting-date",
+              dependencies=[Depends(authorize_path_farm)], response_model=ApiResponse)
+async def confirm_plot_planting_date(
+    farm_id: UUID,
+    plot_id: UUID,
+    payload: PlotPlantingDateRequest,
+    request: Request,
+    service: ServiceDep,
+) -> ApiResponse:
+    try:
+        plot = await service.confirm_planting_date(farm_id, plot_id, payload.planting_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if plot is None:
+        raise HTTPException(status_code=404, detail="Plot was not found under this farm.")
+    return ApiResponse(data=plot.model_dump(by_alias=True), correlationId=request.state.correlation_id)

@@ -6,9 +6,21 @@ from uuid import uuid4
 import pytest
 
 from app.models import DecisionBranch, EnvironmentalSnapshot, Plot
-from app.services.simulations.orchestration import SimulationService
+from app.services.simulations.orchestration import SimulationService, farm_execution_blocker
 from app.services.simulations.schemas import SimulationSubmitRequest
 from terrapulse_science.crop_binding import TURMERIC_ID
+
+
+def test_farm_capability_uses_verified_science_binding():
+    from uuid import UUID
+
+    assert farm_execution_blocker(TURMERIC_ID) is None
+    assert farm_execution_blocker(UUID("00000000-0000-0000-0000-000000000010"))[0] == (
+        "UNSUPPORTED_CROP_CAPABILITY"
+    )
+    assert farm_execution_blocker(UUID("00000000-0000-0000-0000-000000000020"))[0] == (
+        "CROP_EXAMPLE_ONLY"
+    )
 
 
 @pytest.mark.asyncio

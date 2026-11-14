@@ -52,6 +52,10 @@ export const apiClient = {
   getFarm: (id: string) => api<Farm>(`/api/v1/farms/${id}`),
   createFarm: (value: unknown) => api<Farm>("/api/v1/farms", { method: "POST", body: JSON.stringify(value) }),
   createPlot: (farmId: string, value: unknown) => api<Plot>(`/api/v1/farms/${farmId}/plots`, { method: "POST", body: JSON.stringify(value) }),
+  confirmPlantingDate: (farmId: string, plotId: string, plantingDate: string) =>
+    api<Plot>(`/api/v1/farms/${farmId}/plots/${plotId}/planting-date`, {
+      method: "PATCH", body: JSON.stringify({ plantingDate }),
+    }),
   listResources: (farmId: string) => api<{ resources: Resource[] }>(`/api/v1/farms/${farmId}/resources`),
   createResource: (farmId: string, value: unknown) => api<Resource>(`/api/v1/farms/${farmId}/resources`, { method: "POST", body: JSON.stringify(value) }),
   assignResourcePlot: (farmId: string, resourceId: string, plotId: string) => api<unknown>(`/api/v1/farms/${farmId}/resources/${resourceId}/plots/${plotId}`, { method: "POST" }),
@@ -131,7 +135,7 @@ export type Crop = {
   matchType?: string;
 };
 export type CropResolution = { status: string; crop?: Crop; candidates?: Crop[]; message?: string };
-export type Environment = { environmentalSnapshotId: string; c1Input?: { dailyWeather?: Weather[]; soil?: Soil; simulationPeriod?: { startDate: string; endDate: string } }; capability?: Capability; isValid: boolean; freshness?: string; warnings?: string[]; errors?: string[]; missingFields?: string[]; unsupportedOutputs?: string[]; provenance?: { sourceId: string; sourceVersion?: string; retrievedAt?: string; reference?: string }[]; retrievedAt?: string };
+export type Environment = { environmentalSnapshotId: string; c1Input?: { dailyWeather?: Weather[]; soil?: Soil; simulationPeriod?: { startDate: string; endDate: string } }; capability?: Capability; isValid: boolean; simulationBlocker?: { code: string; message: string } | null; freshness?: string; warnings?: string[]; errors?: string[]; missingFields?: string[]; unsupportedOutputs?: string[]; provenance?: { sourceId: string; sourceVersion?: string; retrievedAt?: string; reference?: string }[]; retrievedAt?: string };
 export type Weather = { date: string; temperatureMinC: Measurement; temperatureMaxC: Measurement; rainfallMm: Measurement; referenceEvapotranspirationMm?: Measurement; ensembleMemberId?: string };
 export type Soil = { depthCm: Measurement; texture?: string; fieldCapacity: Measurement; wiltingPoint: Measurement; bulkDensity?: Measurement };
 export type Measurement = { value?: number; unit: string; availability: { status: string; reason?: string } };

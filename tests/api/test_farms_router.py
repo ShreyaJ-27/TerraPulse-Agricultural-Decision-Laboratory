@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import uuid4
 
 from app.contracts import C2FarmDefinition
@@ -10,6 +11,27 @@ from fastapi.testclient import TestClient
 in_memory_service = OnboardingService()
 app.dependency_overrides[get_onboarding_service] = lambda: in_memory_service
 client = TestClient(app)
+
+
+def test_confirm_plot_planting_date_preserves_other_management():
+    farm = client.post("/api/v1/farms", json=_valid_farm_payload()).json()["data"]
+    plots_url = f"/api/v1/farms/{farm['farmId']}/plots"
+    plot = client.post(plots_url, json={
+        "cropQuery": "maize", "areaM2": {"value": 1000},
+        "management": {"plotName": "Existing name", "regionId": "test", "plantingDateCertainty": "unconfirmed"},
+    }).json()["data"]
+    plot_url = f"{plots_url}/{plot['plotId']}"
+    assert client.patch(f"{plot_url}/planting-date", json={
+        "plantingDate": date.max.isoformat(),
+    }).status_code == 422
+    saved = client.patch(f"{plot_url}/planting-date", json={"plantingDate": "2026-01-01"})
+    assert saved.status_code == 200
+    reread = client.get(plot_url).json()["data"]
+    assert reread["plantingDate"] == "2026-01-01"
+    assert reread["management"] == {
+        "plotName": "Existing name", "regionId": "test", "plantingDateCertainty": "confirmed",
+    }
+    assert reread["cropId"] == plot["cropId"]
 
 
 def _valid_farm_payload():
