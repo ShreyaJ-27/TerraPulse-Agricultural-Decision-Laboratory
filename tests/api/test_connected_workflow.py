@@ -14,10 +14,15 @@ from app.core.event_loop import new_event_loop
 from app.core.db import SessionFactory, engine
 from app.main import app
 from app.models import BranchDecision, DecisionBranch, EnvironmentalSnapshot, Farm, TimelineEvent
+from app.routers.analysis import get_analysis_service
 from app.routers.farms import get_onboarding_service
 from app.services.farmer_alerts import persistence
-from app.services.farmer_alerts.models import TelegramDelivery, TelegramSubscription, TelegramUpdateCursor
+from app.services.farmer_alerts.models import (
+    PitchAlertSend, TelegramBrowserReconnect, TelegramDelivery,
+    TelegramSubscription, TelegramUpdateCursor, TelegramWebhookUpdate,
+)
 from app.services.farmer_alerts.telegram import DeliveryResult
+from app.services.farmer_alerts.workspace_links import issue_one_tap_link
 from app.services.farmer_alerts.worker import run_cycle
 
 pytestmark = pytest.mark.skipif(
@@ -27,8 +32,133 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_registered_farm_calendar_advisory_and_telegram(monkeypatch):
+    use_real_services(monkeypatch)
     with asyncio.Runner(loop_factory=new_event_loop) as runner:
         runner.run(check_workflow(monkeypatch))
+
+
+def test_saved_farm_link_redeems_across_browsers(monkeypatch):
+    use_real_services(monkeypatch)
+    with asyncio.Runner(loop_factory=new_event_loop) as runner:
+        runner.run(check_saved_farm_link(monkeypatch))
+
+
+def use_real_services(monkeypatch):
+    for dependency in (get_onboarding_service, get_analysis_service):
+        monkeypatch.delitem(app.dependency_overrides, dependency, raising=False)
+
+
+async def check_saved_farm_link(monkeypatch):
+    monkeypatch.setattr(get_settings(), "app_env", "production")
+    monkeypatch.setenv("TERRAPULSE_FARM_ORIGIN", "https://farm.example.org")
+    monkeypatch.setenv("TERRAPULSE_TELEGRAM_ENABLED", "1")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "isolated_test_webhook_secret")
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "terrapulse_example_bot")
+    chat_id = uuid4().int % (2**62 - 1) + 1
+    updates = []
+    replies = []
+    farm_ids = []
+    owner, other, first, second = [
+        {"Authorization": "Bearer " + uuid4().hex + uuid4().hex} for _ in range(4)
+    ]
+
+    class FakeBot:
+        async def send(self, recipient, message):
+            assert recipient == chat_id
+            replies.append(message)
+            return DeliveryResult(True, message_id=len(replies))
+
+    monkeypatch.setattr("app.routers.telegram_integration.TelegramClient", FakeBot)
+    monkeypatch.setattr("app.routers.pitch_alerts.TelegramClient", FakeBot)
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://terrapulse.test",
+        ) as client:
+            async def register(name, headers):
+                response = await client.post("/api/v1/farms", headers=headers, json={
+                    "name": name, "timezone": "UTC", "locationConfirmed": True,
+                    "location": {"latitude": 30.9, "longitude": 75.8, "crs": "EPSG:4326"},
+                })
+                assert response.status_code == 201, response.text
+                data = response.json()["data"]
+                farm_ids.append(UUID(data["farmId"]))
+                return data
+
+            async def command(text, update_id=None):
+                if update_id is None:
+                    update_id = uuid4().int % (2**62 - 1)
+                    updates.append(update_id)
+                response = await client.post("/api/v1/telegram/webhook", headers={
+                    "X-Telegram-Bot-Api-Secret-Token": "isolated_test_webhook_secret",
+                }, json={"update_id": update_id, "message": {
+                    "chat": {"id": chat_id, "type": "private"},
+                    "from": {"id": chat_id}, "text": text,
+                }})
+                assert response.status_code == 200, response.text
+                return response.json()
+
+            async def redeem(token, headers):
+                return await client.post("/api/v1/workspace-link/redeem", headers=headers,
+                                         json={"token": token})
+
+            saved = await register("Saved land test", owner)
+            outsider = await register("Independent land test", other)
+            path = f"/api/v1/farms/{saved['farmId']}"
+            connect_token = saved["telegramConnectUrl"].split("start=")[1]
+            await command("/start " + connect_token)
+            await command("/open")
+            token = replies[-1].split("#open=")[1].split()[0]
+            assert (await command("/open", updates[-1]))["duplicate"] is True
+            assert len(replies) == 2
+
+            results = await asyncio.gather(redeem(token, first), redeem(token, second))
+            assert sorted(result.status_code for result in results) == [200, 404]
+            winner = first if results[0].status_code == 200 else second
+            loser = second if winner is first else first
+            assert (await redeem(token, winner)).status_code == 404
+            assert (await client.get(path, headers=loser)).status_code == 404
+            assert (await client.get(path, headers=winner)).status_code == 200
+            assert (await client.get(path, headers=owner)).status_code == 200
+            own_farms = await client.get("/api/v1/farms", headers=winner)
+            assert [farm["farmId"] for farm in own_farms.json()["data"]["farms"]] == [saved["farmId"]]
+            assert (await client.get(f"/api/v1/farms/{outsider['farmId']}", headers=winner)).status_code == 404
+            for suffix in ("farms", "telegram/status", "deliveries"):
+                notification = f"/api/v1/notifications/{suffix}/{saved['farmId']}"
+                assert (await client.get(notification, headers=winner)).status_code == 200
+                assert (await client.get(notification, headers=loser)).status_code == 404
+
+            monkeypatch.setenv("TERRAPULSE_PITCH_ALERTS_ENABLED", "1")
+            monkeypatch.setenv("TERRAPULSE_PITCH_FARM_ID", saved["farmId"])
+            monkeypatch.setenv("TERRAPULSE_PITCH_EXPIRES_AT",
+                               (datetime.now(UTC) + timedelta(hours=1)).isoformat())
+            pitch_path = path + "/pitch-alert"
+            assert (await client.get(pitch_path, headers=winner)).json()["connected"]
+            request_id = str(uuid4())
+            sent = await client.post(pitch_path, headers=winner, json={"requestId": request_id})
+            assert sent.status_code == 200, sent.text
+            assert "Scenario illustration" in replies[-1]
+            message_id = sent.json()["telegramMessageId"]
+            async with SessionFactory() as session:
+                receipt = await session.get(PitchAlertSend, UUID(sent.json()["receiptId"]))
+                assert receipt.status == "sent" and receipt.telegram_message_id == message_id
+            repeat = await client.post(pitch_path, headers=winner, json={"requestId": str(uuid4())})
+            assert repeat.status_code == 429
+            assert (await client.post(pitch_path, headers=loser, json={"requestId": str(uuid4())})).status_code == 404
+
+            async with SessionFactory.begin() as session:
+                pending = await issue_one_tap_link(session, chat_id=chat_id, user_id=chat_id)
+            assert pending is not None
+            await command("/stop")
+            await command("/start")
+            assert (await redeem(pending.split("#open=")[1], loser)).status_code == 404
+    finally:
+        async with SessionFactory.begin() as session:
+            await session.execute(delete(TelegramBrowserReconnect).where(
+                TelegramBrowserReconnect.approved_chat_id == chat_id))
+            await session.execute(delete(TelegramWebhookUpdate).where(
+                TelegramWebhookUpdate.update_id.in_(updates)))
+            await session.execute(delete(Farm).where(Farm.id.in_(farm_ids)))
+        await engine.dispose()
 
 
 async def check_workflow(monkeypatch):

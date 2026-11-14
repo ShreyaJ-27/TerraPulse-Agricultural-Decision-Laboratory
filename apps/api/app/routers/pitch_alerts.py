@@ -9,6 +9,7 @@ from __future__ import annotations
 import hmac
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,8 +17,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import authorize_path_farm
-from app.core.db import SessionFactory
+from app.core.access import require_farm_access, workspace_digest
+from app.core.db import SessionFactory, get_session
 from app.models import Farm, Plot, CropIdentity
 from app.services.farmer_alerts.models import TelegramSubscription, PitchAlertSend
 from app.services.farmer_alerts.pitch_message import rainfall_watch_message
@@ -75,29 +76,30 @@ async def _available_sub(session: AsyncSession, farm_id: UUID):
 
 @router.get("/farms/{farm_id}/pitch-alert")
 async def pitch_alert_status(
-    farm_id: UUID, request: Request, _auth=Depends(authorize_path_farm),
+    farm_id: UUID, request: Request, session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict:
     """Owner-only; invisible for farms not explicitly approved for a pitch."""
+    await require_farm_access(session, farm_id, workspace_digest(request))
     if not _authorized_pitch_farm(farm_id):
         return {"available": False}
-    async with SessionFactory() as session:
-        sub = await _available_sub(session, farm_id)
-        latest = await session.scalar(select(PitchAlertSend).where(
-            PitchAlertSend.farm_id == farm_id,
-        ).order_by(PitchAlertSend.created_at.desc()).limit(1))
+    sub = await _available_sub(session, farm_id)
+    latest = await session.scalar(select(PitchAlertSend).where(
+        PitchAlertSend.farm_id == farm_id,
+    ).order_by(PitchAlertSend.created_at.desc()).limit(1))
     cooldown = max(0, int((latest.created_at + timedelta(seconds=COOLDOWN_SECONDS)
                            - datetime.now(timezone.utc)).total_seconds()) + 1) if latest else 0
     return {"available": True, "connected": sub is not None,
             "cooldownSeconds": cooldown, "scenario": "rainfall-watch"}
 
 
-async def _send_pitch(farm_id: UUID, request_id: UUID) -> dict:
+async def _send_pitch(farm_id: UUID, request_id: UUID, *, browser_digest: str | None = None) -> dict:
     if not _authorized_pitch_farm(farm_id):
         raise HTTPException(404, "Pitch alert not enabled for this farm")
     now = datetime.now(timezone.utc)
     receipt_id = uuid4()
     async with SessionFactory() as session:
         async with session.begin():
+            await require_farm_access(session, farm_id, browser_digest)
             # Serializes simultaneous sends for this farm before rate-checking.
             farm = await session.scalar(select(Farm).where(
                 Farm.id == farm_id
@@ -163,10 +165,9 @@ async def _send_pitch(farm_id: UUID, request_id: UUID) -> dict:
 
 @router.post("/farms/{farm_id}/pitch-alert")
 async def pitch_alert_send(
-    farm_id: UUID, payload: PitchSendRequest,
-    _auth=Depends(authorize_path_farm),
+    farm_id: UUID, payload: PitchSendRequest, request: Request,
 ) -> dict:
-    return await _send_pitch(farm_id, payload.requestId)
+    return await _send_pitch(farm_id, payload.requestId, browser_digest=workspace_digest(request))
 
 
 @router.post("/telegram/pitch-send")

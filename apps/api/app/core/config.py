@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
 
     @property
     def require_workspace_key(self) -> bool:
-        return self.app_env == "production"
+        return self.app_env == "production" or os.environ.get("VERCEL_ENV") in {"preview", "production"}
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

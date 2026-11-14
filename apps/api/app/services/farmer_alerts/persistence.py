@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .decision import AdvisoryEvent
-from .models import (FarmerAlert, TelegramDelivery, TelegramLink, TelegramSubscription,
+from .models import (FarmerAlert, TelegramBrowserReconnect, TelegramDelivery, TelegramLink, TelegramSubscription,
                      TelegramUpdateCursor, TelegramWebhookUpdate)
 
 DEFAULT_CATEGORIES = {"calendar": True, "weather": True, "science": True}
@@ -105,9 +105,16 @@ async def resume_subscriptions(session: AsyncSession, chat_id: int) -> int:
 async def unsubscribe(session: AsyncSession, chat_id: int) -> int:
     """Stop future sends and cancel queued messages, not only flip a flag."""
     ids = select(TelegramSubscription.id).where(TelegramSubscription.chat_id == chat_id)
+    await session.scalars(ids.order_by(TelegramSubscription.id).with_for_update())
+    now = now_utc()
     result = await session.execute(update(TelegramSubscription)
                    .where(TelegramSubscription.chat_id == chat_id, TelegramSubscription.active.is_(True))
-                   .values(active=False, updated_at=now_utc()))
+                   .values(active=False, updated_at=now))
+    await session.execute(update(TelegramBrowserReconnect).where(
+        TelegramBrowserReconnect.approved_chat_id == chat_id,
+        TelegramBrowserReconnect.redeemed_at.is_(None),
+        TelegramBrowserReconnect.expires_at > now,
+    ).values(expires_at=now))
     await session.execute(update(TelegramDelivery).where(
         TelegramDelivery.subscription_id.in_(ids),
         TelegramDelivery.status.in_(("pending", "sending"))).values(

@@ -6,11 +6,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import Farm
+from app.services.farmer_alerts.models import FarmWorkspaceGrant
 
 
 def workspace_digest(request: Request) -> str | None:
@@ -29,9 +31,16 @@ async def require_farm_access(
     if digest is None:
         return  # Local development mode only.
     farm = await session.get(Farm, farm_id)
-    if farm is None or not farm.workspace_key_hash or not compare_digest(
-        farm.workspace_key_hash, digest
-    ):
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found in this workspace.")
+    if farm.workspace_key_hash and compare_digest(farm.workspace_key_hash, digest):
+        return
+    # A Telegram-issued one-tap link grants access to this farm only.
+    grant = await session.scalar(select(FarmWorkspaceGrant.id).where(
+        FarmWorkspaceGrant.farm_id == farm_id,
+        FarmWorkspaceGrant.token_hash == digest,
+    ))
+    if grant is None:
         raise HTTPException(status_code=404, detail="Farm not found in this workspace.")
 
 

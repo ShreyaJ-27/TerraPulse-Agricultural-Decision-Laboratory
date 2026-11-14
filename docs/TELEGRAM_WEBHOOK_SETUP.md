@@ -8,7 +8,7 @@ This change adds two Vercel-compatible paths on the existing TerraPulse FastAPI 
 
 ## Settings and activation order
 
-1. Test the integration branch with Telegram disabled. Apply `python -m alembic upgrade head` using the direct connection to the integration database and check that `python -m alembic current` reports `0008_telegram_webhook_updates`. Revision `0005_farmer_alerts` provides the subscriptions and delivery outbox.
+1. Check the database revision using the direct connection. A new database should reach `0010_telegram_browser_reconnect` with `python -m alembic upgrade head`. The existing integration Neon database already has this revision. Revision `0005_farmer_alerts` provides the subscriptions and delivery outbox.
 2. Vercel project secrets required: `TELEGRAM_BOT_TOKEN` (existing), `TELEGRAM_WEBHOOK_SECRET` (new, random URL-safe token), `CRON_SECRET` (new, random token), plus `TELEGRAM_BOT_USERNAME=Batyond_bot`. Keep all secrets in Vercel; never commit or print values.
 3. Set `TERRAPULSE_TELEGRAM_ENABLED=1` **only in the environment whose webhook will be activated**, after verifying its API deployment, DB migrations, and public route availability. Leave it disabled elsewhere until switching the active bot.
 4. The Preview may be protected by Vercel Authentication. Telegram cannot follow an interactive login or share-cookie; the activation endpoint checks whether the webhook can actually be reached without Vercel credentials. A protected Preview **must not** be activated until you have an explicitly approved publicly reachable endpoint.
@@ -18,6 +18,10 @@ This change adds two Vercel-compatible paths on the existing TerraPulse FastAPI 
 8. **Production still needs its authorized Neon DATABASE_URL and migrations.** Do not enable Production or promote a Preview until this is configured and independently verified.
 
 ## Security and operational caveats
+
+- In a private chat with an active farm subscription, `/open` issues a one-use link that expires after ten minutes. The browser redeems it to access the existing farm records. `/stop` invalidates unused links and stops alerts. Previously recovered browsers retain their access.
+- Set `TERRAPULSE_FARM_ORIGIN` in the webhook's server environment when its saved-farm links should use a specific HTTPS site. The destination must serve the candidate recovery page and use the same database as the webhook. Vercel deployments otherwise use their branch or deployment URL. Check the active webhook environment before enabling this on a hosted site.
+- Use an isolated Preview with a disposable database and simulated Telegram to verify a candidate without switching the active bot. The existing pitch allowlist governs illustrative Rainfall Watch sends. Genuine alerts use the cron evidence path.
 
 - Telegram's two update transports (`getUpdates` vs `setWebhook`) are mutually exclusive. Do not run the old worker in polling mode concurrently with the webhook.
 - Telegram `sendMessage` has no general idempotency key. A crash after an external send but before outbox acknowledgment can cause a rare duplicate; the app deduplicates on its own side but **cannot guarantee exactly-once external delivery**.

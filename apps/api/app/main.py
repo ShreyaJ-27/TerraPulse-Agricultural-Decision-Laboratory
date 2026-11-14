@@ -21,6 +21,7 @@ from app.routers.crops import router as crops_router
 from app.routers.environment import router as environment_router
 from app.routers.farms import router as farms_router
 from app.routers.pitch_alerts import router as pitch_alerts_router
+from app.routers.workspace_link import router as workspace_link_router
 from app.routers.advisory import router as advisory_router
 from app.routers.health import router as health_router
 from app.routers.observatory import router as observatory_router
@@ -35,18 +36,6 @@ logger = logging.getLogger("terrapulse.api")
 app = FastAPI(title="TerraPulse API", version="2.0.0")
 
 
-def _cors_headers(request: Request) -> dict[str, str]:
-    origin = request.headers.get("origin")
-    if origin:
-        return {
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        }
-    return {}
-
-
 @app.middleware("http")
 async def correlation_id(request: Request, call_next):
     value = request.headers.get("X-Correlation-ID", str(uuid4()))
@@ -58,16 +47,7 @@ async def correlation_id(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
+    allow_origins=get_settings().cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -90,25 +70,23 @@ async def validation_error(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
         content=body.model_dump(by_alias=True),
-        headers=_cors_headers(request),
     )
 
 
 @app.exception_handler(Exception)
 async def unhandled_error(request: Request, exc: Exception):
-    logger.exception("Unhandled API request failure", exc_info=exc)
+    logger.error("Unhandled API failure (%s), correlation ID %s", type(exc).__name__, getattr(request.state, "correlation_id", "unknown"))
     corr_id = getattr(request.state, "correlation_id", str(uuid4()))
     body = ApiError(
         error=ApiErrorDetail(
             code="API_REQUEST_FAILED",
-            message=f"The API could not complete this request: {exc}",
+            message="The API could not complete this request.",
         ),
         correlation_id=corr_id,
     )
     return JSONResponse(
         status_code=500,
         content=body.model_dump(by_alias=True),
-        headers=_cors_headers(request),
     )
 
 
@@ -127,3 +105,4 @@ app.include_router(analysis_router)
 app.include_router(agri_calendar_router)
 app.include_router(notifications_router)
 app.include_router(pitch_alerts_router)
+app.include_router(workspace_link_router)
