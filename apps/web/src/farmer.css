@@ -1,15 +1,15 @@
 .fp-shell {
-  --forest: #1a3c2a;
-  --ink: #20392b;
-  --muted: #566c5d;
-  --line: #dce5d7;
-  --paper: #fffef8;
-  --green: #e5efde;
+  --forest: #0B1F16;
+  --ink: #F4F7F0;
+  --muted: #A8B9AD;
+  --line: rgba(44, 96, 70, 0.4);
+  --paper: #132B20;
+  --green: #2C6046;
   --amber: #f6e9c9;
   display: grid;
   grid-template-columns: 216px minmax(0, 1fr);
   min-height: 100vh;
-  background: #f4f6ee;
+  background: #0B1F16;
   color: var(--ink);
 }
 .fp-shell h1, .fp-shell h2, .fp-shell h3 { margin: 0; color: inherit; }

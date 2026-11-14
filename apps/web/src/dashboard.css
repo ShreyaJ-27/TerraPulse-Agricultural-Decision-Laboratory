@@ -1,3 +1,89 @@
+/* TerraPulse Agricultural Decision Laboratory Unified Design System Tokens */
+:root {
+  --tp-bg: #0B1F16;
+  --tp-surface: #132B20;
+  --tp-elevated: #1B3629;
+  --tp-green: #2C6046;
+  --tp-lime: #A7D86D;
+  --tp-cream: #F4F0E6;
+  --tp-muted: #A8B9AD;
+  --tp-text: #F4F7F0;
+  --tp-warning: #E8A020;
+  --tp-error: #E05252;
+
+  --tp-font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --tp-font-mono: 'DM Mono', monospace;
+
+  --tp-radius-sm: 4px;
+  --tp-radius-md: 8px;
+  --tp-radius-lg: 12px;
+  --tp-radius-xl: 18px;
+
+  --tp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --tp-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --tp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --tp-card-bg: var(--tp-surface);
+  --tp-card-border: rgba(44, 96, 70, 0.35);
+  --tp-card-hover: var(--tp-elevated);
+}
+
+/* Global root dark surface guarantee */
+html, body {
+  background-color: var(--tp-bg, #0B1F16) !important;
+  color: var(--tp-text, #F4F7F0) !important;
+  min-height: 100vh;
+}
+
+/* Unified Theme Controls & Badges */
+.tp-demo-badge {
+  background: rgba(167, 216, 109, 0.15);
+  color: var(--tp-lime, #A7D86D);
+  border: 1px solid rgba(167, 216, 109, 0.35);
+  border-radius: var(--tp-radius-sm, 4px);
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tp-btn-primary {
+  background: var(--tp-lime, #A7D86D);
+  color: #0B1F16;
+  border: none;
+  border-radius: var(--tp-radius-md, 8px);
+  padding: 10px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+.tp-btn-primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.tp-btn-secondary {
+  background: transparent;
+  color: var(--tp-lime, #A7D86D);
+  border: 1.5px solid var(--tp-lime, #A7D86D);
+  border-radius: var(--tp-radius-md, 8px);
+  padding: 9px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.tp-btn-secondary:hover {
+  background: rgba(167, 216, 109, 0.12);
+}
+
+.tp-card {
+  background: var(--tp-card-bg, #132B20);
+  border: 1px solid var(--tp-card-border, rgba(44, 96, 70, 0.35));
+  border-radius: var(--tp-radius-lg, 12px);
+  padding: 1.25rem;
+}
+
 /* TerraPulse Agricultural Dashboard Styles */
 .dash-container {
   display: flex;

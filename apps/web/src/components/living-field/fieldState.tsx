@@ -8,22 +8,28 @@ export const today = () => new Date().toLocaleDateString("sv-SE");
 export const scenePath = (farmId: string, plotId: string, view: "observatory" | "future-fold") =>
   "/farms/" + encodeURIComponent(farmId) + "/plots/" + encodeURIComponent(plotId) + "/" + view;
 
-const fields = [
-  ["canopyCover", "Canopy cover"],
+  const fields = [
   ["waterStress", "Water stress"],
-  ["soilWaterContent", "Soil water"],
-  ["soilWater", "Soil water storage"],
+  ["soilWater", "Root-zone storage"],
+  ["actualEvapotranspiration", "Actual evapotranspiration"],
+  ["cropWaterDemand", "Potential evapotranspiration"],
   ["irrigation", "Irrigation"],
   ["rainfall", "Rainfall"],
 ] as const;
 
+function measurement(science: ScientificState, key: string) {
+  const item = science.state[key] as { value?: unknown; availability?: { status?: string } } | undefined;
+  const value = item?.value;
+  if (science.availability === "available" && item?.availability?.status === "available" && typeof value === "number" && Number.isFinite(value)) return value;
+  return undefined;
+}
+
 function scientificMetrics(science: ScientificState) {
   const rows = fields.flatMap(([key, label]) => {
-    const measurement = science.state[key] as Measurement | undefined;
-    const value = measurement?.value;
-    if (!(science.availability === "available" && measurement?.availability?.status === "available"
-      && typeof value === "number" && Number.isFinite(value))) return [];
-    return [{ label, value: String(value) + " " + measurement.unit }];
+    const item = science.state[key] as Measurement | undefined;
+    const value = measurement(science, key);
+    if (value == null || !item) return [];
+    return [{ label, value: value + " " + item.unit }];
   });
   return rows.length ? rows : [{ label: "Stored state", value: "No numeric outputs for this date" }];
 }
@@ -70,14 +76,21 @@ export function useFarmPlots(farmId: string, plotId: string) {
 
 export function branchScenario(
   side: FieldSide, branch: Branch | undefined, request: ReturnType<typeof useFieldState>,
+  overrideVisual?: FieldScenario["visual"],
 ): FieldScenario {
   const state = request.state;
   const label = branch ? branch.decisionType.replaceAll("_", " ") + " · " + branch.branchId.slice(0, 8)
     : side === "original" ? "Original decision" : "Alternative decision";
+  const fao = Boolean(state?.provenance.engine?.toLowerCase().includes("fao"));
   const description = request.pending ? "Loading the stored result for this date…"
-    : state ? "Stored model state · " + [state.provenance.engine, state.provenance.engineVersion].filter(Boolean).join(" ")
-    : "No matching model result for this date. Explore the illustrative field.";
-  return { side, label, description, metrics: state ? scientificMetrics(state) : undefined };
+    : state ? (fao ? "FAO-56 model state · " : "Stored model state · ") + [state.provenance.engine, state.provenance.engineVersion].filter(Boolean).join(" ")
+    : "No matching model result for this date. The field geometry stays illustrative.";
+  const stress = state && fao ? measurement(state, "waterStress") : undefined;
+  const soil = state && fao ? measurement(state, "soilWater") : undefined;
+  return {
+    side, label, description, metrics: state ? scientificMetrics(state) : undefined,
+    visual: overrideVisual ?? (stress != null || soil != null ? { waterStress: stress, soilWaterMm: soil } : undefined),
+  };
 }
 
 export function ExampleField() {

@@ -16,7 +16,8 @@ import {
 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Sky } from "three/addons/objects/Sky.js";
-import { FieldLayout, FieldSide, plotDepth, plotWidth, sideColors } from "./fieldLayout";
+import type { FieldVisual } from "./LivingFieldScene";
+import { FieldLayout, FieldSide, plotDepth, plotWidth } from "./fieldLayout";
 
 type ViewMode = "farm" | "soil";
 type CameraView = "overview" | "focus" | "ground";
@@ -26,6 +27,7 @@ type Props = {
   layout: FieldLayout[];
   selected: FieldLayout;
   side: FieldSide;
+  visual?: FieldVisual;
   reduced: boolean;
   mode: ViewMode;
   showRoots: boolean;
@@ -716,12 +718,17 @@ function paint(mesh: InstancedMesh | null, index: number, object: Object3D, colo
   mesh.setColorAt(index, color);
 }
 
+function stressTint(color: Color, stress?: number) {
+  if (stress == null || !Number.isFinite(stress)) return color;
+  return color.lerp(new Color("#a6843c"), Math.min(0.72, Math.max(0, stress)));
+}
+
 function CropPlot({
-  plot, active, side, reduced, cutaway, onSelect,
+  plot, active, visual, reduced, cutaway, onSelect,
 }: {
   plot: FieldLayout;
   active: boolean;
-  side: FieldSide;
+  visual?: FieldVisual;
   reduced: boolean;
   cutaway: boolean;
   onSelect: Props["onSelect"];
@@ -729,7 +736,8 @@ function CropPlot({
   const kind = cropKind(plot.label);
   const spec = cropSpec(kind, reduced);
   const count = spec.rows * spec.along;
-  const vigor = side === "alternative" ? 1.18 : 1;
+  const stress = visual?.waterStress;
+  const moisture = visual?.soilWaterMm;
   const stalk = useRef<InstancedMesh>(null);
   const leafA = useRef<InstancedMesh>(null);
   const leafB = useRef<InstancedMesh>(null);
@@ -749,29 +757,32 @@ function CropPlot({
         const x = (row - (spec.rows - 1) / 2) * spec.rowGap + (hash(seed) - 0.5) * spec.rowGap * 0.18;
         const z = (col - (spec.along - 1) / 2) * spec.alongGap + (hash(seed + 1) - 0.5) * spec.alongGap * 0.18;
         const hidden = cutaway && z > -1;
-        const height = hidden ? 0 : (0.78 + hash(seed + 2) * 0.4) * vigor;
-        const bush = kind === "turmeric" ? height : kind === "orchard" ? (hidden ? 0 : 0.85 + hash(seed + 6) * 0.35) : 1;
+        const vigorScale = visual?.vigor != null ? Math.max(0.4, Math.min(1.4, visual.vigor * 1.2)) : 1.0;
+        const heightMultiplier = visual?.plantHeight != null ? Math.max(0.4, Math.min(1.3, visual.plantHeight * 1.15)) : 1.0;
+        const baseHeight = hidden ? 0 : (0.78 + hash(seed + 2) * 0.4) * heightMultiplier;
+        const bush = kind === "turmeric" ? baseHeight * vigorScale : kind === "orchard" ? (hidden ? 0 : 0.85 + hash(seed + 6) * 0.35) : vigorScale;
         object.position.set(x, 0, z);
         object.rotation.set((hash(seed + 3) - 0.5) * 0.12, hash(seed + 4) * Math.PI * 2, (hash(seed + 5) - 0.5) * 0.12);
-        object.scale.set(height === 0 ? 0 : bush, height === 0 ? 0 : height, height === 0 ? 0 : bush);
+        object.scale.set(baseHeight === 0 ? 0 : bush, baseHeight === 0 ? 0 : baseHeight, baseHeight === 0 ? 0 : bush);
         object.updateMatrix();
         if (kind === "wheat") {
-          stalkColor.set("#c6a84e").lerp(new Color("#6f8a38"), side === "alternative" ? 0.05 : 0.32).multiplyScalar(0.88 + hash(seed + 8) * 0.28);
-          headColor.set(side === "alternative" ? "#f3d56e" : "#e0c15a").multiplyScalar(0.92 + hash(seed + 9) * 0.2);
+          stalkColor.set("#c6a84e").multiplyScalar(0.88 + hash(seed + 8) * 0.28);
+          headColor.set("#e0c15a").multiplyScalar(0.92 + hash(seed + 9) * 0.2);
         } else if (kind === "millet") {
           stalkColor.set("#6f8f3a").multiplyScalar(0.85 + hash(seed + 8) * 0.3);
           headColor.set("#9aaa55").multiplyScalar(0.9 + hash(seed + 9) * 0.2);
         } else if (kind === "turmeric") {
           stalkColor.set("#2f8a45").lerp(new Color("#145c30"), hash(seed + 7)).multiplyScalar(0.9 + hash(seed) * 0.25);
-          if (side === "original") stalkColor.lerp(new Color("#a8a05a"), 0.18);
           headColor.copy(stalkColor);
         } else if (kind === "orchard") {
           stalkColor.set("#5c4634");
           headColor.set(hash(seed) > 0.5 ? "#3d7344" : "#4e8a46");
         } else {
-          stalkColor.set("#2f7a34").lerp(new Color("#d2c36a"), side === "alternative" ? 0.02 : 0.12).multiplyScalar(0.86 + hash(seed + 8) * 0.28);
+          stalkColor.set("#2f7a34").multiplyScalar(0.86 + hash(seed + 8) * 0.28);
           headColor.set("#e6d48a").multiplyScalar(0.9 + hash(seed + 9) * 0.2);
         }
+        stressTint(stalkColor, stress);
+        stressTint(headColor, stress);
         paint(stalk.current, cursor, object, color.copy(stalkColor));
         paint(leafA.current, cursor, object, color.copy(stalkColor).multiplyScalar(0.92 + hash(seed + 11) * 0.16));
         paint(leafB.current, cursor, object, color.copy(stalkColor).multiplyScalar(0.88 + hash(seed + 12) * 0.2));
@@ -799,10 +810,11 @@ function CropPlot({
       grass.instanceMatrix.needsUpdate = true;
       grass.computeBoundingSphere();
     }
-  }, [count, cutaway, kind, plot.index, side, spec.along, spec.alongGap, spec.rowGap, spec.rows, vigor]);
+  }, [count, cutaway, kind, plot.index, spec.along, spec.alongGap, spec.rowGap, spec.rows, stress, visual?.vigor, visual?.plantHeight]);
 
-  const soil = side === "alternative" ? "#4a3424" : "#6b5138";
-  const tint = active ? sideColors[side] : "#c8b48a";
+  const wetness = moisture == null ? 0.35 : Math.min(1, Math.max(0, (moisture - 25) / 70));
+  const soil = new Color("#c2b07a").lerp(new Color("#2f4a28"), wetness).getStyle();
+  const tint = active ? "#d6ff6a" : "#c8b48a";
   const select = (event: { delta: number; stopPropagation: () => void }) => {
     if (event.delta > 5) return;
     event.stopPropagation();
@@ -843,7 +855,7 @@ function CropPlot({
     </>}
     <mesh position={[plotWidth / 2 - 0.45, 0.12, cutaway ? -4.5 : 0]} rotation-x={Math.PI / 2}>
       <cylinderGeometry args={[0.045, 0.045, cutaway ? 8 : plotDepth * 0.92, 6]} />
-      <meshStandardMaterial color="#2c5f86" emissive={side === "alternative" ? "#1a6ea5" : "#000"} emissiveIntensity={side === "alternative" ? 0.45 : 0} />
+      <meshStandardMaterial color="#2c5f86" emissive={wetness > 0.55 ? "#1a6ea5" : "#000"} emissiveIntensity={wetness > 0.55 ? 0.45 : 0} />
     </mesh>
     {[-1, 1].flatMap((direction) => [
       <mesh key={"x" + direction} position={[direction * plotWidth / 2, 0.08, 0]}>
@@ -866,8 +878,8 @@ const SOIL_LAYERS = [
   { h: 1.25, color: "#edd7ae" },
 ];
 
-function Specimen({ kind, side }: { kind: CropKind; side: FieldSide }) {
-  const dry = side === "original";
+function Specimen({ kind, stress }: { kind: CropKind; stress?: number }) {
+  const dry = (stress ?? 0) >= 0.35;
   if (kind === "wheat" || kind === "millet") {
     const stalk = kind === "wheat" && !dry ? "#c6a84e" : "#7f9a3e";
     const head = kind === "wheat" && !dry ? "#f0d56a" : "#9aaa55";
@@ -928,10 +940,10 @@ function Specimen({ kind, side }: { kind: CropKind; side: FieldSide }) {
 }
 
 function SoilCutaway({
-  plot, side, showRoots, showMoisture, soilDepth, onSelect,
+  plot, visual, showRoots, showMoisture, soilDepth, onSelect,
 }: {
   plot: FieldLayout;
-  side: FieldSide;
+  visual?: FieldVisual;
   showRoots: boolean;
   showMoisture: boolean;
   soilDepth: number;
@@ -947,7 +959,8 @@ function SoilCutaway({
   });
   const limit = depth;
   const faceZ = 3.15;
-  const waterY = side === "alternative" ? Math.max(-limit + 0.15, -1.05) : Math.max(-limit + 0.15, -2.15);
+  const wetness = visual?.soilWaterMm == null ? 0.45 : Math.min(1, Math.max(0, (visual.soilWaterMm - 25) / 70));
+  const waterY = Math.max(-limit + 0.15, -2.4 + wetness * 1.6);
   const select = (event: { delta: number; stopPropagation: () => void }) => {
     if (event.delta > 5) return;
     event.stopPropagation();
@@ -963,17 +976,17 @@ function SoilCutaway({
     {showMoisture && limit > 0.5 && <>
       <mesh position={[0, waterY, faceZ + 0.08]}>
         <boxGeometry args={[plotWidth * 0.86, 0.22, 0.12]} />
-        <meshStandardMaterial color="#49b0e0" emissive="#1a6ea8" emissiveIntensity={0.35} transparent opacity={side === "alternative" ? 0.9 : 0.55} />
+        <meshStandardMaterial color="#49b0e0" emissive="#1a6ea8" emissiveIntensity={0.35} transparent opacity={0.35 + wetness * 0.55} />
       </mesh>
       <mesh position={[0, waterY / 2, faceZ - 0.4]}>
         <boxGeometry args={[plotWidth * 0.72, Math.max(0.2, Math.abs(waterY) * 0.55), 2.4]} />
-        <meshStandardMaterial color="#2e86c1" transparent opacity={side === "alternative" ? 0.22 : 0.1} depthWrite={false} />
+        <meshStandardMaterial color="#2e86c1" transparent opacity={0.08 + wetness * 0.2} depthWrite={false} />
       </mesh>
     </>}
-    {showRoots && <Roots kind={kind} limit={limit} faceZ={faceZ} vigor={side === "alternative" ? 1.12 : 0.92} />}
+    {showRoots && <Roots kind={kind} limit={limit} faceZ={faceZ} vigor={visual?.vigor ?? 1} />}
     {Array.from({ length: 6 }, (_, index) => (
       <group key={index} position={[(index - 2.5) * 3.3, 0, 1.7]}>
-        <Specimen kind={kind} side={side} />
+        <Specimen kind={kind} stress={visual?.waterStress} />
       </group>
     ))}
   </group>;
@@ -1077,7 +1090,7 @@ function GrassTufts({ reduced }: { reduced: boolean }) {
 }
 
 export default function FarmCanvas(props: Props) {
-  const { layout, onSelect, reduced, selected, side, mode, showRoots, showMoisture, soilDepth } = props;
+  const { layout, onSelect, reduced, selected, visual, mode, showRoots, showMoisture, soilDepth } = props;
   const lastZ = layout[layout.length - 1].z;
   return <Canvas
     aria-label="Interactive three-dimensional farm"
@@ -1120,8 +1133,8 @@ export default function FarmCanvas(props: Props) {
     <Shed />
     <Tractor />
     <GrassTufts reduced={reduced} />
-    {layout.map((plot) => <CropPlot key={plot.id} plot={plot} active={selected.id === plot.id} side={side} reduced={reduced}
+    {layout.map((plot) => <CropPlot key={plot.id} plot={plot} active={selected.id === plot.id} visual={plot.id === selected.id ? visual : undefined} reduced={reduced}
       cutaway={mode === "soil" && plot.id === selected.id} onSelect={onSelect} />)}
-    {mode === "soil" && <SoilCutaway plot={selected} side={side} showRoots={showRoots} showMoisture={showMoisture} soilDepth={soilDepth} onSelect={onSelect} />}
+    {mode === "soil" && <SoilCutaway plot={selected} visual={visual} showRoots={showRoots} showMoisture={showMoisture} soilDepth={soilDepth} onSelect={onSelect} />}
   </Canvas>;
 }

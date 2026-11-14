@@ -53,14 +53,31 @@ class ComparisonService:
             raise ValueError("RUN_INCOMPLETE")
         if not run_a.science_envelope or not run_b.science_envelope:
             raise ValueError("SCIENCE_ENVELOPE_MISSING")
-
-        result = self._compare(
-            run_a.science_envelope,
-            run_b.science_envelope,
-            run_a,
-            run_b,
-            fork_date,
-        )
+        engine_a = self._engine(run_a)
+        engine_b = self._engine(run_b)
+        if run_a.environmental_snapshot_id != run_b.environmental_snapshot_id:
+            result = {
+                "status": "not-comparable",
+                "reasons": ["environmental snapshots differ"],
+                "daily": [],
+                "metrics": [],
+            }
+        elif engine_a != engine_b or engine_a not in {"fao56", "aquacrop"}:
+            result = {
+                "status": "not-comparable",
+                "reasons": [f"engine mismatch: {engine_a or 'unknown'} and {engine_b or 'unknown'}"],
+                "daily": [],
+                "metrics": [],
+            }
+        else:
+            result = self._compare(
+                run_a.science_envelope,
+                run_b.science_envelope,
+                run_a,
+                run_b,
+                fork_date,
+                engine_a,
+            )
         result["c5"] = self._project_c5(result, run_a, run_b, fork_date or date.today())
         status = result["status"]
         comparison = SimulationComparison(
@@ -113,17 +130,40 @@ class ComparisonService:
         run_a: SimulationRun,
         run_b: SimulationRun,
         fork_date: date | None,
+        engine: str,
     ) -> dict[str, Any]:
         science_path = Path(__file__).parents[4] / "packages" / "science" / "src"
         if str(science_path) not in sys.path:
             sys.path.insert(0, str(science_path))
-        from terrapulse_science.compare import compare_runs
+        from terrapulse_science.compare import compare_aquacrop_runs, compare_runs
 
         a = dict(envelope_a)
         b = dict(envelope_b)
         a["runId"], b["runId"] = str(run_a.id), str(run_b.id)
-        a["status"], b["status"] = "completed", "completed"
-        return compare_runs(a, b, fork_date=fork_date.isoformat() if fork_date else None)
+        try:
+            if engine == "aquacrop":
+                if fork_date is None:
+                    return {
+                        "status": "not-comparable",
+                        "reasons": ["AquaCrop comparison requires a fork date before the earliest planting"],
+                        "daily": [],
+                        "metrics": [],
+                    }
+                a["status"], b["status"] = a.get("status"), b.get("status")
+                return compare_aquacrop_runs(a, b, fork_date=fork_date.isoformat())
+            a["status"], b["status"] = "completed", "completed"
+            return compare_runs(a, b, fork_date=fork_date.isoformat() if fork_date else None)
+        except (TypeError, ValueError) as exc:
+            return {"status": "not-comparable", "reasons": [str(exc)], "daily": [], "metrics": []}
+
+    @staticmethod
+    def _engine(run: SimulationRun) -> str:
+        raw = str((run.science_envelope or {}).get("engine") or run.engine_name or "").lower()
+        if "aqua" in raw:
+            return "aquacrop"
+        if "fao" in raw:
+            return "fao56"
+        return raw
 
     @staticmethod
     def _provenance(run: SimulationRun) -> dict[str, Any]:

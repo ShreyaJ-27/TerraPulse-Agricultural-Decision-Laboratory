@@ -42,10 +42,10 @@ function FarmWizard({
     atmosphere === "sakura-sunset"
       ? "atmosphere-sakura"
       : atmosphere === "maple-autumn"
-      ? "atmosphere-autumn"
-      : atmosphere === "sequoia-mist"
-      ? "atmosphere-mist"
-      : "atmosphere-green";
+        ? "atmosphere-autumn"
+        : atmosphere === "sequoia-mist"
+          ? "atmosphere-mist"
+          : "atmosphere-green";
   const firstStep = existingFarmId ? 3 : 1;
   const [step, setStep] = useState(firstStep);
   const [busy, setBusy] = useState(false);
@@ -134,15 +134,15 @@ function FarmWizard({
       const saved: RegisteredFarm = farmId
         ? ({ farmId } as RegisteredFarm)
         : (await apiClient.createFarm({
-            name: farm.name.trim(),
-            timezone: farm.timezone,
-            location: {
-              latitude: Number(farm.latitude),
-              longitude: Number(farm.longitude),
-              crs: "EPSG:4326",
-            },
-            locationConfirmed: true,
-          })) as RegisteredFarm;
+          name: farm.name.trim(),
+          timezone: farm.timezone,
+          location: {
+            latitude: Number(farm.latitude),
+            longitude: Number(farm.longitude),
+            crs: "EPSG:4326",
+          },
+          locationConfirmed: true,
+        })) as RegisteredFarm;
 
       setFarmId(saved.farmId);
       window.localStorage.setItem("terrapulse-active-farm-id", saved.farmId);
@@ -575,7 +575,7 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
   return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><section className="form-panel"><div className="form-actions">
     <button className="secondary-button" onClick={() => navigate(`/calendar/${farmId}`)}>Calendar</button>
     <button className="secondary-button" onClick={connect}>Set up Telegram</button>
-    </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><ResourcePanel farm={farm} /></PageContainer>;
+  </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><ResourcePanel farm={farm} /></PageContainer>;
 }
 
 function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string; navigate: (path: string) => void }) {
@@ -716,12 +716,12 @@ export function App() {
     (["/assisted", "/interact", "/advisories"].includes(path)
       ? "advisories"
       : parts[4] === "observatory"
-      ? "living-field"
-      : parts[4] === "timeline"
-      ? "saved-decisions"
-      : parts[4] === "future-fold"
-      ? "future-fold"
-      : legacyRoute);
+        ? "living-field"
+        : parts[4] === "timeline"
+          ? "saved-decisions"
+          : parts[4] === "future-fold"
+            ? "future-fold"
+            : legacyRoute);
 
   if (feature) content = <WorkspaceFeatures feature={feature} farmId={parts[1]} navigate={navigate} />;
   else if (path === "/connect" || path === "/farm" || path === "/farms") content = <FarmList navigate={navigate} copy={copy} />;

@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import require_farm_access, workspace_digest
@@ -60,17 +62,28 @@ async def prepare_environment(
         or f"{farm.id}:{plot.id}:{payload.simulation_period.start_date}:{payload.simulation_period.end_date}",
     )
     session.add(snapshot)
-    await session.flush()
-    for source in data["provenance"]:
-        session.add(
-            EnvironmentalProvenance(
-                snapshot_id=snapshot.id,
-                source_id=source["sourceId"],
-                source_version=source.get("sourceVersion"),
-                retrieved_at=datetime.fromisoformat(source["retrievedAt"]),
-                payload=source,
+    try:
+        await session.flush()
+        for source in data["provenance"]:
+            session.add(
+                EnvironmentalProvenance(
+                    snapshot_id=snapshot.id,
+                    source_id=source["sourceId"],
+                    source_version=source.get("sourceVersion"),
+                    retrieved_at=datetime.fromisoformat(source["retrievedAt"]),
+                    payload=source,
+                )
             )
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        existing = await session.scalar(
+            select(EnvironmentalSnapshot).where(EnvironmentalSnapshot.input_hash == snapshot.input_hash)
         )
-    await session.commit()
+        if existing is None:
+            raise
+        stored = dict(existing.payload or {})
+        stored["environmentalSnapshotId"] = str(existing.id)
+        return ApiResponse(data=stored, correlationId=request.state.correlation_id)
     data["environmentalSnapshotId"] = str(snapshot.id)
     return ApiResponse(data=data, correlationId=request.state.correlation_id)
