@@ -14,6 +14,8 @@ from app.core.db import get_session
 from app.models import Farm
 from app.services.farmer_alerts.models import FarmWorkspaceGrant
 
+DEMO_FARM_ID = UUID("00000000-0000-0000-0000-000000000001")
+
 
 def workspace_digest(request: Request) -> str | None:
     authorization = request.headers.get("Authorization", "")
@@ -33,6 +35,9 @@ async def require_farm_access(
     farm = await session.get(Farm, farm_id)
     if farm is None:
         raise HTTPException(status_code=404, detail="Farm not found in this workspace.")
+    # The seeded local demo farm is shared so Future Fold can load its stored runs.
+    if not get_settings().require_workspace_key and farm_id == DEMO_FARM_ID:
+        return
     if farm.workspace_key_hash and compare_digest(farm.workspace_key_hash, digest):
         return
     # A Telegram-issued one-tap link grants access to this farm only.

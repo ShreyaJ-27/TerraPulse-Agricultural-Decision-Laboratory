@@ -89,9 +89,12 @@ export function LivingFieldScene({
   const [internalSide, setInternalSide] = useState<FieldSide>("original");
   const [mode, setMode] = useState<"farm" | "map" | "soil">("farm");
   const [unavailable, setUnavailable] = useState(() => !supportsWebGL());
-  const [cameraCommand, setCamera] = useState<{ view: "overview" | "focus"; revision: number }>({ view: "overview", revision: 0 });
+  const [cameraCommand, setCamera] = useState<{ view: "overview" | "focus" | "ground"; revision: number }>({ view: "overview", revision: 0 });
+  const [showRoots, setShowRoots] = useState(true);
+  const [showMoisture, setShowMoisture] = useState(true);
+  const [soilDepth, setSoilDepth] = useState(4);
   const markUnavailable = useCallback(() => setUnavailable(true), []);
-  const changeCamera = (view: "overview" | "focus") => setCamera((current) => ({ view, revision: current.revision + 1 }));
+  const changeCamera = (view: "overview" | "focus" | "ground") => setCamera((current) => ({ view, revision: current.revision + 1 }));
   if (!selected) return <p className="lf-empty">Add a plot to explore your field.</p>;
 
   const scenario = (side ?? internalSide) === "alternative" && alternative ? alternative : original;
@@ -101,7 +104,8 @@ export function LivingFieldScene({
     changeCamera("focus");
   };
   const map = <MapView layout={layout} selected={selected.id} tint={tint} onSelect={select} />;
-  const farm = mode === "farm" && !unavailable;
+  const canvas = (mode === "farm" || mode === "soil") && !unavailable;
+  const depthLabel = ["Shallow", "Root zone", "Subsoil", "Full column"][soilDepth - 1];
 
   return <section className="lf-shell" aria-label="Living Field" style={{ "--lf-accent": tint } as CSSProperties}>
     <div className="lf-stage">
@@ -114,22 +118,35 @@ export function LivingFieldScene({
         </div>
       </div>
       <div className="lf-viewport">
-        {farm ? <SceneBoundary onUnavailable={markUnavailable}>
+        {canvas ? <SceneBoundary onUnavailable={markUnavailable}>
           <Suspense fallback={<div className="lf-loading" role="status">Loading 3D farm…{map}</div>}>
             <FarmCanvas layout={layout} selected={selected} side={scenario.side} reduced={reduced}
+              mode={mode === "soil" ? "soil" : "farm"} showRoots={showRoots} showMoisture={showMoisture} soilDepth={soilDepth}
               cameraCommand={cameraCommand} onSelect={select} onUnavailable={markUnavailable} />
           </Suspense>
         </SceneBoundary> : mode === "soil" ? <SoilSection plot={selected} scenario={scenario} /> : map}
-        {farm && <div className="lf-camera" role="group" aria-label="Camera controls">
-          <button type="button" onClick={() => changeCamera("overview")}>Farm overview</button>
-          <button type="button" onClick={() => changeCamera("focus")}>Focus plot</button>
+        {canvas && mode === "soil" && <div className="lf-tools" role="group" aria-label="Soil section controls">
+          <label>Depth
+            <input aria-label={"Soil depth, " + depthLabel} type="range" min={1} max={4} step={1} value={soilDepth}
+              onChange={(event) => setSoilDepth(Number(event.target.value))} />
+            <span>{depthLabel}</span>
+          </label>
+          <button type="button" aria-pressed={showRoots} onClick={() => setShowRoots((value) => !value)}>Roots</button>
+          <button type="button" aria-pressed={showMoisture} onClick={() => setShowMoisture((value) => !value)}>Moisture</button>
+        </div>}
+        {canvas && <div className="lf-camera" role="group" aria-label="Camera controls">
+          <button type="button" onClick={() => { setMode("farm"); changeCamera("overview"); }}>Farm overview</button>
+          <button type="button" onClick={() => { setMode("farm"); changeCamera("focus"); }}>Focus plot</button>
+          <button type="button" onClick={() => { setMode("farm"); changeCamera("ground"); }}>Ground level</button>
         </div>}
       </div>
       <div className="lf-stage-foot">
         <label>Plot<select aria-label="Plot" value={selected.id} onChange={(event) => select(event.target.value)}>
           {layout.map((plot) => <option key={plot.id} value={plot.id}>{plot.label}</option>)}
         </select></label>
-        <span>{farm ? "Drag to orbit · scroll or pinch to zoom · two fingers to pan"
+        <span>{canvas && mode === "soil"
+          ? "Illustrative cutaway of this plot. Depth, roots and moisture shading are schematic."
+          : canvas ? "Drag to orbit · scroll or pinch to zoom · two fingers to pan"
           : unavailable && mode !== "soil" ? "3D unavailable · plot selection works in 2D"
           : "Illustrative farm geometry"}</span>
       </div>
@@ -147,7 +164,9 @@ export function LivingFieldScene({
       {scenario.description && <p>{scenario.description}</p>}
       {scenario.metrics?.length ? <dl>{scenario.metrics.map((metric) =>
         <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}</dl> : null}
-      <p className="lf-note">Field layout, vegetation and soil are illustrative.</p>
+      <p className="lf-note">{mode === "soil"
+        ? "Soil layers, roots and moisture shading are illustrative geometry. Measured quantities stay in the indicators."
+        : "Field layout and vegetation are illustrative. Crop type follows the selected plot."}</p>
     </aside>
   </section>;
 }

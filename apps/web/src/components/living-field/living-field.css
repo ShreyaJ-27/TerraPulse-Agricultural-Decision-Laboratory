@@ -49,13 +49,35 @@
 .lf-shell button:focus-visible, .lf-shell select:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .lf-viewport {
   position: relative;
-  min-height: 315px;
-  height: clamp(345px, 51vh, 610px);
+  min-height: 420px;
+  height: clamp(480px, 64vh, 760px);
   overflow: hidden;
-  background: #334836;
+  background: #9eb4c4;
 }
-.lf-camera { display: flex; flex-wrap: wrap; gap: .42rem; position: absolute; left: .65rem; bottom: .65rem; }
+.lf-camera { display: flex; flex-wrap: wrap; gap: .42rem; position: absolute; left: .65rem; bottom: .65rem; z-index: 2; }
 .lf-camera button { background: #182d24f5; }
+.lf-tools {
+  position: absolute;
+  top: .65rem;
+  right: .65rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .4rem;
+  max-width: min(420px, 70%);
+}
+.lf-tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: #182d24f5;
+  border-radius: 8px;
+  padding: .3rem .55rem;
+  font-size: .78rem;
+}
+.lf-tools input { width: 88px; accent-color: var(--lf-accent); }
+.lf-tools button { background: #182d24f5; }
 .lf-info { padding: 1rem; }
 .lf-kicker { font-size: .72rem; text-transform: uppercase; letter-spacing: .11em; color: var(--lf-accent); font-weight: 750; }
 .lf-info h3 { color: var(--lf-ink); font-size: clamp(1.05rem, 2.2vw, 1.55rem); margin: .8rem 0 .45rem; overflow-wrap: anywhere; }

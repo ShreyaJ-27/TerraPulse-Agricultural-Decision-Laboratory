@@ -7,7 +7,7 @@ export const examplePlots: FieldPlot[] = [
   { id: "terrace", label: "Turmeric terrace" },
   { id: "east", label: "East millet" },
   { id: "orchard", label: "Orchard block" },
-  { id: "lower", label: "Lower field" },
+  { id: "lower", label: "Wheat field" },
 ];
 
 export const plotWidth = 24;

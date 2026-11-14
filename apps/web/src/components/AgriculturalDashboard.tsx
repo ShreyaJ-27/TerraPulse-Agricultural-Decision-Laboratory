@@ -5,7 +5,8 @@ import { PlotAdvisory } from "./PlotAdvisory";
 import { PitchAlertControl } from "./PitchAlertControl";
 import { ResourcePanel } from "./resources";
 import { ErrorState, LoadingState } from "./ui";
-import { FutureFold, Observatory, Timeline } from "./scenario";
+import { DashboardLivingField, FutureFold, Timeline } from "./scenario";
+import type { FieldSide } from "./living-field/LivingFieldScene";
 import { Locale, localeLabels, translations, tUI } from "../i18n";
 import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
 import "../dashboard.css";
@@ -32,6 +33,8 @@ export function AgriculturalDashboard({
   onAtmosphereChange,
 }: Props) {
   const currentTab = initialTab;
+  const [foldSide, setFoldSide] = useState<FieldSide>(() =>
+    new URLSearchParams(window.location.search).get("side") === "alternative" ? "alternative" : "original");
   const [allFarms, setAllFarms] = useState<Farm[]>();
   const [error, setError] = useState("");
   const farm = allFarms?.find((item) => item.farmId === farmId) ?? (explicitFarm ? undefined : allFarms?.[0]);
@@ -707,8 +710,13 @@ export function AgriculturalDashboard({
                 {farm.plots.map((plot) => <option key={plot.plotId} value={plot.plotId}>{plot.management?.plotName || plot.cropCanonicalName}</option>)}
               </select></label>}
               {!selectedPlotId && <button className="inspect-plot-btn" onClick={() => navigate(farmPath + "/plots/new")}>Add a crop plot</button>}
-              {selectedPlotId && currentTab === "living-field" && <Observatory key={selectedPlotId} farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate} />}
-              {selectedPlotId && currentTab === "future-fold" && <FutureFold key={selectedPlotId} farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate} />}
+              {selectedPlotId && currentTab === "living-field" && <div className="living-scene-container">
+                <DashboardLivingField farmId={selectedFarmId} plotId={selectedPlotId} side={foldSide}
+                  onChangeSide={setFoldSide} onSelectPlot={setSelectedPlotId} />
+              </div>}
+              {selectedPlotId && currentTab === "future-fold" && <FutureFold key={selectedPlotId}
+                farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate}
+                onOpenLivingField={(side) => { setFoldSide(side); setCurrentTab("living-field"); }} />}
               {selectedPlotId && currentTab === "timeline" && <Timeline key={selectedPlotId} farmId={selectedFarmId} plotId={selectedPlotId} navigate={navigate} />}
             </div>
           )}
