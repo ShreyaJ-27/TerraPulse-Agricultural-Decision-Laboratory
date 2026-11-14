@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { apiClient, CalendarPlot } from "../services/apiClient";
 import { ErrorState, LoadingState } from "./ui";
 
-export function ConnectedCalendar({ farmId }: { farmId: string }) {
+export function ConnectedCalendar({ farmId, navigate }: { farmId: string; navigate?: (path: string) => void }) {
   const [data, setData] = useState<{ plots: CalendarPlot[]; asOfDate: string }>();
   const [error, setError] = useState("");
   const [crop, setCrop] = useState("");
@@ -58,6 +58,10 @@ export function ConnectedCalendar({ farmId }: { farmId: string }) {
       {shown.map((row) => <article key={row.plotId}>
         <h4>{row.plotName} · {row.cropName}</h4>
         <p>{row.plantingDate ? `${row.plantingDate} · ${row.plantingCertainty}` : "Planting date unavailable"}</p>
+        {navigate && !["confirmed", "recorded"].includes(row.plantingCertainty) &&
+          <button className="secondary-button" onClick={() => navigate(`/farms/${farmId}/plots/${row.plotId}/environment`)}>
+            Review planting date
+          </button>}
         {row.regionalGuidanceAvailable ? <>
           <p>{row.plantingWindowNote}</p>
           {row.regionalSource && <p>{row.regionalSource} · {row.regionalSourceVersion}</p>}

@@ -16,7 +16,7 @@
 .app-shell .content-wrap { max-width: none; background: #f6f6f1; min-height: calc(100vh - 116px); }
 .app-shell .form-actions, .workspace-links { flex-wrap: wrap; }
 .app-shell .planting-form { max-width: 28rem; }
-.environment-evidence .secondary-button { color: #214c38; }
+
 .environment-evidence .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .environment-evidence .evidence-grid .info-card { min-height: 0; }
 .environment-evidence .evidence-grid li { overflow-wrap: anywhere; }
@@ -24,3 +24,77 @@
   .app-shell .content-wrap { min-height: calc(100vh - 90px); }
   .environment-evidence .evidence-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.farm-workspace-shell .content-wrap { background: #0f1c14; color: #e5ede7; }
+:is(.farm-workspace-shell, .dash-container) .page-intro h2, :is(.farm-workspace-shell, .dash-container) .info-card h3,
+:is(.farm-workspace-shell, .dash-container) .empty-state h2 { color: #edf4ed; }
+:is(.farm-workspace-shell, .dash-container) .page-intro > p:not(.eyebrow), :is(.farm-workspace-shell, .dash-container) .info-card p,
+:is(.farm-workspace-shell, .dash-container) .empty-state p, :is(.farm-workspace-shell, .dash-container) .card-link,
+:is(.farm-workspace-shell, .dash-container) .metric span { color: #b7cdbb; }
+:is(.farm-workspace-shell, .dash-container) .eyebrow { color: #a8ca95; }
+:is(.farm-workspace-shell, .dash-container) .info-card, :is(.farm-workspace-shell, .dash-container) .empty-state,
+:is(.farm-workspace-shell, .dash-container) .form-panel, :is(.farm-workspace-shell, .dash-container) .timeline-event {
+  background: #17291e;
+  border-color: #39513f;
+  color: #e5ede7;
+}
+:is(.farm-workspace-shell, .dash-container) .primary-button { background: #306c4a; color: #fff; }
+:is(.farm-workspace-shell, .dash-container) .secondary-button { color: #e5ede7; }
+:is(.farm-workspace-shell, .dash-container) .error-state { color: #f0b18c; }
+:is(.farm-workspace-shell, .dash-container) .form-panel label { color: #d5e5d6; }
+:is(.farm-workspace-shell, .dash-container) .form-panel :is(input, select) {
+  background: #101f17;
+  border-color: #526c58;
+  color: #f2f8f0;
+  color-scheme: dark;
+}
+
+.dash-main .page-container { padding: 0; }
+.dash-main .page-intro { margin: 0 0 1.25rem; }
+.dash-main .page-intro h2 {
+  font: 700 clamp(1.6rem, 3vw, 2.3rem)/1.15 system-ui, sans-serif;
+  letter-spacing: -0.025em;
+  max-width: 48rem;
+  margin-bottom: 0.6rem;
+}
+.dash-main .page-intro > p:not(.eyebrow) { max-width: 44rem; margin-bottom: 0; }
+:is(.farm-workspace-shell, .dash-container) :is(.form-panel, .fold-grid .info-card) {
+  border-radius: 0.6rem;
+  min-width: 0;
+}
+.dash-main .form-panel { max-width: none; padding: 1.25rem; }
+.dash-main .form-panel :is(h3, p) { margin: 0; }
+.dash-main .form-panel .form-actions { justify-content: flex-start; align-items: end; flex-wrap: wrap; }
+.dash-main .toolbar { flex-wrap: wrap; }
+:is(.farm-workspace-shell, .dash-container) :is(.fold-grid, .toolbar) label {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+:is(.farm-workspace-shell, .dash-container) :is(.fold-grid, .toolbar) :is(select, input[type="date"]) {
+  border: 1px solid #526c58;
+  background: #101f17;
+  color: #f2f8f0;
+  color-scheme: dark;
+  border-radius: 0.35rem;
+  padding: 0.55rem;
+  max-width: 100%;
+}
+:is(.farm-workspace-shell, .dash-container) .toolbar button[aria-pressed] {
+  background: #101f17;
+  color: #e5ede7;
+  border: 1px solid #526c58;
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.75rem;
+}
+:is(.farm-workspace-shell, .dash-container) .toolbar button[aria-pressed="true"] { background: #306c4a; color: #fff; }
+:is(.farm-workspace-shell, .dash-container) :is(.primary-button, .secondary-button):disabled { opacity: 0.55; cursor: not-allowed; }
+.dash-main .resource-panel { display: grid; gap: 1rem; }
+.dash-main .quick-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ledger-reference { overflow-wrap: anywhere; }
+
+:is(.farm-workspace-shell, .dash-container) .metric strong { color: #edf4ed; }
+.environment-evidence .evidence-grid .info-card { align-items: stretch; }
+.environment-evidence .metric { border-bottom-color: #39513f; }
+.dash-main .alerts-table .status-badge:empty { display: none; }

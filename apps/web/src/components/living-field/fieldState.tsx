@@ -56,7 +56,7 @@ export function useFarmPlots(farmId: string, plotId: string) {
       if (!current || farm.farmId !== farmId) return;
       setResult({ farmId, plots: farm.plots.map((plot, index) => ({
         id: plot.plotId,
-        label: (plot.cropCanonicalName || "Plot") + " · " + (index + 1),
+        label: plot.management?.plotName || ((plot.cropCanonicalName || "Plot") + " · " + (index + 1)),
       })) });
     }).catch(() => { if (current) setResult({ farmId, plots: [] }); });
     return () => { current = false; };

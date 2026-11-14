@@ -54,7 +54,7 @@ def test_geotiff_samples_containing_pixel_and_rejects_invalid_georeferencing():
             sample_geotiff(content, lat, lon)
 
 
-@pytest.mark.parametrize("failure", [None, "nodata", "zero", "http", "xml", "timeout"])
+@pytest.mark.parametrize("failure", [None, "nodata", "zero", "zero-wilting", "http", "xml", "timeout"])
 @pytest.mark.asyncio
 async def test_wcs_profile_provenance_and_missing_coverage(failure):
     def respond(request):
@@ -69,6 +69,8 @@ async def test_wcs_profile_provenance_and_missing_coverage(failure):
             if failure == "timeout":
                 raise httpx.ReadTimeout("upstream timeout")
             value = {"nodata": -32768, "zero": 0}.get(failure, 330)
+        elif failure == "zero-wilting" and coverage == "wv1500_5-15cm_mean":
+            value = 0
         else:
             value = 300 if coverage.startswith("wv0033") else 120
         return httpx.Response(200, content=raster(value))
@@ -79,6 +81,12 @@ async def test_wcs_profile_provenance_and_missing_coverage(failure):
 
     assert result.data_source_ids == ["isric:soilgrids:wcs"]
     assert result.provenance[0].source_id == "isric:soilgrids:wcs"
+    if failure == "zero-wilting":
+        assert result.availability.status == DataStatus.MISSING
+        assert result.soil_properties.field_capacity.value == 0.315
+        assert result.soil_properties.wilting_point.value is None
+        assert result.raw_metadata["coverages"]["wv1500_5-15cm_mean"] != "sampled"
+        return
     assert result.soil_properties.wilting_point.value == 0.12
     if failure is None:
         assert result.availability.status == DataStatus.AVAILABLE

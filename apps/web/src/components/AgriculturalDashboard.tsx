@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { apiClient, Farm } from "../services/apiClient";
+import { apiClient, CropInteraction, CropResolution, Farm } from "../services/apiClient";
 import { ConnectedCalendar } from "./ConnectedCalendar";
 import { PlotAdvisory } from "./PlotAdvisory";
 import { PitchAlertControl } from "./PitchAlertControl";
 import { ResourcePanel } from "./resources";
 import { ErrorState, LoadingState } from "./ui";
 import { DashboardLivingField, FutureFold, Timeline } from "./scenario";
+import { farmOptionLabel } from "./farmLabels";
+import { ExampleField } from "./living-field/fieldState";
 import type { FieldSide } from "./living-field/LivingFieldScene";
 import { Locale, localeLabels, translations, tUI } from "../i18n";
 import { type SylvaLivingWorldVariant } from "@designcodeio/threeui";
@@ -33,6 +35,8 @@ export function AgriculturalDashboard({
   onAtmosphereChange,
 }: Props) {
   const currentTab = initialTab;
+  const locationParams = new URLSearchParams(window.location.search);
+  const plotChoice = locationParams.get("plotId") || "";
   const [foldSide, setFoldSide] = useState<FieldSide>(() =>
     new URLSearchParams(window.location.search).get("side") === "alternative" ? "alternative" : "original");
   const [allFarms, setAllFarms] = useState<Farm[]>();
@@ -42,22 +46,28 @@ export function AgriculturalDashboard({
   const setCurrentTab = (tab: string) => {
     const params = new URLSearchParams({ tab });
     if (selectedFarmId || farmId) params.set("farmId", selectedFarmId || farmId);
+    if (selectedPlotId) params.set("plotId", selectedPlotId);
     navigate(`/dashboard?${params}`);
   };
 
   // Section States
-  const [plotChoice, setSelectedPlotId] = useState("");
+  const setSelectedPlotId = (plotId: string) =>
+    navigate(`/dashboard?${new URLSearchParams({ farmId: selectedFarmId, tab: currentTab, plotId })}`);
   const selectedPlotId = (farm?.plots.find((plot) => plot.plotId === plotChoice) ?? farm?.plots[0])?.plotId ?? "";
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [telegramStatus, setTelegramStatus] = useState<any>(null);
-  const [deliveries, setDeliveries] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Awaited<ReturnType<typeof apiClient.listNotifications>>["notifications"]>();
+  const [telegramByFarm, setTelegramByFarm] = useState<Record<string, Awaited<ReturnType<typeof apiClient.getTelegramStatus>> | null>>({});
+  const [deliveries, setDeliveries] = useState<Awaited<ReturnType<typeof apiClient.getDeliveries>>["deliveries"]>();
+  const [alertErrors, setAlertErrors] = useState<string[]>([]);
+  const [alertsRefresh, refreshAlerts] = useState(0);
+  const telegramStatus = telegramByFarm[selectedFarmId];
 
   // Crop Lens State
   const [cropQuery, setCropQuery] = useState("Turmeric");
   const [cropLanguage, setCropLanguage] = useState<"en" | "kn" | "hi">(
     locale === "kn" || locale === "hi" ? locale : "en"
   );
-  const [cropResolution, setCropResolution] = useState<any>(null);
+  const [cropResolution, setCropResolution] = useState<CropInteraction | CropResolution>();
+  const [cropError, setCropError] = useState("");
   const [cropResolving, setCropResolving] = useState(false);
 
   const _copy = translations[locale] || translations.en;
@@ -75,37 +85,61 @@ export function AgriculturalDashboard({
   }, [selectedFarmId]);
 
   useEffect(() => {
-    if (!selectedFarmId) return;
+    if (!allFarms?.length) return;
     let active = true;
-    apiClient.listNotifications(selectedFarmId)
-      .then(({ notifications }) => { if (active) setNotifications(notifications); })
-      .catch(() => {});
-    apiClient.getTelegramStatus(selectedFarmId)
-      .then((status) => { if (active) setTelegramStatus(status); })
-      .catch(() => {});
-    apiClient.getDeliveries(selectedFarmId)
-      .then(({ deliveries }) => { if (active) setDeliveries(deliveries); })
-      .catch(() => {});
+    const selected = allFarms.find((item) => item.farmId === selectedFarmId);
+    const farmsToCheck = allFarms.filter((item) => item === selected ||
+      allFarms.some((other) => other !== item && other.name.trim().toLowerCase() === item.name.trim().toLowerCase()));
+    for (const item of farmsToCheck) {
+      apiClient.getTelegramStatus(item.farmId)
+        .then((status) => { if (active) setTelegramByFarm((previous) => ({ ...previous, [item.farmId]: status })); })
+        .catch(() => { if (active) setTelegramByFarm((previous) => ({ ...previous, [item.farmId]: null })); });
+    }
     return () => { active = false; };
-  }, [selectedFarmId]);
+  }, [allFarms, selectedFarmId, alertsRefresh]);
 
-  // Resolve Crop Lens
+  useEffect(() => {
+    if (!selectedFarmId || (currentTab !== "overview" && currentTab !== "notifications")) return;
+    let active = true;
+    Promise.allSettled([
+      apiClient.listNotifications(selectedFarmId),
+      apiClient.getDeliveries(selectedFarmId),
+    ]).then(([notices, history]) => {
+      if (!active) return;
+      setNotifications(notices.status === "fulfilled" ? notices.value.notifications : undefined);
+      setDeliveries(history.status === "fulfilled" ? history.value.deliveries : undefined);
+      setAlertErrors([
+        ...(notices.status === "rejected" ? ["Farm alerts could not be loaded."] : []),
+        ...(history.status === "rejected" ? ["Telegram delivery history could not be loaded."] : []),
+      ]);
+    });
+    return () => { active = false; };
+  }, [selectedFarmId, currentTab, alertsRefresh]);
+
   const handleResolveCrop = async () => {
+    const query = cropQuery.trim();
+    if (!query || cropResolving) return;
     setCropResolving(true);
+    setCropError("");
+    setCropResolution(undefined);
     try {
-      const res = await apiClient.interactCrop({ query: cropQuery, language: cropLanguage });
-      setCropResolution(res);
+      setCropResolution(await apiClient.interactCrop({ query, language: cropLanguage }));
     } catch {
       try {
-        const fallbackRes = await apiClient.resolveCrop(cropQuery);
-        setCropResolution(fallbackRes);
-      } catch (err: any) {
-        setError("Crop resolution failed: " + err.message);
+        setCropResolution(await apiClient.resolveCrop(query));
+      } catch {
+        setCropError("Crop lookup is unavailable. Try again in a moment.");
       }
     } finally {
       setCropResolving(false);
     }
   };
+
+  const resolvedCrop = cropResolution && ("resolutionStatus" in cropResolution
+    ? cropResolution.resolvedCrop : cropResolution.crop);
+  const cropResponse = cropResolution && ("resolutionStatus" in cropResolution
+    ? cropResolution.responseText : cropResolution.message);
+  const cropSources = cropResolution && "resolutionStatus" in cropResolution ? cropResolution.sources : [];
 
   const totalFarmAreaM2 = farm?.plots.reduce((total, plot) => total + plot.areaM2.value, 0) ?? 0;
   const farmPath = "/farms/" + selectedFarmId;
@@ -123,13 +157,13 @@ export function AgriculturalDashboard({
 
   return (
     <div className={`dash-container ${atmoClass}`} data-atmosphere={atmosphere}>
-      {/* Top Bar with Brand, Farm Selector, Guided Demo Mode, Atmosphere & Language */}
+      {/* Farm, atmosphere and language controls */}
       <header className="dash-topbar">
         <div className="topbar-left">
-          <div className="topbar-brand" onClick={() => navigate("/")}>
+          <button className="topbar-brand" onClick={() => navigate("/")}>
             <span className="brand-gem">◈</span>
             <span className="brand-title">{tUI(locale, "brand")}</span>
-          </div>
+          </button>
 
           {/* Farm Switcher Dropdown */}
           <div className="farm-selector-wrap">
@@ -146,7 +180,7 @@ export function AgriculturalDashboard({
               {!farm && <option value="">Choose a saved farm</option>}
               {allFarms?.map((f) => (
                   <option key={f.farmId} value={f.farmId}>
-                    {f.name} ({f.location.latitude.toFixed(2)}°N, {f.location.longitude.toFixed(2)}°E)
+                    {farmOptionLabel(f)}{telegramByFarm[f.farmId]?.connected ? " · Telegram linked" : ""}
                   </option>
                 ))}
             </select>
@@ -158,59 +192,6 @@ export function AgriculturalDashboard({
               {tUI(locale, "registerNewFarm")}
             </button>
           </div>
-        </div>
-
-        {/* Guided Demo Controls: 8 core areas */}
-        <div className="guided-demo-bar">
-          <span className="guided-label">{tUI(locale, "tour")}</span>
-          <button
-            className={`guided-step-btn ${currentTab === "overview" ? "active" : ""}`}
-            onClick={() => setCurrentTab("overview")}
-          >
-            1. {tUI(locale, "tabOverview")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "advisory" ? "active" : ""}`}
-            onClick={() => setCurrentTab("advisory")}
-          >
-            2. {tUI(locale, "tabAdvisory")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "observatory" ? "active" : ""}`}
-            onClick={() => setCurrentTab("observatory")}
-          >
-            3. {tUI(locale, "tabObservatory")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "crop-lens" ? "active" : ""}`}
-            onClick={() => setCurrentTab("crop-lens")}
-          >
-            4. {tUI(locale, "tabCropPlanning")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "calendar" ? "active" : ""}`}
-            onClick={() => setCurrentTab("calendar")}
-          >
-            5. {tUI(locale, "tabCalendar")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "future-fold" ? "active" : ""}`}
-            onClick={() => setCurrentTab("future-fold")}
-          >
-            6. {tUI(locale, "tabFutureFold")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "living-field" ? "active" : ""}`}
-            onClick={() => setCurrentTab("living-field")}
-          >
-            7. {tUI(locale, "tabLivingField")}
-          </button>
-          <button
-            className={`guided-step-btn ${currentTab === "timeline" ? "active" : ""}`}
-            onClick={() => setCurrentTab("timeline")}
-          >
-            8. {tUI(locale, "tabSavedDecisions")}
-          </button>
         </div>
 
         <div className="topbar-actions">
@@ -273,7 +254,7 @@ export function AgriculturalDashboard({
           )}
 
           <button className="landing-back-btn" onClick={() => navigate("/")}>
-            ← 3D Landing Page
+            ← Home
           </button>
         </div>
       </header>
@@ -281,9 +262,10 @@ export function AgriculturalDashboard({
       {/* Main Layout: Sidebar Navigation + Content Area */}
       <div className="dash-body">
         <aside className="dash-sidebar">
-          <nav className="dash-nav">
+          <nav className="dash-nav" aria-label="Farm workspace">
             <button
               className={`nav-item ${currentTab === "overview" ? "active" : ""}`}
+              aria-current={currentTab === "overview" ? "page" : undefined}
               onClick={() => setCurrentTab("overview")}
             >
               <span className="nav-icon">⌂</span>
@@ -291,14 +273,15 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "advisory" ? "active" : ""}`}
+              aria-current={currentTab === "advisory" ? "page" : undefined}
               onClick={() => setCurrentTab("advisory")}
             >
               <span className="nav-icon">🌾</span>
               <span className="nav-text">{tUI(locale, "tabAdvisory")}</span>
-              <span className="nav-badge">PAU</span>
             </button>
             <button
               className={`nav-item ${currentTab === "observatory" ? "active" : ""}`}
+              aria-current={currentTab === "observatory" ? "page" : undefined}
               onClick={() => setCurrentTab("observatory")}
             >
               <span className="nav-icon">🛰</span>
@@ -306,6 +289,7 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "crop-lens" ? "active" : ""}`}
+              aria-current={currentTab === "crop-lens" ? "page" : undefined}
               onClick={() => setCurrentTab("crop-lens")}
             >
               <span className="nav-icon">🔍</span>
@@ -313,14 +297,15 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "calendar" ? "active" : ""}`}
+              aria-current={currentTab === "calendar" ? "page" : undefined}
               onClick={() => setCurrentTab("calendar")}
             >
               <span className="nav-icon">📅</span>
               <span className="nav-text">{tUI(locale, "tabCalendar")}</span>
-              <span className="nav-badge">2.0</span>
             </button>
             <button
               className={`nav-item ${currentTab === "future-fold" ? "active" : ""}`}
+              aria-current={currentTab === "future-fold" ? "page" : undefined}
               onClick={() => setCurrentTab("future-fold")}
             >
               <span className="nav-icon">↗</span>
@@ -328,6 +313,7 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "living-field" ? "active" : ""}`}
+              aria-current={currentTab === "living-field" ? "page" : undefined}
               onClick={() => setCurrentTab("living-field")}
             >
               <span className="nav-icon">🌱</span>
@@ -335,6 +321,7 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "timeline" ? "active" : ""}`}
+              aria-current={currentTab === "timeline" ? "page" : undefined}
               onClick={() => setCurrentTab("timeline")}
             >
               <span className="nav-icon">⏱</span>
@@ -342,16 +329,18 @@ export function AgriculturalDashboard({
             </button>
             <button
               className={`nav-item ${currentTab === "notifications" ? "active" : ""}`}
+              aria-current={currentTab === "notifications" ? "page" : undefined}
               onClick={() => setCurrentTab("notifications")}
             >
               <span className="nav-icon">🔔</span>
-              <span className="nav-text">Real-Time Alerts</span>
-              {notifications.length > 0 && (
-                <span className="nav-counter">{notifications.length}</span>
+              <span className="nav-text">Alerts & Telegram</span>
+              {Boolean(notifications?.length) && (
+                <span className="nav-counter">{notifications?.length}</span>
               )}
             </button>
             <button
               className={`nav-item ${currentTab === "water" ? "active" : ""}`}
+              aria-current={currentTab === "water" ? "page" : undefined}
               onClick={() => setCurrentTab("water")}
             >
               <span className="nav-icon">💧</span>
@@ -361,11 +350,10 @@ export function AgriculturalDashboard({
 
           <div className="sidebar-footer">
             <div className="farm-info-chip">
-              <span className="chip-label">Active Farm Profile:</span>
+              <span className="chip-label">Selected farm</span>
               <strong>{farm?.name || "No farm selected"}</strong>
               <small>
-                {farm?.location?.latitude.toFixed(2)}°N, {farm?.location?.longitude.toFixed(2)}°E ·{" "}
-                {farm?.timezone || "Asia/Kolkata"}
+                {farm ? farmOptionLabel(farm, false) : "Choose a saved farm"}
               </small>
             </div>
           </div>
@@ -381,7 +369,11 @@ export function AgriculturalDashboard({
           {allFarms?.length === 0 && <section className="tab-pane">
             <h2>Your saved farms</h2>
             <p>Already registered? Send /open in your connected TerraPulse Telegram chat and tap the link.</p>
-            <button className="inspect-plot-btn" onClick={() => navigate("/farms")}>Open Farm Workspace</button>
+            <div className="quick-actions">
+              <button className="inspect-plot-btn" onClick={() => navigate("/register")}>Register farm</button>
+              <button className="inspect-plot-btn" onClick={() => setCurrentTab("living-field")}>Explore an example field</button>
+            </div>
+            {currentTab === "living-field" && <ExampleField />}
           </section>}
           {farm && <>
           {currentTab === "overview" && (
@@ -391,23 +383,25 @@ export function AgriculturalDashboard({
                   <span className="eyebrow">Farm Decision Workspace</span>
                   <h2>{farm?.name}</h2>
                   <p className="subtitle">
-                    Grounded multicrop agricultural intelligence combining biophysical simulation,
-                    regional weather telemetry, and soil-moisture accounting.
+                    {farmOptionLabel(farm, false)}
                   </p>
                 </div>
                 <div className="quick-actions">
-                  <button className="inspect-plot-btn" onClick={() => navigate(farmPath)}>Open saved land</button>
+                  <button className="inspect-plot-btn" onClick={() => navigate(farmPath)}>Manage farm & plots</button>
                   <button className="inspect-plot-btn" onClick={() => setCurrentTab("calendar")}>Agricultural Calendar</button>
+                  <button className="inspect-plot-btn" onClick={() => setCurrentTab("notifications")}>
+                    {telegramStatus?.connected ? "Telegram linked · Alerts" : "Alerts & Telegram"}
+                  </button>
                 </div>
               </div>
               <div className="kpi-grid">
                 <div className="kpi-card">
                   <span className="kpi-title">Farm size and plots</span>
-                  <div className="kpi-val">{farm.plots.length} plots</div>
+                  <div className="kpi-val">{farm.plots.length} {farm.plots.length === 1 ? "plot" : "plots"}</div>
                   <span className="kpi-sub">{(totalFarmAreaM2 / 10000).toFixed(2)} ha</span>
                 </div>
               </div>
-              <PitchAlertControl farmId={selectedFarmId} />
+              <PitchAlertControl key={selectedFarmId} farmId={selectedFarmId} onDelivered={() => refreshAlerts((value) => value + 1)} />
 
               {/* Plots Overview Grid */}
               <h3 className="section-title">Farm Plots & Crop Development</h3>
@@ -455,12 +449,12 @@ export function AgriculturalDashboard({
                   </button>
                 </div>
                 <div className="alerts-list">
-                  {notifications.slice(0, 3).map((alert, i) => (
-                    <div key={i} className={`alert-row ${alert.category}`}>
+                  {notifications?.slice(0, 3).map((alert) => (
+                    <div key={alert.id} className={`alert-row ${alert.category}`}>
                       <div className="alert-meta">
                         <span className="alert-cat-tag">{alert.category}</span>
                         <span className="alert-date">{alert.eventDate}</span>
-                        <span className="alert-status-tag">{alert.delivery?.status || "delivered"}</span>
+                        <span className="alert-status-tag">{alert.delivery?.status?.replaceAll("_", " ") || "Status unavailable"}</span>
                       </div>
                       <div className="alert-text">
                         <strong>{alert.payload?.title || alert.kind}</strong>
@@ -468,7 +462,7 @@ export function AgriculturalDashboard({
                       </div>
                     </div>
                   ))}
-                  {notifications.length === 0 && (
+                  {notifications?.length === 0 && (
                     <p className="no-alerts-msg">
                       No alerts have been recorded for this farm.
                     </p>
@@ -513,7 +507,12 @@ export function AgriculturalDashboard({
           {currentTab === "observatory" && (
             <div className="tab-pane">
               <div className="pane-header"><h2>Environmental Evidence</h2></div>
-              <button className="inspect-plot-btn" onClick={() => openPlotView("environment")}>Open plot evidence</button>
+              {farm.plots.length > 1 && <label>Plot <select value={selectedPlotId} onChange={(event) => setSelectedPlotId(event.target.value)}>
+                {farm.plots.map((plot) => <option key={plot.plotId} value={plot.plotId}>{plot.management?.plotName || plot.cropCanonicalName}</option>)}
+              </select></label>}
+              <button className="inspect-plot-btn" onClick={() => selectedPlotId ? openPlotView("environment") : navigate(farmPath + "/plots/new")}>
+                {selectedPlotId ? "Open plot evidence" : "Add a crop plot"}
+              </button>
             </div>
           )}
 
@@ -524,8 +523,7 @@ export function AgriculturalDashboard({
                   <span className="eyebrow">Multilingual Botanical Resolution</span>
                   <h2>Crop Planning & Crop Lens</h2>
                   <p className="subtitle">
-                    Open-ended crop entry querying FAO AGROVOC, GBIF, and ECOCROP. Automatically binds the
-                    appropriate scientific biophysical simulation engine.
+                    Look up a crop to see its scientific identity and available model outputs.
                   </p>
                 </div>
               </div>
@@ -562,24 +560,23 @@ export function AgriculturalDashboard({
                   </button>
                 </div>
 
-                <div className="search-bar-row">
+                <form className="search-bar-row" onSubmit={(event) => { event.preventDefault(); void handleResolveCrop(); }}>
                   <input
                     className="crop-input"
                     value={cropQuery}
                     onChange={(e) => setCropQuery(e.target.value)}
                     placeholder="Enter crop common name, vernacular alias, or scientific name..."
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleResolveCrop();
-                    }}
+                    aria-label="Crop name"
+                    disabled={cropResolving}
                   />
                   <button
                     className="resolve-btn"
                     disabled={cropResolving || !cropQuery.trim()}
-                    onClick={handleResolveCrop}
+                    type="submit"
                   >
                     {cropResolving ? "Resolving…" : "Resolve Identity & Engine ↗"}
                   </button>
-                </div>
+                </form>
 
                 <div className="sample-chips">
                   <span>Quick samples:</span>
@@ -618,82 +615,36 @@ export function AgriculturalDashboard({
                 </div>
               </div>
 
-              {/* Resolution Results Card */}
-              {cropResolution && (
-                <div className="resolution-card">
+              {cropError && <ErrorState label={cropError} />}
+              {cropResolution && <div className="resolution-card" aria-live="polite">
+                {resolvedCrop ? <>
                   <div className="res-header">
                     <div>
-                      <span className="res-tag">
-                        {cropResolution.resolvedCrop?.selectedEngine || "Scientific Model"} Bound
-                      </span>
-                      <h3>
-                        {cropResolution.resolvedCrop?.canonicalName ||
-                          cropResolution.crop?.canonicalName ||
-                          cropQuery}
-                      </h3>
-                      <p className="sci-name">
-                        Scientific Name:{" "}
-                        <em>
-                          {cropResolution.resolvedCrop?.scientificName ||
-                            cropResolution.crop?.scientificName}
-                        </em>
-                      </p>
+                      <h3>{resolvedCrop.canonicalName}</h3>
+                      {resolvedCrop.scientificName && <p className="sci-name"><em>{resolvedCrop.scientificName}</em></p>}
                     </div>
                   </div>
-
                   <div className="res-grid">
                     <div className="res-col">
-                      <h4>Botanical & Ecological Classification</h4>
-                      <p>
-                        <strong>Family:</strong>{" "}
-                        {cropResolution.resolvedCrop?.family ||
-                          cropResolution.crop?.family ||
-                          "Zingiberaceae"}
-                      </p>
-                      <p>
-                        <strong>Authoritative Sources:</strong> FAO AGROVOC, GBIF, ECOCROP
-                      </p>
-                      <p>
-                        <strong>Supported Aliases:</strong>{" "}
-                        {(cropResolution.resolvedCrop?.aliases || ["haldi", "arishina", "turmeric"])
-                          .slice(0, 6)
-                          .join(", ")}
-                      </p>
+                      {resolvedCrop.family && <p>Family · {resolvedCrop.family}</p>}
+                      {resolvedCrop.matchedAlias && <p>Matched name · {resolvedCrop.matchedAlias}</p>}
+                      {Boolean(cropSources.length) && <p>Sources · {cropSources.join(", ")}</p>}
                     </div>
                     <div className="res-col">
-                      <h4>Simulation Engine Binding</h4>
-                      <p>
-                        <strong>Selected Engine:</strong>{" "}
-                        {cropResolution.resolvedCrop?.selectedEngine || "FAO-56"}
-                      </p>
-                      <p>
-                        <strong>Model Engine Version:</strong>{" "}
-                        {cropResolution.resolvedCrop?.engineVersion || "2026.1"}
-                      </p>
-                      <p>
-                        <strong>Supported Outputs:</strong> Water Stress (Ks), Root-zone Depletion
-                        (Dr), Actual ET (ETa)
-                      </p>
+                      <h4>Model capability</h4>
+                      <p>{resolvedCrop.selectedEngine === "identity/ecology-only" ? "Crop identity and ecology" : resolvedCrop.selectedEngine || "Model unavailable"} {resolvedCrop.engineVersion}</p>
+                      {Boolean(resolvedCrop.supportedOutputs?.length) && <p>Supported outputs · {resolvedCrop.supportedOutputs?.join(", ")}</p>}
                     </div>
                   </div>
-
-                  {cropResolution.responseText && (
-                    <div className="indic-response-box">
-                      <h4>Local Language Agronomic Guidance:</h4>
-                      <p>{cropResolution.responseText}</p>
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: "1.2rem" }}>
-                    <button
-                      className="primary-button"
-                      onClick={() => navigate(farmPath + "/plots/new")}
-                    >
-                      + Add Plot With This Crop →
-                    </button>
-                  </div>
-                </div>
-              )}
+                  <button className="primary-button" onClick={() => navigate(farmPath + "/plots/new?" + new URLSearchParams({ crop: resolvedCrop.canonicalName }))}>
+                    Add plot with {resolvedCrop.canonicalName}
+                  </button>
+                </> : <h3>Crop needs a closer match</h3>}
+                {cropResponse && <p className="indic-response-box">{cropResponse}</p>}
+                {!resolvedCrop && Boolean(cropResolution.candidates?.length) && <div className="sample-chips">
+                  {cropResolution.candidates?.map((candidate) => <button key={candidate.cropId} onClick={() => setCropQuery(candidate.canonicalName)}>{candidate.canonicalName}</button>)}
+                </div>}
+              </div>}
             </div>
           )}
 
@@ -701,7 +652,7 @@ export function AgriculturalDashboard({
               5. AGRICULTURAL CALENDAR 2.0
               ======================================================== */}
           {currentTab === "calendar" && <div className="tab-pane calendar-pane">
-            <ConnectedCalendar key={selectedFarmId} farmId={selectedFarmId} />
+            <ConnectedCalendar key={selectedFarmId} farmId={selectedFarmId} navigate={navigate} />
           </div>}
 
           {["living-field", "future-fold", "timeline"].includes(currentTab) && (
@@ -711,7 +662,7 @@ export function AgriculturalDashboard({
               </select></label>}
               {!selectedPlotId && <button className="inspect-plot-btn" onClick={() => navigate(farmPath + "/plots/new")}>Add a crop plot</button>}
               {selectedPlotId && currentTab === "living-field" && <div className="living-scene-container">
-                <DashboardLivingField farmId={selectedFarmId} plotId={selectedPlotId} side={foldSide}
+                <DashboardLivingField key={selectedPlotId} farmId={selectedFarmId} plotId={selectedPlotId} side={foldSide}
                   onChangeSide={setFoldSide} onSelectPlot={setSelectedPlotId} />
               </div>}
               {selectedPlotId && currentTab === "future-fold" && <FutureFold key={selectedPlotId}
@@ -725,14 +676,13 @@ export function AgriculturalDashboard({
             <div className="tab-pane notifications-pane">
               <div className="pane-header">
                 <div>
-                  <span className="eyebrow">Autonomous Notification Engine</span>
                   <h2>Farm Alerts & Telegram</h2>
                   <p className="subtitle">
                     Telegram delivers eligible notices from daily evidence and calendar checks.
                   </p>
                 </div>
               </div>
-              <PitchAlertControl farmId={selectedFarmId} />
+              <PitchAlertControl key={selectedFarmId} farmId={selectedFarmId} onDelivered={() => refreshAlerts((value) => value + 1)} />
 
               {/* Telegram Connection Widget */}
               <div className="telegram-widget-card">
@@ -742,25 +692,27 @@ export function AgriculturalDashboard({
                   <p>
                     Status:{" "}
                     <strong className="text-good">
-                      {telegramStatus?.connected ? "Connected & Active" : "Ready to Link"}
+                      {telegramStatus === null ? "Status unavailable" : !telegramStatus ? "Checking…" : telegramStatus.connected ? "Connected" : "Not connected"}
                     </strong>{" "}
                    {telegramStatus?.botUsername && <> · Bot: <strong>@{telegramStatus.botUsername}</strong></>}
                   </p>
                   <p className="tg-desc">
-                    Receive actionable alerts on rainfall forecasts, soil water-stress, and stage milestones
-                    with zero subscription fees.
+                    Delivery depends on your subscription and the evidence available for this farm.
                   </p>
                 </div>
                 <div className="tg-cta">
                   <button className="tg-connect-btn" onClick={() => navigate(farmPath)}>
-                    {telegramStatus?.connected ? "Open farm workspace" : "Set up Telegram"}
+                    {telegramStatus?.connected ? "Manage farm" : "Open Telegram settings"}
                   </button>
                 </div>
               </div>
 
               {/* Active Alerts List */}
               <div className="alerts-full-section">
-                <h3>Current Enqueued Alerts</h3>
+                <h3>Farm alerts</h3>
+                {alertErrors.map((item) => <ErrorState key={item} label={item} />)}
+                {(alertErrors.length > 0 || telegramStatus === null) &&
+                  <button className="secondary-button" onClick={() => refreshAlerts((value) => value + 1)}>Refresh alerts</button>}
                 <div className="alerts-table-wrap">
                   <table className="alerts-table">
                     <thead>
@@ -774,8 +726,8 @@ export function AgriculturalDashboard({
                       </tr>
                     </thead>
                     <tbody>
-                      {notifications.map((n, i) => (
-                        <tr key={i}>
+                      {notifications?.map((n) => (
+                        <tr key={n.id}>
                           <td>
                             <span className={`cat-tag ${n.category}`}>{n.category}</span>
                           </td>
@@ -788,17 +740,17 @@ export function AgriculturalDashboard({
                             <p className="table-sub">{n.payload?.suggestedAction || n.payload?.evidence}</p>
                           </td>
                           <td>
-                            <span className="status-badge delivered">
-                              {n.delivery?.status || "delivered"}
+                            <span className={`status-badge ${n.delivery?.status || ""}`}>
+                              {n.delivery?.status?.replaceAll("_", " ") || "Status unavailable"}
                             </span>
                           </td>
-                          <td>{n.delivery?.channel || "In-App"}</td>
+                          <td>{n.delivery?.channel || "—"}</td>
                         </tr>
                       ))}
-                      {notifications.length === 0 && (
+                      {notifications?.length === 0 && (
                         <tr>
                           <td colSpan={6} className="text-center">
-                            No alerts found. Click 'Trigger Real-Time Weather Push' to test!
+                            No alerts have been recorded for this farm.
                           </td>
                         </tr>
                       )}
@@ -809,10 +761,10 @@ export function AgriculturalDashboard({
 
               {/* Delivery History Log */}
               <div className="deliveries-log-section">
-                <h3>Telegram Delivery Outbox Log</h3>
+                <h3>Telegram delivery history</h3>
                 <div className="deliveries-grid">
-                  {deliveries.slice(0, 5).map((d, i) => (
-                    <div key={i} className="delivery-card">
+                  {deliveries?.slice(0, 5).map((d) => (
+                    <div key={d.deliveryId} className="delivery-card">
                       <div className="deliv-top">
                         <span className="deliv-id">Delivery #{d.deliveryId?.slice(0, 8)}</span>
                         <span className={`deliv-status ${d.status}`}>{d.status}</span>
@@ -821,10 +773,10 @@ export function AgriculturalDashboard({
                         <strong>Attempts:</strong> {d.attempts} | <strong>Msg ID:</strong>{" "}
                         {d.telegramMessageId ?? "Pending"}
                       </p>
-                      <small>Timestamp: {d.updatedAt || "Just now"}</small>
+                      <small>Timestamp: {d.updatedAt ? new Date(d.updatedAt).toLocaleString() : "Unavailable"}</small>
                     </div>
                   ))}
-                  {deliveries.length === 0 && (
+                  {deliveries?.length === 0 && (
                     <p className="no-events">No delivery logs recorded yet.</p>
                   )}
                 </div>

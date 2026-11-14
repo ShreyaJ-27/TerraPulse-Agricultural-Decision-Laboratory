@@ -112,15 +112,15 @@ export function TopHeader({
     <header className="top-header">
       <button className="menu-button" onClick={onMenu} aria-label={copy.menu}>☰</button>
       <div><p className="breadcrumb">TerraPulse <span>/</span> {title}</p><h1>{title}</h1><p className="header-subtitle">{subtitle}</p></div>
-      <div className="header-actions"><ConnectionStatus copy={copy} /><LanguageSelector locale={locale} onChange={onLocaleChange} label={copy.language} /><span className="profile-placeholder" aria-label="Profile placeholder">SJ</span></div>
+      <div className="header-actions"><ConnectionStatus copy={copy} /><LanguageSelector locale={locale} onChange={onLocaleChange} label={copy.language} /></div>
     </header>
   );
 }
 
-export function AppShell({ children, ...props }: { children: ReactNode } & Omit<Parameters<typeof Sidebar>[0], "children"> & Omit<Parameters<typeof TopHeader>[0], "onMenu">) {
+export function AppShell({ children, farmWorkspace = false, ...props }: { children: ReactNode; farmWorkspace?: boolean } & Omit<Parameters<typeof Sidebar>[0], "children"> & Omit<Parameters<typeof TopHeader>[0], "onMenu">) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="app-shell">
+    <div className={farmWorkspace ? "app-shell farm-workspace-shell" : "app-shell"}>
       <div className={`sidebar-wrap ${menuOpen ? "open" : ""}`}><Sidebar {...props} onNavigate={(route) => { setMenuOpen(false); props.onNavigate(route); }} /></div>
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation" />}
       <div className="app-main"><TopHeader {...props} onMenu={() => setMenuOpen(true)} /><div className="content-wrap">{children}</div></div>

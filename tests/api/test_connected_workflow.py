@@ -18,7 +18,7 @@ from app.models import (
     Farm, TimelineEvent,
 )
 from app.routers.analysis import get_analysis_service
-from app.routers.environment import _store_snapshot
+from app.services.environmental.service import EnvironmentalInputService
 from app.routers.farms import get_onboarding_service
 from app.services.farmer_alerts import persistence
 from app.services.farmer_alerts.models import (
@@ -50,10 +50,10 @@ def test_saved_farm_link_redeems_across_browsers(monkeypatch):
 def test_repeat_and_concurrent_snapshot_prepare_preserve_provenance(monkeypatch):
     use_real_services(monkeypatch)
     with asyncio.Runner(loop_factory=new_event_loop) as runner:
-        runner.run(check_snapshot_identity())
+        runner.run(check_snapshot_identity(monkeypatch))
 
 
-async def check_snapshot_identity():
+async def check_snapshot_identity(monkeypatch):
     farm_id = None
     try:
         async with httpx.AsyncClient(
@@ -72,23 +72,48 @@ async def check_snapshot_identity():
             assert response.status_code == 201
             plot_id = UUID(response.json()["data"]["plotId"])
 
-            async def store(second, *, valid=False):
-                timestamp = f"2026-11-14T00:00:{second:02d}+00:00"
-                async with SessionFactory() as session:
-                    return await _store_snapshot(session, farm_id, plot_id, {
-                        "status": "available" if valid else "missing", "isValid": valid,
-                        "planting": {"date": None, "certainty": "unconfirmed"},
-                        "simulationBlocker": None,
-                        "c1Input": {
-                            "simulationPeriod": {"startDate": "2026-11-10", "endDate": "2026-11-14"},
-                            "retrievedAt": timestamp,
-                            "provenance": [{"sourceId": "test:source", "retrievedAt": timestamp}],
-                        },
-                    })
+            class PreparedInput:
+                def __init__(self, data):
+                    self.data = data
 
-            first, second = await asyncio.gather(store(1), store(2))
-            assert first == second == await store(3)
-            recovered = await store(4, valid=True)
+                def model_dump(self, **kwargs):
+                    return self.data
+
+            retrievals = 0
+
+            async def prepare(_service, **kwargs):
+                nonlocal retrievals
+                retrievals += 1
+                timestamp = f"2026-11-14T00:00:{retrievals:02d}+00:00"
+                valid = kwargs["force_refresh"]
+                return PreparedInput({
+                    "status": "available" if valid else "missing", "isValid": valid,
+                    "c1Input": {
+                        "simulationPeriod": {"startDate": "2026-11-10", "endDate": "2026-11-14"},
+                        "retrievedAt": timestamp,
+                        "provenance": [{"sourceId": "test:source", "retrievedAt": timestamp}],
+                    },
+                })
+
+            monkeypatch.setattr(EnvironmentalInputService, "prepare", prepare)
+            request = {
+                "farmId": str(farm_id), "plotId": str(plot_id),
+                "simulationPeriod": {"startDate": "2026-11-10", "endDate": "2026-11-14"},
+            }
+            path = "/api/v1/environment/prepare"
+            other = {"Authorization": "Bearer " + uuid4().hex + uuid4().hex}
+            denied = await client.post(path, json=request, headers=other)
+            assert denied.status_code in {403, 404}
+            assert retrievals == 0
+
+            async def collect(*, valid=False):
+                response = await client.post(path, json={**request, "forceRefresh": valid}, headers=owner)
+                assert response.status_code == 200, response.text
+                return response.json()["data"]
+
+            first, second = await asyncio.gather(collect(), collect())
+            assert first == second == await collect()
+            recovered = await collect(valid=True)
             assert first["environmentalSnapshotId"] != recovered["environmentalSnapshotId"]
             async with SessionFactory() as session:
                 sources = (await session.scalars(select(EnvironmentalProvenance).where(

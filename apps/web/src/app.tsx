@@ -2,6 +2,7 @@ import { FarmerApp } from "./FarmerApp";
 import { WorkspaceFeature, WorkspaceFeatures } from "./components/WorkspaceFeatures";
 import { TelegramConnect } from "./components/TelegramConnect";
 import { PitchAlertControl } from "./components/PitchAlertControl";
+import { farmOptionLabel } from "./components/farmLabels";
 import { FarmOpenLink } from "./components/FarmOpenLink";
 import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useState } from "react";
 import { AppShell, Route } from "./components/layout";
@@ -37,7 +38,7 @@ function FarmList({ navigate, copy }: { navigate: (path: string) => void; copy: 
   }, []);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>;
   if (!farms) return <PageContainer><LoadingState label="Loading saved farms…" /></PageContainer>;
-  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms on this browser yet" description="Already registered? Send /open in your connected TerraPulse Telegram chat and tap the link to restore your saved farms. No re-registration needed." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farm.location.latitude.toFixed(4)}, {farm.location.longitude.toFixed(4)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
+  return <PageContainer><div className="page-intro"><p className="eyebrow">01 / Registered farms</p><h2>Your farms</h2><p>Connect to persisted farm records and continue into a plot workspace.</p><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><button className="primary-button" onClick={() => navigate("/farms/new")}>Register New Farm <span>→</span></button><button className="secondary-button" onClick={() => navigate("/assisted")}>{copy.interactionTitle} <span>🎙</span></button></div></div>{farms.length === 0 ? <EmptyState title="No farms on this browser yet" description="Already registered? Send /open in your connected TerraPulse Telegram chat and tap the link to restore your saved farms. No re-registration needed." action={<button className="secondary-button" onClick={() => navigate("/farms/new")}>Register New Farm</button>} /> : <div className="card-grid">{farms.map((farm) => <button className="info-card farm-card" key={farm.farmId} onClick={() => navigate(`/farms/${farm.farmId}`)}><span className="card-number">{farm.plots.length} plots</span><h3>{farm.name}</h3><p>{farmOptionLabel(farm, false)}</p><span className="card-link">Open farm ↗</span></button>)}</div>}</PageContainer>;
 }
 
 function FarmWizard({
@@ -75,7 +76,7 @@ function FarmWizard({
     regionId: "",
     certainty: "confirmed",
     plantingDate: "",
-    query: "",
+    query: existingFarmId ? new URLSearchParams(window.location.search).get("crop") || "" : "",
     cropId: "",
     crop: undefined as Crop | undefined,
   });
@@ -592,11 +593,12 @@ function FarmDetail({ farmId, navigate }: { farmId: string; navigate: (path: str
   }, [farmId]);
   if (error) return <PageContainer><ErrorState label={error} /></PageContainer>; if (!farm) return <PageContainer><LoadingState label="Loading farm…" /></PageContainer>;
   return <PageContainer><div className="page-intro"><p className="eyebrow">Farm workspace</p><h2>{farm.name}</h2><p>{farm.location.latitude}, {farm.location.longitude} · {farm.timezone}</p><button className="primary-button" onClick={() => navigate(`/farms/${farm.farmId}/plots/new`)}>Add plot <span>→</span></button></div><div className="card-grid">{farm.plots.map((plot) => <button className="info-card farm-card" key={plot.plotId} onClick={() => navigate(`/farms/${farm.farmId}/plots/${plot.plotId}`)}><h3>{plot.cropCanonicalName}</h3><p>{plot.areaM2.value} m² · {plot.plantingDate || "Planting date unavailable"}</p><span className="card-link">Open evidence ↗</span></button>)}</div><section className="form-panel"><div className="form-actions">
+    <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}`)}>Farm dashboard</button>
     <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=calendar`)}>Agricultural Calendar</button>
     <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&tab=living-field`)}>Living Field</button>
     <button className="secondary-button" onClick={() => navigate(`/saved-decisions/${farmId}`)}>Saved Decisions</button>
     <button className="secondary-button" onClick={() => navigate(`/advisory/${farmId}`)}>Advisory</button>
-    <button className="secondary-button" onClick={connect}>Set up Telegram</button>
+    <button className="secondary-button" onClick={connect}>Get Telegram link</button>
     </div>{telegramError && <ErrorState label={telegramError} />}<TelegramConnect url={telegramUrl} /></section><PitchAlertControl farmId={farmId} /><ResourcePanel farm={farm} /></PageContainer>;
 }
 
@@ -646,15 +648,17 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
     } catch (e) { setError(message(e)); }
     finally { setPending(undefined); }
   };
-  const prepare = async () => {
-    if (!startDate || !dateReady || pending) return;
+  const prepare = async (forceRefresh = false, recent = false) => {
+    if (pending || (!recent && (!startDate || !dateReady))) return;
+    const recentStart = new Date(Date.parse(today) - 6 * 86_400_000).toISOString().slice(0, 10);
+    const simulationPeriod = recent ? { startDate: recentStart, endDate: today } : { startDate, endDate };
     setPending("prepare");
     setError("");
     setEnvironment(undefined);
     try {
       setEnvironment(await apiClient.prepareEnvironment({
-        farmId, plotId, simulationPeriod: { startDate, endDate },
-        requestedOutputs: [], includeEnsemble: false, forceRefresh: false,
+        farmId, plotId, simulationPeriod,
+        requestedOutputs: [], includeEnsemble: false, forceRefresh, requireQuantitativeSimulation: !recent,
       }));
     } catch (e) { setError(message(e)); }
     finally { setPending(undefined); }
@@ -681,6 +685,7 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
         <p>{farm.name} · {plot.areaM2.value} m²</p>
         <p>Planting date {startDate || "unavailable"}{startDate && !dateReady ? " (needs confirmation)" : ""}</p>
         <div className="workspace-links">
+          <button className="secondary-button" onClick={() => navigate(`/dashboard?farmId=${farmId}&plotId=${plotId}`)}>Farm dashboard</button>
           <button className="secondary-button" disabled={Boolean(pending)} onClick={() => {
             setPlantingDate(startDate || "");
             setEditing(true);
@@ -702,11 +707,16 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
       <p>{dateReady
         ? `Evidence period ${startDate} to ${endDate}${startDate === today ? " (includes forecast days)" : ""}.`
         : "Confirm the actual planting date to prepare evidence for this crop."}</p>
-      <button className="primary-button" disabled={!dateReady || editing || Boolean(pending)} onClick={prepare}>
-        {pending === "prepare" ? "Preparing evidence…" : "Prepare evidence"}
-      </button>
+      <div className="workspace-links">
+        <button className="primary-button" disabled={!dateReady || editing || Boolean(pending)} onClick={() => void prepare()}>
+          {pending === "prepare" && dateReady ? "Preparing evidence…" : "Prepare evidence"}
+        </button>
+        {!dateReady && <button className="secondary-button" disabled={editing || Boolean(pending)}
+          onClick={() => void prepare(false, true)}>{pending === "prepare" ? "Collecting conditions…" : "Collect recent conditions"}</button>}
+      </div>
       {error && <ErrorState label={error} />}
       {environment && <>
+        {!dateReady && <p>Recent environmental conditions · This period is independent of the crop’s planting date.</p>}
         <div className="evidence-grid">
           <ReusableCard>
             <h3>Soil profile</h3>
@@ -735,6 +745,13 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
             {Boolean(environment.errors?.length) && <ul>{environment.errors?.map((item) => <li key={item}>{item}</li>)}</ul>}
             <p>{environment.warnings?.join(" ")}</p>
             {environment.retrievedAt && <p>Snapshot collected {new Date(environment.retrievedAt).toLocaleString()}</p>}
+            {Boolean(environment.provenance?.length) && <ul>
+              {environment.provenance?.map((source, index) => <li key={source.sourceId + index}>
+                {source.sourceId}{source.sourceVersion && ` · ${source.sourceVersion}`}
+              </li>)}
+            </ul>}
+            {!environment.isValid && <button className="secondary-button" disabled={editing || Boolean(pending)}
+              onClick={() => void prepare(true, !dateReady)}>Retry source collection</button>}
           </ReusableCard>
         </div>
         {canRun && <div className="workspace-links">
@@ -749,7 +766,9 @@ function Evidence({ farmId, plotId, navigate }: { farmId: string; plotId: string
           </button>
         </div>}
         <div className="workspace-links">
-          <button className="secondary-button" onClick={() => navigate(`${plotPath}/timeline?snapshot=${environment.environmentalSnapshotId}`)}>Decision timeline</button>
+          <button className="secondary-button" onClick={() => navigate(`${plotPath}/timeline?${new URLSearchParams({
+            snapshot: environment.environmentalSnapshotId, ...(dateReady && startDate ? { date: startDate } : {}),
+          })}`)}>Decision timeline</button>
           <button className="secondary-button" onClick={() => navigate(`${plotPath}/future-fold`)}>Future Fold</button>
         </div>
       </>}
@@ -864,14 +883,18 @@ export function App() {
     "/living-field": "living-field",
     "/saved-decisions": "timeline",
     "/timeline": "timeline",
+    "/alerts": "notifications",
+    "/water-ledger": "water",
   };
 
-  const scopedFeature = path.match(/^\/(advisory|advisories|saved-decisions|crop-planning)\/([^/]+)$/);
+  const scopedFeature = path.match(/^\/(advisory|advisories|saved-decisions|crop-planning|calendar|future-fold|living-field|alerts|water-ledger)\/([^/]+)$/);
   const directTab = directTabMap[scopedFeature ? `/${scopedFeature[1]}` : path];
   if (path === "/dashboard" || path.startsWith("/dashboard/") || path === "/demo" || directTab) {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedTab = urlParams.get("tab") || "overview";
-    const tabParam = directTab || directTabMap[`/${requestedTab}`] || requestedTab;
+    const resolvedTab = directTab || directTabMap[`/${requestedTab}`] || requestedTab;
+    const tabParam = [...Object.values(directTabMap), "overview", "notifications", "water"].includes(resolvedTab)
+      ? resolvedTab : "overview";
     const storedFarmId = window.localStorage.getItem("terrapulse-active-farm-id");
     const explicitFarmId = scopedFeature?.[2] || urlParams.get("farmId");
     const farmIdParam = explicitFarmId || storedFarmId || "";
@@ -943,6 +966,7 @@ export function App() {
   return (
     <AppErrorBoundary copy={copy}>
       <AppShell
+        farmWorkspace={parts[0] === "farms" || path === "/farm" || path === "/connect"}
         route={route}
         copy={copy}
         locale={locale}
