@@ -416,9 +416,6 @@ class SoilGridsAdapter:
         # 4. Wilting Point (wv1500)
         wp_layer = parsed_layers.get("wv1500")
         wp_val = aggregate(wp_layer)
-        if using_wcs and fc_val is None and wp_val == 0:
-            # A zero wilting point can be valid only with a usable hydraulic profile.
-            wp_val = None
         wp_m = _build_measurement(
             wp_val,
             unit="m3/m3",

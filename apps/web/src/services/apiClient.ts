@@ -59,6 +59,8 @@ export const apiClient = {
   listResources: (farmId: string) => api<{ resources: Resource[] }>(`/api/v1/farms/${farmId}/resources`),
   createResource: (farmId: string, value: unknown) => api<Resource>(`/api/v1/farms/${farmId}/resources`, { method: "POST", body: JSON.stringify(value) }),
   assignResourcePlot: (farmId: string, resourceId: string, plotId: string) => api<unknown>(`/api/v1/farms/${farmId}/resources/${resourceId}/plots/${plotId}`, { method: "POST" }),
+  listWaterLedgerVersions: (farmId: string, resourceId: string, branchId: string) =>
+    api<{ versions: WaterLedgerVersion[] }>(`/api/v1/farms/${farmId}/resources/${resourceId}/branches/${branchId}/ledger/versions`),
   resolveCrop: (query: string) => api<CropResolution>(`/api/v1/crops/resolve?q=${encodeURIComponent(query)}`),
   prepareEnvironment: (value: unknown) => api<Environment>(`/api/v1/environment/prepare`, { method: "POST", body: JSON.stringify(value) }),
   listSimulations: (farmId: string, plotId: string) => api<{ simulations: Simulation[]; total: number }>(`/api/v1/farms/${farmId}/plots/${plotId}/simulations`),
@@ -75,11 +77,11 @@ export const apiClient = {
   analyzeFarm: (payload: AnalysisRequest) =>
     api<AnalysisResult>("/api/v1/analysis", { method: "POST", body: JSON.stringify(payload) }),
   listNotifications: (farmId: string) =>
-    api<{ farmId: string; notifications: any[]; total: number }>(`/api/v1/notifications/farms/${farmId}`),
+    api<{ farmId: string; notifications: FarmNotification[]; total: number }>(`/api/v1/notifications/farms/${farmId}`),
   getTelegramStatus: (farmId: string) =>
     api<{ farmId: string; connected: boolean; botUsername: string; subscriptionCount: number; subscriptions: any[] }>(`/api/v1/notifications/telegram/status/${farmId}`),
   getDeliveries: (farmId: string) =>
-    api<{ farmId: string; deliveries: any[]; total: number }>(`/api/v1/notifications/deliveries/${farmId}`),
+    api<{ farmId: string; deliveries: TelegramReceipt[]; total: number }>(`/api/v1/notifications/deliveries/${farmId}`),
   getAgriCalendarSeasons: () =>
     api<{ seasons: any[]; total: number }>("/api/v1/agri-calendar/seasons"),
   getAgriCalendarRegional: (regionId: string) =>
@@ -90,6 +92,23 @@ export const apiClient = {
     api<any>(`/api/v1/advisory/regions/${regionId}/crops/${cropId}`),
   generateCustomCalendar: (payload: any) =>
     api<any>("/api/v1/agri-calendar/generate", { method: "POST", body: JSON.stringify(payload) }),
+};
+
+type FarmNotification = {
+  id: string;
+  category: string;
+  kind: string;
+  eventDate: string;
+  payload?: { cropName?: string; title?: string; suggestedAction?: string; evidence?: string };
+  delivery?: { status?: string; channel?: string };
+};
+
+type TelegramReceipt = {
+  deliveryId: string;
+  status: string;
+  attempts: number;
+  telegramMessageId?: number;
+  updatedAt?: string;
 };
 
 export type CropInteraction = {
@@ -122,6 +141,10 @@ export type CalendarPlot = {
   next31Days: { date: string; endDate?: string; title: string; action: string; source: string; sourceVersion?: string; certainty: string }[];
   undatedActivities: { title: string; guidance: string; source: string; sourceVersion?: string }[];
 };
+export type WaterLedgerVersion = { ledgerId: string; version: number; ledgerHash: string; payload: {
+  openingVolume: Measurement; closingVolume: Measurement; losses: Measurement;
+  plotAllocations: { plotId: string; withdrawnAmount: Measurement; effectiveAmount: Measurement }[];
+} };
 export type Resource = { resourceId: string; farmId: string; name: string; resourceType: string; unit: string; openingVolume: number; metadata?: Record<string, unknown>; createdAt?: string };
 export type Crop = {
   cropId: string;

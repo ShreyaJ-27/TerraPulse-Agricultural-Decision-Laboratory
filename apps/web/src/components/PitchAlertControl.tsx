@@ -1,54 +1,74 @@
-import { useEffect, useState } from "react";
-import { apiClient } from "../services/apiClient";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, apiClient } from "../services/apiClient";
 
-type PitchStatus = { available: boolean; connected?: boolean; cooldownSeconds?: number };
+type PitchStatus = Awaited<ReturnType<typeof apiClient.getPitchAlertStatus>>;
 
-/** Only appears for the explicitly allowed farm; the server authorizes every send. */
-export function PitchAlertControl({ farmId }: { farmId: string }) {
+export function PitchAlertControl({ farmId, onDelivered }: { farmId: string; onDelivered?: () => void }) {
   const [status, setStatus] = useState<PitchStatus>();
+  const [statusError, setStatusError] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
+  const requestId = useRef<string>(undefined);
 
   useEffect(() => {
     let active = true;
-    apiClient.getPitchAlertStatus(farmId)
-      .then((value) => { if (active) setStatus(value); })
-      .catch(() => { if (active) setStatus({ available: false }); });
+    apiClient.getPitchAlertStatus(farmId).then((value) => {
+      if (!active) return;
+      setStatus(value);
+      setCountdown(value.cooldownSeconds ?? 0);
+      setStatusError(false);
+    }).catch(() => { if (active) setStatusError(true); });
     return () => { active = false; };
-  }, [farmId]);
+  }, [farmId, refresh]);
 
-  if (!status?.available) return null;
+  useEffect(() => {
+    if (countdown === 0) return;
+    const timer = window.setTimeout(() => setCountdown(countdown - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown]);
 
-  const send = async () => {
-    if (busy) return;
+  async function send() {
+    if (busy || !status?.connected || countdown > 0 || statusError) return;
     setBusy(true);
     setResult("");
+    requestId.current ??= crypto.randomUUID();
     try {
-      const receipt = await apiClient.sendPitchAlert(farmId, crypto.randomUUID());
-      if (!receipt.sent) throw new Error("Telegram delivery was not confirmed.");
-      setResult("Rainfall watch delivered to your connected Telegram.");
-      setStatus({ ...status, cooldownSeconds: 90 });
-    } catch (err) {
-      setResult(err instanceof Error ? err.message : "The alert could not be delivered.");
+      const receipt = await apiClient.sendPitchAlert(farmId, requestId.current);
+      requestId.current = undefined;
+      if (!receipt.sent) {
+        setResult("Telegram delivery was not confirmed.");
+        return;
+      }
+      setResult("Sample rainfall watch delivered to the connected Telegram chat.");
+      setCountdown(90);
+      onDelivered?.();
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0 && error.status < 500) requestId.current = undefined;
+      setResult(error instanceof Error ? error.message : "Telegram delivery could not be verified.");
     } finally {
       setBusy(false);
+      setRefresh((value) => value + 1);
     }
-  };
+  }
 
-  return <section className="form-panel" aria-label="Rainfall watch presentation control">
-    <p className="eyebrow">Rainfall watch</p>
-    <h3>Send a rainfall watch to Telegram</h3>
-    <p>Illustrate how TerraPulse delivers a timely field advisory to an opted-in farmer.</p>
-    <button className="primary-button" type="button"
-      disabled={busy || !status.connected || (status.cooldownSeconds ?? 0) > 0}
-      onClick={send}>
-      {busy ? "Sending…" : "Send rainfall watch ↗"}
-    </button>
-    {!status.connected && <p>Connect Telegram for this farm first.</p>}
-    {(status.cooldownSeconds ?? 0) > 0 && <p>Alert sent recently. Reopen this farm after the cooldown to send again.</p>}
+  return <section className="form-panel rainfall-watch" aria-label="Rainfall Watch">
+    <h3>Rainfall Watch</h3>
+    <details>
+      <summary>Preview a sample alert</summary>
+      <p><strong>Illustrative scenario.</strong> Rain is expected in this example. Check field drainage and review planned irrigation before watering.</p>
+    </details>
+    {!status && !statusError && <p role="status">Checking manual delivery…</p>}
+    {statusError && <p role="status">Manual delivery status is unavailable. <button type="button"
+      className="secondary-button" onClick={() => setRefresh((value) => value + 1)}>Retry status</button></p>}
+    {status?.available && <div className="form-actions">
+      <button className="primary-button" type="button" disabled={busy || statusError || !status.connected || countdown > 0}
+        onClick={() => void send()}>{busy ? "Sending…" : "Send sample to Telegram"}</button>
+      {!status.connected && <p>Connect Telegram for this farm first.</p>}
+      {countdown > 0 && <p>Next send available in {countdown}s.</p>}
+    </div>}
+    {status && !status.available && !statusError && <p>Manual Telegram delivery is unavailable for this farm.</p>}
     {result && <p role="status">{result}</p>}
-    <p style={{ fontSize: "0.875em", opacity: 0.7 }}>
-      Scenario illustration · Not a live weather forecast
-    </p>
   </section>;
 }

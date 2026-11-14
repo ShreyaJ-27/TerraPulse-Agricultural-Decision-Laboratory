@@ -105,7 +105,7 @@ class SoilGridsWcsClient:
             value = sample_geotiff(content, lat, lon)
             if value is None or value in {-32768, -9999}:
                 value, error = None, "NoData at the requested coordinate"
-            elif value == 0 and prop in {"bdod", "wv0033"}:
+            elif value == 0 and prop in {"bdod", "wv0033", "wv1500"}:
                 value, error = None, "Zero is invalid for this soil property"
         except httpx.HTTPStatusError as exc:
             error = f"HTTP {exc.response.status_code}"
