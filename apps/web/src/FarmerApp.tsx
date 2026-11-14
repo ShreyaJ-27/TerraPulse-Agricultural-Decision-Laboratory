@@ -251,7 +251,7 @@ function Fold({ plots, id, topic, plan, update, navigate, today }: { plots: Crop
   const decisionKey = cycle && cycle + "-" + key;
   const saved = decisionKey ? plan.decisions[decisionKey] : undefined;
   return <>
-    <Intro title="Future Fold" action={<Link to="/living-field" navigate={navigate}>Open Living Field →</Link>}>Compare practical options for your next crop decision.</Intro>
+    <Intro title="Future Fold" action={<Link to="/dashboard?tab=future-fold" navigate={navigate}>Open the science workspace →</Link>}>The illustrated options below are not model results. Turmeric comparisons run in the science workspace.</Intro>
     <div className="fp-filters"><Tag tone="fp-amber">Example comparison</Tag>{plot && <label>Crop / plot<select value={plot.id} onChange={(event) => navigate("/future-fold/" + event.target.value + "/" + key)}>{plots.map((item) => <option value={item.id} key={item.id}>{item.crop} · {item.plot} · Cycle {item.cycle}</option>)}</select></label>}</div>
     {id && id !== plot?.id && <p className="fp-muted">The linked crop is unavailable. Showing the current farm plan.</p>}
     {plot && decisionKey ? <>

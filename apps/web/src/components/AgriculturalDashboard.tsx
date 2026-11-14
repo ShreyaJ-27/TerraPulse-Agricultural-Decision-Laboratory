@@ -38,7 +38,7 @@ export function AgriculturalDashboard({
   const [_error, setError] = useState("");
 
   // Section States
-  const [selectedPlotId, setSelectedPlotId] = useState(PLOT_MAIZE_ID);
+  const [selectedPlotId, setSelectedPlotId] = useState(initialTab === "future-fold" ? PLOT_TURMERIC_ID : PLOT_MAIZE_ID);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
   const [deliveries, setDeliveries] = useState<any[]>([]);
@@ -86,7 +86,7 @@ export function AgriculturalDashboard({
       .getFarm(selectedFarmId)
       .then((res) => {
         setFarm(res);
-        if (res.plots && res.plots.length > 0) {
+        if (res.plots?.length && !res.plots.some((plot) => plot.plotId === selectedPlotId)) {
           setSelectedPlotId(res.plots[0].plotId);
         }
       })

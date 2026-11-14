@@ -5,11 +5,13 @@ import "./living-field.css";
 const FarmCanvas = lazy(() => import("./FarmCanvas"));
 
 type Metric = { label: string; value: string };
+export type FieldVisual = { waterStress?: number; soilWaterMm?: number };
 export type FieldScenario = {
   side: FieldSide;
   label: string;
   description?: string;
   metrics?: Metric[];
+  visual?: FieldVisual;
 };
 
 type Props = {
@@ -110,7 +112,7 @@ export function LivingFieldScene({
   return <section className="lf-shell" aria-label="Living Field" style={{ "--lf-accent": tint } as CSSProperties}>
     <div className="lf-stage">
       <div className="lf-stage-bar">
-        <div><span className="lf-dot" /><strong>{selected.label}</strong><span className="lf-date">{date}</span></div>
+        <div><span className="lf-dot" /><strong>{scenario.side === "alternative" ? "Alternative future" : "Original future"} · {selected.label}</strong><span className="lf-date">{date}</span></div>
         <div role="group" aria-label="Field view">
           {!unavailable && <button type="button" aria-pressed={mode === "farm"} onClick={() => setMode("farm")}>3D farm</button>}
           <button type="button" aria-pressed={mode === "map" || (unavailable && mode === "farm")} onClick={() => setMode("map")}>2D map</button>
@@ -120,7 +122,7 @@ export function LivingFieldScene({
       <div className="lf-viewport">
         {canvas ? <SceneBoundary onUnavailable={markUnavailable}>
           <Suspense fallback={<div className="lf-loading" role="status">Loading 3D farm…{map}</div>}>
-            <FarmCanvas layout={layout} selected={selected} side={scenario.side} reduced={reduced}
+            <FarmCanvas layout={layout} selected={selected} side={scenario.side} visual={scenario.visual} reduced={reduced}
               mode={mode === "soil" ? "soil" : "farm"} showRoots={showRoots} showMoisture={showMoisture} soilDepth={soilDepth}
               cameraCommand={cameraCommand} onSelect={select} onUnavailable={markUnavailable} />
           </Suspense>
